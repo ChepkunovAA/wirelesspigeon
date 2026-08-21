@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Архив просмотренных — Corpsman</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link th:href="@{/css/app.css}" rel="stylesheet">
+</head>
+<body class="bg-light">
+<nav th:replace="~{fragments/nav :: nav}"></nav>
+
+<main class="container pb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0"><i class="bi bi-archive"></i> Архив просмотренных</h1>
+        <a th:href="@{/cinema}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i> Назад</a>
+    </div>
+
+    <form th:action="@{/cinema/archive}" method="get" class="row g-2 mb-4">
+        <div class="col-md-6">
+            <input type="text" name="search" class="form-control" th:value="${search}" placeholder="Поиск по названию">
+        </div>
+        <div class="col-md-4">
+            <select name="censorship" class="form-select">
+                <option value="">Все цензурные рейтинги</option>
+                <option th:each="c : ${T(org.corpsman.cinema.model.CensorshipRating).values()}"
+                        th:value="${c}"
+                        th:selected="${censorship != null and censorship == c}"
+                        th:text="${c.displayName}">Эротика</option>
+            </select>
+        </div>
+        <div class="col-md-2 d-grid">
+            <button class="btn btn-primary"><i class="bi bi-search"></i> Найти</button>
+        </div>
+    </form>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-striped align-middle mb-0">
+                <thead class="table-dark">
+                <tr>
+                    <th>Название</th>
+                    <th>Кто предложил</th>
+                    <th>Рейтинг</th>
+                    <th>Цензура</th>
+                    <th>Дата просмотра</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="film : ${page.content}">
+                    <td th:text="${film.title}">Название</td>
+                    <td><a th:href="@{/profile/{id}(id=${film.proposerId})}"
+                           th:text="${film.proposerUsername}">username</a></td>
+                    <td>
+                        <span th:if="${film.totalVotes > 0}"
+                              th:text="${#numbers.formatDecimal(film.averageRating, 1, 1)} + ' ★ (' + ${film.totalVotes} + ')'">4.0 ★</span>
+                        <span th:unless="${film.totalVotes > 0}" class="text-muted">—</span>
+                    </td>
+                    <td>
+                        <span th:if="${film.censorship != null}" class="badge bg-danger"
+                              th:text="${film.censorship.displayName}">Эротика</span>
+                        <span th:unless="${film.censorship != null}" class="text-muted">—</span>
+                    </td>
+                    <td th:text="${#temporals.format(film.watchedAt, 'dd.MM.yyyy')}">01.01.2026</td>
+                </tr>
+                <tr th:if="${#lists.isEmpty(page.content)}">
+                    <td colspan="5" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox"></i> Просмотренных фильмов не найдено
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="card-body py-2">
+            <div th:replace="~{fragments/pagination :: pagination(${page}, ${baseUrl}, ${search}, ${censorship})}"></div>
+        </div>
+    </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
