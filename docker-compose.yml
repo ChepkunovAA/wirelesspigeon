@@ -16,7 +16,7 @@ services:
       timeout: 5s
       retries: 10
     networks:
-      - app-network 
+      - app-network
 
   app:
     build: .
@@ -28,8 +28,9 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/appdb
       SPRING_DATASOURCE_USERNAME: app_user
       SPRING_DATASOURCE_PASSWORD: secret
-    ports:
-      - "8080:8080"
+      COOKIE_SECURE: "true"
+    expose:
+      - "8080"
     volumes:
       - ./logs:/app/logs
       - ./uploads:/app/uploads
@@ -37,9 +38,30 @@ services:
       - app-network
     restart: on-failure
 
+  caddy:
+    image: caddy:2-alpine
+    container_name: corpsman-caddy
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - app-network
+    restart: unless-stopped
+
 networks:
   app-network:
     driver: bridge
 
 volumes:
   postgres_data:
+  caddy_data:
+  caddy_config:

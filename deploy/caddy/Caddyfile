@@ -1,0 +1,14 @@
+# Corpsman reverse proxy (автоматический HTTPS от Caddy).
+#
+# Продакшен с доменом:   SITE_ADDRESS=club.example.com
+# Локальная проверка:    SITE_ADDRESS=localhost   (внутренний CA Caddy)
+#
+# Редирект HTTP->HTTPS включается автоматически, если адрес содержит имя хоста.
+
+{$SITE_ADDRESS::443} {
+	encode gzip
+
+	reverse_proxy app:8080 {
+		header_up X-Real-IP {remote_host}
+	}
+}
