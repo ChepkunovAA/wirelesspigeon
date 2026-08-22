@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Участники — Corpsman</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link th:href="@{/css/app.css}" rel="stylesheet">
+</head>
+<body class="bg-light">
+<nav th:replace="~{fragments/nav :: nav}"></nav>
+
+<main class="container pb-5">
+    <h1 class="h3 mb-4"><i class="bi bi-people"></i> Участники</h1>
+
+    <div th:if="${success}" class="alert alert-success" th:text="${success}"></div>
+    <div th:if="${error}" class="alert alert-danger" th:text="${error}"></div>
+
+    <form th:action="@{/users}" method="get" class="row g-2 mb-4">
+        <div class="col">
+            <input type="text" name="search" class="form-control" placeholder="Поиск по нику…"
+                   th:value="${search}">
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Найти</button>
+        </div>
+        <div class="col-auto">
+            <a th:href="@{/users}" class="btn btn-outline-secondary">Сбросить</a>
+        </div>
+    </form>
+
+    <div th:if="${members.totalElements == 0}" class="text-center py-5 text-muted">
+        <i class="bi bi-people" style="font-size: 3rem;"></i>
+        <p class="mt-3 mb-0"
+           th:text="${#strings.isEmpty(search) ? 'Участников пока нет.' : 'Никого не найдено по запросу «' + search + '».'}">Пусто</p>
+    </div>
+
+    <div th:unless="${members.totalElements == 0}" class="table-responsive">
+        <table class="table table-hover align-middle bg-white rounded shadow-sm">
+            <thead class="table-light">
+            <tr>
+                <th>Пользователь</th>
+                <th class="text-center">Роль</th>
+                <th class="text-center">Последний вход</th>
+                <th class="text-end" sec:authorize="hasRole('MASTER')"></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="member : ${members}">
+                <td>
+                    <a th:href="@{/profile/{id}(id=${member.id})}" class="text-decoration-none">
+                        <i class="bi bi-person-circle me-2 text-secondary"></i>
+                        <span th:text="${member.username}">user</span>
+                    </a>
+                </td>
+                <td class="text-center">
+                    <span class="badge"
+                          th:classappend="${member.role.name() == 'MASTER'} ? 'text-bg-warning' : 'text-bg-secondary'"
+                          th:text="${member.role.name()}">USER</span>
+                </td>
+                <td class="text-center text-muted">
+                    <span th:if="${member.lastLoginAt != null}"
+                          th:text="${#temporals.format(member.lastLoginAt, 'dd.MM.yyyy HH:mm')}">01.01.2026 12:00</span>
+                    <span th:unless="${member.lastLoginAt != null}">—</span>
+                </td>
+                <td class="text-end text-nowrap" sec:authorize="hasRole('MASTER')">
+                    <form th:if="${member.role.name() == 'RESIDENT'} and ${member.id != currentUserId}"
+                          th:action="@{/users/{id}/ban(id=${member.id})}" method="post" class="d-inline"
+                          onsubmit="return confirm('Пользователь будет забанен и удалён с сайта. Продолжить?');">
+                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Забанить пользователя">
+                            <i class="bi bi-slash-circle"></i> Забанить
+                        </button>
+                    </form>
+                    <form th:if="${member.role.name() == 'RESIDENT'} and ${member.id != currentUserId}"
+                          th:action="@{/users/{id}/reset-password(id=${member.id})}" method="post" class="d-inline ms-1"
+                          onsubmit="return confirm('Сгенерировать новый пароль для пользователя?');">
+                        <button type="submit" class="btn btn-outline-warning btn-sm"
+                                title="Сбросить пароль (сгенерируется случайный)">
+                            <i class="bi bi-key"></i>
+                        </button>
+                    </form>
+                    <span th:if="${member.id == currentUserId}" class="badge text-bg-light border">Это вы</span>
+                    <span th:unless="${member.id == currentUserId}"
+                          th:if="${member.role.name() == 'MASTER'}"
+                          class="badge text-bg-light border" title="Администратора нельзя забанить">
+                        <i class="bi bi-shield-lock"></i> Бан недоступен
+                    </span>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <nav th:replace="~{fragments/pagination :: pagination(page=${members}, baseUrl='/users', search=${search}, censorship='')}"
+         th:if="${members.totalPages > 1}" aria-label="Пагинация"></nav>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

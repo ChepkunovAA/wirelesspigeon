@@ -30,6 +30,10 @@ public class UserSettings {
     @Column(name = "default_visibility", nullable = false, length = 20)
     private String defaultVisibility = "OPEN";
 
+    /** Новые треды по умолчанию только для чтения. */
+    @Column(name = "default_read_only", nullable = false)
+    private boolean defaultReadOnly;
+
     @Column(name = "show_public_posts", nullable = false)
     private boolean showPublicPosts = true;
 }

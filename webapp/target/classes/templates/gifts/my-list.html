@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Мой вишлист — Corpsman</title>
+    <meta name="_csrf" th:content="${_csrf.token}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link th:href="@{/css/app.css}" rel="stylesheet">
+    <style>[x-cloak]{display:none!important}</style>
+</head>
+<body class="bg-light">
+<nav th:replace="~{fragments/nav :: nav}"></nav>
+
+<main class="container pb-5" x-data="films()">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0"><i class="bi bi-gift"></i> Мой вишлист</h1>
+        <div class="btn-group">
+            <a th:href="@{/gifts/add}" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i> Добавить подарок</a>
+            <a th:href="@{/gifts/users}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-people"></i> Вишлисты друзей</a>
+        </div>
+    </div>
+
+    <div th:if="${success}" class="alert alert-success" th:text="${success}"></div>
+    <div th:if="${error}" class="alert alert-danger" th:text="${error}"></div>
+
+    <div th:if="${#lists.isEmpty(gifts)}" class="text-center py-5 text-muted">
+        <i class="bi bi-gift" style="font-size: 3rem;"></i>
+        <p class="mt-3 mb-1">Ваш вишлист пуст.</p>
+        <a th:href="@{/gifts/add}" class="btn btn-primary btn-sm">Добавить первый подарок</a>
+    </div>
+
+    <div th:unless="${#lists.isEmpty(gifts)}" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
+        <div class="col" th:each="gift : ${gifts}">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <h5 class="card-title mb-0" th:text="${gift.title}">Подарок</h5>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <a th:href="@{/gifts/edit/{id}(id=${gift.id})}" class="btn btn-outline-secondary" title="Редактировать">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <button type="button" class="btn btn-outline-danger" title="Удалить"
+                                        th:attr="data-id=${gift.id}, data-title=${gift.title}"
+                                        @click="askDelete($event)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <p th:if="${!#strings.isEmpty(gift.description)}" class="card-text text-muted mt-2"
+                       th:text="${gift.description}">Описание</p>
+
+                    <div class="mt-2">
+                        <span class="badge text-bg-light border">
+                            <i class="bi bi-gift"></i>
+                            <span th:text="${gift.limit == 0 ? 'Без лимита резервов' : 'Может подарить до ' + gift.limit + ' человек'}">
+                                Лимит
+                            </span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div x-cloak>
+        <div x-show="showDeleteModal" class="position-fixed top-0 start-0 w-100 h-100"
+             style="z-index: 1055" @keydown.escape.window="showDeleteModal = false">
+            <div class="w-100 h-100 bg-dark bg-opacity-50" @click="showDeleteModal = false"></div>
+            <div class="position-absolute top-50 start-50 translate-middle bg-white rounded-3 shadow p-4"
+                 style="width: min(90vw, 440px)">
+                <h5 class="mb-3">Удалить подарок?</h5>
+                <p class="mb-4">Подарок <strong x-text="deleteTitle"></strong> будет удалён вместе со всеми резервированиями.</p>
+                <div class="d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-secondary" @click="showDeleteModal = false">Отмена</button>
+                    <button type="button" class="btn btn-danger" @click="confirmDelete()">
+                        <i class="bi bi-trash"></i> Удалить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+<script>
+    document.addEventListener('alpine:init', () => {
+        const csrfHeader = document.querySelector('meta[name="_csrf_header"]').content;
+        const csrfToken = document.querySelector('meta[name="_csrf"]').content;
+        const csrfHeaders = () => ({[csrfHeader]: csrfToken});
+
+        Alpine.data('films', () => ({
+            showDeleteModal: false,
+            deleteId: null,
+            deleteTitle: '',
+            askDelete(event) {
+                const el = event.currentTarget;
+                this.deleteId = Number(el.dataset.id);
+                this.deleteTitle = el.dataset.title;
+                this.showDeleteModal = true;
+            },
+            async confirmDelete() {
+                const res = await fetch('/gifts/delete/' + this.deleteId, {method: 'POST', headers: csrfHeaders()});
+                if (res.ok) {
+                    this.showDeleteModal = false;
+                    window.location.reload();
+                }
+            }
+        }));
+    });
+</script>
+</body>
+</html>

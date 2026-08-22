@@ -72,10 +72,20 @@ public class PostService {
             throw new BusinessException(org.corpsman.common.exception.ErrorCode.PERMISSION_DENIED,
                     "Тред доступен только для чтения");
         }
-        if (topic.getVisibility() == org.corpsman.forum.model.TopicVisibility.CLOSED
-                && !canInteractClosedStrict(topic, userId)) {
-            throw new BusinessException(org.corpsman.common.exception.ErrorCode.PERMISSION_DENIED,
-                    "Вы не участник белого списка этого закрытого треда");
+        // Матрица записи по типу треда
+        org.corpsman.auth.model.User writer = userRepository.findById(userId).orElse(null);
+        boolean guest = writer != null && writer.getRole() == org.corpsman.auth.model.UserRole.GUEST;
+        // Публичные и гостевые — пишут все, кто видит тред;
+        // открытые — только резиденты+; закрытые — по белому списку
+        switch (topic.getVisibility()) {
+            case GUEST, PUBLIC -> { }
+            case CLOSED -> requireClosedInteraction(topic.getId(), userId);
+            default -> {
+                if (guest) {
+                    throw new BusinessException(org.corpsman.common.exception.ErrorCode.PERMISSION_DENIED,
+                            "В открытых тредах могут писать только резиденты");
+                }
+            }
         }
         if (request.getParentPostId() != null) {
             ForumPost parent = postRepository.findById(request.getParentPostId())
@@ -281,7 +291,7 @@ public class PostService {
             return false;
         }
         return userRepository.findById(userId)
-                .map(user -> user.getRole() == org.corpsman.auth.model.UserRole.ADMIN)
+                .map(user -> user.getRole() == org.corpsman.auth.model.UserRole.MASTER)
                 .orElse(false);
     }
 
@@ -324,7 +334,7 @@ public class PostService {
             return true;
         }
         User user = userRepository.findById(userId).orElse(null);
-        if (user != null && user.getRole() == UserRole.ADMIN) {
+        if (user != null && user.getRole() == UserRole.MASTER) {
             return false;
         }
         return whitelistRepository.existsByTopicIdAndUserId(topic.getId(), userId);

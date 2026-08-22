@@ -375,7 +375,7 @@ class ForumIntegrationTest {
     @Test
     void adminCreatesTopicAnonymouslyAndSeesRealAuthor() throws Exception {
         User admin = createUser("for_admin_11");
-        admin.setRole(UserRole.ADMIN);
+        admin.setRole(UserRole.MASTER);
         userRepository.save(admin);
         MockHttpSession session = login("for_admin_11");
 
@@ -395,7 +395,7 @@ class ForumIntegrationTest {
     @Test
     void adminDoesNotSeeRealAuthorForNonAnonymousTopic() throws Exception {
         User admin = createUser("for_admin_12");
-        admin.setRole(UserRole.ADMIN);
+        admin.setRole(UserRole.MASTER);
         userRepository.save(admin);
         User alice = createUser("for_alice_12");
         ForumTopic topic = addTopic(alice, "Обычный тред", false);
@@ -659,7 +659,7 @@ class ForumIntegrationTest {
         User user = new User();
         user.setUsername(username);
         user.setPasswordHash(passwordEncoder.encode(PASSWORD));
-        user.setRole(UserRole.USER);
+        user.setRole(UserRole.RESIDENT);
         user.setActive(true);
         return userRepository.save(user);
     }

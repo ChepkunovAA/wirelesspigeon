@@ -1,0 +1,3 @@
+org/corpsman/auth/service/AuthServiceTest.class
+org/corpsman/auth/service/TokenServiceTest.class
+org/corpsman/auth/service/SettingsServiceTest.class

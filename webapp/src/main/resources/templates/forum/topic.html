@@ -58,6 +58,7 @@
             </div>
         </div>
         <div class="d-flex gap-2 flex-shrink-0">
+            <span class="badge text-bg-success" th:if="${visibility == 'GUEST'}" title="Гости могут писать и модерировать"><i class="bi bi-people-fill"></i> Гостевой</span>
             <span class="badge text-bg-info" th:if="${visibility == 'PUBLIC'}" title="Виден всем и на главной"><i class="bi bi-megaphone"></i> Публичный</span>
             <span class="badge text-bg-secondary" th:if="${topic.readOnly}" title="Писать может только владелец треда"><i class="bi bi-book"></i> Только для чтения</span>
             <span class="badge text-bg-warning" th:if="${visibility == 'CLOSED'}" title="Виден только белому списку"><i class="bi bi-lock"></i> Закрытый</span>

@@ -67,7 +67,7 @@ class AuthServiceTest {
         verify(userRepository).save(captor.capture());
         assertThat(captor.getValue().getUsername()).isEqualTo("alice");
         assertThat(captor.getValue().getPasswordHash()).isEqualTo("encrypted");
-        assertThat(captor.getValue().getRole()).isEqualTo(UserRole.USER);
+        assertThat(captor.getValue().getRole()).isEqualTo(UserRole.RESIDENT);
         assertThat(captor.getValue().isActive()).isTrue();
         verify(tokenService).markTokenUsed(token);
         verify(eventPublisher).publishEvent(any(UserRegisteredEvent.class));

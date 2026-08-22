@@ -350,14 +350,14 @@ class CinemaIntegrationTest {
         User user = new User();
         user.setUsername(username);
         user.setPasswordHash(passwordEncoder.encode(PASSWORD));
-        user.setRole(UserRole.USER);
+        user.setRole(UserRole.RESIDENT);
         user.setActive(true);
         return userRepository.save(user);
     }
 
     private User createAdmin(String username) {
         User admin = createUser(username);
-        admin.setRole(UserRole.ADMIN);
+        admin.setRole(UserRole.MASTER);
         return userRepository.save(admin);
     }
 

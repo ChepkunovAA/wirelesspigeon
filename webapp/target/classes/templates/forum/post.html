@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="post(p, topic)" th:id="|post-${p.id}|" class="card shadow-sm mb-2">
+    <div class="card-body" x-data="{showReply: false, showThreadReply: false}">
+        <div class="d-flex justify-content-between align-items-start gap-2">
+            <div class="flex-grow-1 min-w-0">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-person-circle text-muted"></i>
+                <strong th:if="${!p.anonymous}">
+                    <a th:href="@{/profile/{id}(id=${p.authorId})}"
+                       class="text-decoration-none" th:text="${p.authorName}">Автор</a>
+                </strong>
+                <strong th:if="${p.anonymous}" th:text="${p.authorName}">Автор</strong>
+                <small class="text-muted" th:text="${#temporals.format(p.createdAt, 'dd.MM.yyyy HH:mm')}">дата</small>
+                <span th:if="${p.anonymous}" x-data="{show: false}" class="d-inline">
+                    <span th:if="${p.realAuthorName == null}" class="badge text-bg-dark" title="Анонимный комментарий">
+                        <i class="bi bi-incognito"></i> Аноним
+                    </span>
+                    <span th:if="${p.realAuthorName != null}" class="d-inline">
+                        <button type="button" class="badge text-bg-dark border-0 text-decoration-underline"
+                                @click="show = !show" title="Нажмите, чтобы увидеть автора">
+                            <i class="bi bi-incognito"></i> Аноним
+                        </button>
+                        <span x-show="show" x-cloak class="ms-1 text-danger fw-bold">
+                            <a th:href="@{/profile/{id}(id=${p.authorId})}" class="text-decoration-none"
+                               th:text="${p.realAuthorName}">имя</a>
+                        </span>
+                    </span>
+                </span>
+                <span th:if="${p.edited}" class="badge text-bg-light border" title="Отредактировано">
+                    <i class="bi bi-pencil"></i>
+                </span>
+            </div>
+
+            <div th:if="${p.parentContent != null}" class="small text-muted mt-2 mb-1 border-start ps-2">
+                <i class="bi bi-reply-fill"></i>
+                Ответ на комментарий <span class="text-body" th:text="${p.parentAuthorName}">автор</span>:
+                <span class="fst-italic" th:text="${p.parentContent}">...</span>
+            </div>
+
+            <p class="card-text mt-2 mb-0" th:attr="data-content=${p.content}">
+                <span th:if="${p.deleted and p.deletedByAdmin}" class="fst-italic text-muted">
+                    <i class="bi bi-shield-lock"></i> Удалено администратором
+                </span>
+                <span th:if="${p.deleted and !p.deletedByAdmin}" class="fst-italic text-muted">[Удалено]</span>
+                <span th:unless="${p.deleted}" th:style="${p.anonymous} ? 'font-style: italic;' : ''"
+                      th:text="${p.content}">Текст</span>
+            </p>
+            <div th:replace="~{forum/attachments :: attachments(${p.attachments}, '/forum/attachment')}"></div>
+            </div>
+            <div class="d-flex flex-column align-items-end gap-1 flex-shrink-0">
+                <div class="d-flex align-items-center gap-1">
+                <span x-data="react()" class="me-1"
+                      th:if="${!p.deleted}"
+                      th:attr="data-liked=${p.likedByCurrentUser},
+                               data-likes=${p.likes},
+                               data-disliked=${p.dislikedByCurrentUser},
+                               data-dislikes=${p.dislikes},
+                               data-own=${p.author},
+                               data-like-url=@{/forum/post/{id}/like(id=${p.id})},
+                               data-unlike-url=@{/forum/post/{id}/unlike(id=${p.id})},
+                               data-dislike-url=@{/forum/post/{id}/dislike(id=${p.id})},
+                               data-undislike-url=@{/forum/post/{id}/undislike(id=${p.id})}">
+                    <button type="button" class="btn btn-sm"
+                            :class="liked ? 'btn-primary' : 'btn-outline-primary'"
+                            :disabled="own"
+                            @click="toggleLike()"
+                            title="Нравится (свой комментарий нельзя оценить)">
+                        <i class="bi" :class="liked ? 'bi-hand-thumbs-up-fill' : 'bi-hand-thumbs-up'"></i>
+                        <span x-text="likes">0</span>
+                    </button>
+                    <button type="button" class="btn btn-sm"
+                            :class="disliked ? 'btn-danger' : 'btn-outline-danger'"
+                            :disabled="own"
+                            @click="toggleDislike()"
+                            title="Не нравится">
+                        <i class="bi" :class="disliked ? 'bi-hand-thumbs-down-fill' : 'bi-hand-thumbs-down'"></i>
+                        <span x-text="dislikes">0</span>
+                    </button>
+                </span>
+                <a th:if="${p.author}" th:href="@{/forum/post/{id}/edit(id=${p.id})}"
+                   class="btn btn-outline-secondary btn-sm" title="Редактировать">
+                    <i class="bi bi-pencil"></i>
+                </a>
+                <form th:if="${topic.canModerate and p.authorId != null and p.authorId != topic.topicAuthorId and !p.deleted}"
+                      th:action="@{/forum/topic/{id}/moderation/ban(id=${topic.id})}" method="post" class="d-inline">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                    <input type="hidden" name="userId" th:value="${p.authorId}"/>
+                    <input type="hidden" name="displayName" th:value="${p.anonymous ? 'Аноним' : p.authorName}"/>
+                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Забанить в треде"
+                            onclick="return confirm('Забанить автора в этом треде?')">
+                        <i class="bi bi-slash-circle"></i>
+                    </button>
+                </form>
+                <form th:if="${p.author or topic.canModerate}"
+                      th:action="@{/forum/post/{id}/delete(id=${p.id})}" method="post" class="d-inline">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                    <button type="submit" class="btn btn-outline-danger btn-sm" title="Удалить"
+                            onclick="return confirm('Удалить комментарий?')">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </form>
+                </div>
+                <div class="d-flex align-items-center gap-1">
+                <button th:if="${!topic.frozen and !topic.banned and !p.deleted and topic.canWrite}" type="button"
+                        class="btn btn-outline-secondary btn-sm" @click="showReply = !showReply"
+                        aria-label="Ответить">
+                    <i class="bi bi-reply"></i>
+                </button>
+                <button th:if="${!topic.frozen and !topic.banned and !p.deleted and topic.canWrite}" type="button"
+                        class="btn btn-outline-secondary btn-sm" @click="showThreadReply = !showThreadReply"
+                        aria-label="Ответить в ветке">
+                    <i class="bi bi-diagram-3"></i>
+                </button>
+                </div>
+            </div>
+        </div>
+
+        <div th:if="${!topic.frozen and !topic.banned and !p.deleted and topic.canWrite}" class="mt-2">
+            <form th:action="@{/forum/topic/{id}/comment(id=${topic.id})}" method="post"
+                  enctype="multipart/form-data"
+                  x-show="showReply" x-cloak class="mt-2">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <input type="hidden" name="parentId" th:value="${p.parentPostId}"/>
+                <input type="hidden" name="replyToId" th:value="${p.id}"/>
+                <textarea name="content" rows="2" class="form-control mb-2" required
+                          placeholder="Ваш ответ..."></textarea>
+                <input type="file" name="files" multiple class="form-control form-control-sm mb-2"/>
+                <div class="d-flex justify-content-between align-items-center">
+                    <label class="form-check-label small">
+                        <input type="checkbox" name="anonymous" class="form-check-input"/> Анонимно
+                    </label>
+                    <button type="submit" class="btn btn-sm btn-primary">Отправить</button>
+                </div>
+            </form>
+            <form th:action="@{/forum/topic/{id}/comment(id=${topic.id})}" method="post"
+                  enctype="multipart/form-data"
+                  x-show="showThreadReply" x-cloak class="mt-2">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <input type="hidden" name="parentId" th:value="${p.id}"/>
+                <textarea name="content" rows="2" class="form-control mb-2" required
+                          placeholder="Ответ в ветку..."></textarea>
+                <input type="file" name="files" multiple class="form-control form-control-sm mb-2"/>
+                <div class="d-flex justify-content-between align-items-center">
+                    <label class="form-check-label small">
+                        <input type="checkbox" name="anonymous" class="form-check-input"/> Анонимно
+                    </label>
+                    <button type="submit" class="btn btn-sm btn-primary">Отправить</button>
+                </div>
+            </form>
+        </div>
+
+        <div th:if="${!p.replies.isEmpty()}" class="mt-2"
+             x-data="{open: false}"
+             th:attr="data-topic-id=${topic.id}, data-post-id=${p.id}"
+             x-init="open = window.__subtreeOpen($el.dataset.topicId, $el.dataset.postId)">
+            <button type="button" class="btn btn-link btn-sm p-0"
+                    @click="open = !open; window.__setSubtree($el.closest('[data-post-id]').dataset.topicId, $el.closest('[data-post-id]').dataset.postId, open)">
+                <template x-if="!open">
+                    <span><i class="bi bi-chevron-right"></i> Раскрыть <span th:text="${p.subtreeSize}">0</span> <span th:text="${p.subtreeWord}">комментариев</span></span>
+                </template>
+                <template x-if="open">
+                    <span><i class="bi bi-chevron-down"></i> Свернуть</span>
+                </template>
+            </button>
+            <div x-show="open" x-cloak class="mt-2 ms-4 border-start ps-3">
+                <div th:each="reply : ${p.replies}"
+                     th:if="${!reply.deleted or reply.subtreeSize > 0 or reply.deletedByAdmin}">
+                    <div th:replace="~{forum/post :: post(${reply}, ${topic})}"></div>
+                </div>
+                <form th:if="${!topic.frozen and !topic.banned}"
+                      th:action="@{/forum/topic/{id}/comment(id=${topic.id})}" method="post"
+                      enctype="multipart/form-data" class="mt-3">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                    <input type="hidden" name="parentId" th:value="${p.id}"/>
+                    <textarea name="content" rows="2" class="form-control mb-2" required
+                              placeholder="Комментарий к этой ветке..."></textarea>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <label class="form-check-label small">
+                            <input type="checkbox" name="anonymous" class="form-check-input"/> Анонимно
+                        </label>
+                        <button type="submit" class="btn btn-sm btn-primary">Отправить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

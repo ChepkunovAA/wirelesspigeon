@@ -193,7 +193,7 @@ class SettingsIntegrationTest {
         User user = new User();
         user.setUsername(username);
         user.setPasswordHash(passwordEncoder.encode(PASSWORD));
-        user.setRole(UserRole.USER);
+        user.setRole(UserRole.RESIDENT);
         user.setActive(true);
         return userRepository.save(user);
     }
@@ -225,7 +225,7 @@ class SettingsIntegrationTest {
 
     @Test
     void adminCanResetForeignPasswordWithGeneratedValue() throws Exception {
-        User chief = createUser("set_chief_9", UserRole.ADMIN);
+        User chief = createUser("set_chief_9", UserRole.MASTER);
         User victim = createUser("set_victim_9");
         MockHttpSession session = login("set_chief_9");
 
@@ -247,7 +247,7 @@ class SettingsIntegrationTest {
 
     @Test
     void foreignProfileUsesRenamedLabelsWithTooltipsAndDivider() throws Exception {
-        User chief = createUser("set_chief_11", UserRole.ADMIN);
+        User chief = createUser("set_chief_11", UserRole.MASTER);
         User reader = createUser("set_reader_11");
         ForumTopic topic = createPublicTopic(chief, "Тред подписей set_lbl_11");
         topicLikeRepository.save(topicLike(topic.getId(), reader.getId()));

@@ -141,13 +141,13 @@ class ForumServiceTest {
         ForumTag tag = new ForumTag();
         tag.setName("важное");
         visible.setTags(Set.of(tag));
-        when(topicRepository.search(any(), anyBoolean(), any(), anyBoolean(), anyBoolean(), anyList(), any(PageRequest.class)))
+        when(topicRepository.search(any(), anyBoolean(), anyBoolean(), any(), anyBoolean(), anyBoolean(), anyList(), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of(visible), PageRequest.of(0, 20), 1));
         when(postRepository.countByTopicIdIn(List.of(1L))).thenReturn(List.<Object[]>of(new Object[]{1L, 5L}));
-        when(userRepository.findByIdIn(anyList())).thenReturn(List.of(user(10L, "luke", UserRole.USER)));
-        when(userRepository.findById(10L)).thenReturn(Optional.of(user(10L, "luke", UserRole.USER)));
+        when(userRepository.findByIdIn(anyList())).thenReturn(List.of(user(10L, "luke", UserRole.RESIDENT)));
+        when(userRepository.findById(10L)).thenReturn(Optional.of(user(10L, "luke", UserRole.RESIDENT)));
 
-        Page<TopicSummaryDto> result = forumService.getTopics(PageRequest.of(0, 20), "фильм", null, false, 10L);
+        Page<TopicSummaryDto> result = forumService.getTopics(PageRequest.of(0, 20), "фильм", null, false, false, 10L);
 
         assertThat(result.getContent()).hasSize(1);
         TopicSummaryDto dto = result.getContent().get(0);
@@ -162,8 +162,8 @@ class ForumServiceTest {
     void getTopicBuildsTreeAndDetectsModerator() {
         ForumTopic topic = topic(1L, 10L, false, false);
         when(topicRepository.findById(1L)).thenReturn(Optional.of(topic));
-        when(userRepository.findById(10L)).thenReturn(Optional.of(user(10L, "luke", UserRole.USER)));
-        when(userRepository.findByIdIn(anyList())).thenReturn(List.of(user(10L, "luke", UserRole.USER)));
+        when(userRepository.findById(10L)).thenReturn(Optional.of(user(10L, "luke", UserRole.RESIDENT)));
+        when(userRepository.findByIdIn(anyList())).thenReturn(List.of(user(10L, "luke", UserRole.RESIDENT)));
 
         ForumPost root = new ForumPost();
         root.setId(1L);
@@ -260,8 +260,8 @@ class ForumServiceTest {
     void realAuthorVisibleOnlyForAdminOnAnonymousTopic() {
         ForumTopic topic = topic(1L, 10L, true, false);
         when(topicRepository.findById(1L)).thenReturn(Optional.of(topic));
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user(1L, "admin", UserRole.ADMIN)));
-        when(userRepository.findByIdIn(anyList())).thenReturn(List.of(user(10L, "luke", UserRole.USER)));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user(1L, "admin", UserRole.MASTER)));
+        when(userRepository.findByIdIn(anyList())).thenReturn(List.of(user(10L, "luke", UserRole.RESIDENT)));
         when(postRepository.findByTopicIdOrderByCreatedAtAsc(1L)).thenReturn(List.of());
         when(banRepository.findByTopicIdOrderByCreatedAtDesc(1L)).thenReturn(List.of());
 
@@ -274,8 +274,8 @@ class ForumServiceTest {
     void realAuthorNotShownForNonAnonymousTopic() {
         ForumTopic topic = topic(1L, 10L, false, false);
         when(topicRepository.findById(1L)).thenReturn(Optional.of(topic));
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user(1L, "admin", UserRole.ADMIN)));
-        when(userRepository.findByIdIn(anyList())).thenReturn(List.of(user(10L, "luke", UserRole.USER)));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user(1L, "admin", UserRole.MASTER)));
+        when(userRepository.findByIdIn(anyList())).thenReturn(List.of(user(10L, "luke", UserRole.RESIDENT)));
         when(postRepository.findByTopicIdOrderByCreatedAtAsc(1L)).thenReturn(List.of());
         when(banRepository.findByTopicIdOrderByCreatedAtDesc(1L)).thenReturn(List.of());
 

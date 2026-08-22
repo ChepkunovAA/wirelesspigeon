@@ -47,6 +47,25 @@ public class MemberService {
     }
 
     /**
+     * Повышает гостя до резидента.
+     *
+     * @param userId идентификатор пользователя
+     * @throws BusinessException если пользователь не найден или уже не гость
+     */
+    @Transactional
+    public void promoteToResident(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        if (user.getRole() != UserRole.GUEST) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED,
+                    "Повысить можно только гостя");
+        }
+        user.setRole(UserRole.RESIDENT);
+        userRepository.save(user);
+        log.info("Гость {} повышен до резидента", userId);
+    }
+
+    /**
      * Банит пользователя (удаляет с сайта).
      * <p>
      * Пользователь деактивируется и больше не отображается на сайте,
@@ -66,7 +85,7 @@ public class MemberService {
         if (!user.isActive()) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
-        if (user.getRole() == UserRole.ADMIN) {
+        if (user.getRole() == UserRole.MASTER) {
             throw new BusinessException(ErrorCode.CANNOT_BAN_ADMIN);
         }
 

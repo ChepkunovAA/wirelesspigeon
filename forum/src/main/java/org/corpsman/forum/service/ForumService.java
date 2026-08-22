@@ -130,7 +130,7 @@ public class ForumService {
      */
     @Transactional(readOnly = true)
     public Page<TopicSummaryDto> getTopics(Pageable pageable, String search, List<String> tags,
-                                               boolean hidePublic, Long userId) {
+                                               boolean hidePublic, boolean guestRole, Long userId) {
         String normalizedSearch = StringUtils.hasText(search) ? search.trim() : "";
         boolean hasTags = tags != null && !tags.isEmpty();
         List<String> normalizedTags = hasTags
@@ -140,7 +140,7 @@ public class ForumService {
             hasTags = false;
         }
         Page<ForumTopic> page = topicRepository.search(normalizedSearch, hidePublic,
-                userId, userId != null && isAdmin(userId), hasTags, normalizedTags, pageable);
+                guestRole, userId, userId != null && isAdmin(userId), hasTags, normalizedTags, pageable);
 
         Map<Long, Long> counts = countPostsByTopics(page.getContent());
         Map<Long, String> usernames = loadUsernames(page.getContent().stream()
@@ -295,7 +295,11 @@ public class ForumService {
         topic.setContent(request.getContent().trim());
         topic.setAuthorId(userId);
         topic.setAnonymous(request.isAnonymous());
-        topic.setVisibility(resolveVisibility(request.getVisibility()));
+        TopicVisibility resolved = resolveVisibility(request.getVisibility());
+        if (isGuest(userId) && resolved != TopicVisibility.GUEST) {
+            resolved = TopicVisibility.GUEST;
+        }
+        topic.setVisibility(resolved);
         topic.setReadOnly(request.isReadOnly());
         topic.setLastActivityAt(LocalDateTime.now());
         topic.setTags(resolveTags(request.getTags()));
@@ -807,7 +811,12 @@ public class ForumService {
     }
 
     private boolean canModerate(ForumTopic topic, Long userId, boolean isAdmin) {
-        return isAdmin || (topic.getAuthorId() != null && topic.getAuthorId().equals(userId));
+        if (isAdmin) {
+            // Мастер модеррует любой тред
+            return true;
+        }
+        // Остальные роли — только собственные треды
+        return topic.getAuthorId() != null && topic.getAuthorId().equals(userId);
     }
 
     private void requireModerator(ForumTopic topic, Long userId, boolean isAdmin) {
@@ -833,7 +842,7 @@ public class ForumService {
 
     private boolean isAdmin(Long userId) {
         return userRepository.findById(userId)
-                .map(user -> user.getRole() == org.corpsman.auth.model.UserRole.ADMIN)
+                .map(user -> user.getRole() == org.corpsman.auth.model.UserRole.MASTER)
                 .orElse(false);
     }
 
@@ -934,6 +943,10 @@ public class ForumService {
      * @return true, если доступ разрешён
      */
     private boolean canViewClosed(ForumTopic topic, Long userId, boolean isAdmin) {
+        if (topic.getVisibility() == TopicVisibility.OPEN
+                && userId != null && isGuest(userId)) {
+            return false;
+        }
         if (topic.getVisibility() != TopicVisibility.CLOSED) {
             return true;
         }
@@ -955,6 +968,12 @@ public class ForumService {
      * @param userId пользователь
      * @return true, если владелец или в белом списке
      */
+    private boolean isGuest(Long userId) {
+        return userRepository.findById(userId)
+                .map(u -> u.getRole() == org.corpsman.auth.model.UserRole.GUEST)
+                .orElse(false);
+    }
+
     private boolean canInteractClosed(ForumTopic topic, Long userId) {
         if (topic.getVisibility() != TopicVisibility.CLOSED) {
             return true;

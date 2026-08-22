@@ -65,10 +65,10 @@ class MemberServiceTest {
 
     @Test
     void getMembersReturnsMappedActiveUsers() {
-        User alice = user(1L, "alice", UserRole.USER, true);
+        User alice = user(1L, "alice", UserRole.RESIDENT, true);
         Pageable pageable = PageRequest.of(0, 20);
         when(userRepository.findByActiveTrue(pageable)).thenReturn(new PageImpl<>(List.of(alice)));
-        when(memberMapper.toDto(alice)).thenReturn(memberDto(1L, "alice", UserRole.USER));
+        when(memberMapper.toDto(alice)).thenReturn(memberDto(1L, "alice", UserRole.RESIDENT));
 
         var page = memberService.getMembers("", pageable);
 
@@ -79,11 +79,11 @@ class MemberServiceTest {
 
     @Test
     void getMembersSearchesByUsernameWhenSearchProvided() {
-        User bob = user(2L, "bob", UserRole.USER, true);
+        User bob = user(2L, "bob", UserRole.RESIDENT, true);
         Pageable pageable = PageRequest.of(0, 20);
         when(userRepository.findByActiveTrueAndUsernameContainingIgnoreCase("bo", pageable))
                 .thenReturn(new PageImpl<>(List.of(bob)));
-        when(memberMapper.toDto(bob)).thenReturn(memberDto(2L, "bob", UserRole.USER));
+        when(memberMapper.toDto(bob)).thenReturn(memberDto(2L, "bob", UserRole.RESIDENT));
 
         var page = memberService.getMembers(" bo ", pageable);
 
@@ -94,7 +94,7 @@ class MemberServiceTest {
 
     @Test
     void banUserDeactivatesUserAndPublishesEvent() {
-        User target = user(5L, "victim", UserRole.USER, true);
+        User target = user(5L, "victim", UserRole.RESIDENT, true);
         when(userRepository.findById(5L)).thenReturn(Optional.of(target));
 
         memberService.banUser(5L, 1L);
@@ -122,7 +122,7 @@ class MemberServiceTest {
 
     @Test
     void banUserFailsForAdmin() {
-        User admin = user(2L, "chief", UserRole.ADMIN, true);
+        User admin = user(2L, "chief", UserRole.MASTER, true);
         when(userRepository.findById(2L)).thenReturn(Optional.of(admin));
 
         assertThatThrownBy(() -> memberService.banUser(2L, 1L))
@@ -146,7 +146,7 @@ class MemberServiceTest {
 
     @Test
     void banUserFailsForAlreadyBannedUser() {
-        User banned = user(3L, "ghost", UserRole.USER, false);
+        User banned = user(3L, "ghost", UserRole.RESIDENT, false);
         when(userRepository.findById(3L)).thenReturn(Optional.of(banned));
 
         assertThatThrownBy(() -> memberService.banUser(3L, 1L))

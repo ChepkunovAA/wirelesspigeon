@@ -1,0 +1,19 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:corpsman;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+  cache:
+    type: caffeine
+  thymeleaf:
+    cache: false
+
+app:
+  upload-dir: ${java.io.tmpdir}/corpsman-test-uploads

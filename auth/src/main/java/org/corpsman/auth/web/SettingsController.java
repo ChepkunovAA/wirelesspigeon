@@ -2,6 +2,8 @@ package org.corpsman.auth.web;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.corpsman.auth.model.UserRole;
+import org.corpsman.auth.security.CorpsmanUserDetails;
 import org.corpsman.auth.security.SecurityUtils;
 import org.corpsman.auth.service.SettingsService;
 import org.corpsman.common.exception.BusinessException;
@@ -42,6 +44,7 @@ public class SettingsController {
      * @param threadAnonymous   треды анонимные по умолчанию
      * @param commentAnonymous  комментарии анонимные по умолчанию
      * @param defaultVisibility видимость новых тредов по умолчанию
+     * @param defaultReadOnly   новые треды только для чтения
      * @param showPublicPosts   показывать публичные посты
      * @param ra               flash-атрибуты для сообщений
      * @return редирект на страницу настроек
@@ -50,10 +53,16 @@ public class SettingsController {
     public String updatePrefs(@RequestParam(defaultValue = "false") boolean defaultThreadAnonymous,
                               @RequestParam(defaultValue = "false") boolean defaultCommentAnonymous,
                               @RequestParam(defaultValue = "OPEN") String defaultVisibility,
+                              @RequestParam(defaultValue = "false") boolean defaultReadOnly,
                               @RequestParam(defaultValue = "false") boolean showPublicPosts,
                               RedirectAttributes ra) {
+        CorpsmanUserDetails actor = SecurityUtils.currentUser();
+        var existingSettings = settingsService.getByUserId(SecurityUtils.currentUserId());
+        String effectiveVis = (actor != null && actor.getRole() == UserRole.GUEST)
+                ? existingSettings.getDefaultVisibility()
+                : defaultVisibility;
         settingsService.update(SecurityUtils.currentUserId(), defaultThreadAnonymous,
-                defaultCommentAnonymous, defaultVisibility, showPublicPosts);
+                defaultCommentAnonymous, effectiveVis, defaultReadOnly, showPublicPosts);
         ra.addFlashAttribute("success", "Настройки сохранены");
         return "redirect:/settings";
     }

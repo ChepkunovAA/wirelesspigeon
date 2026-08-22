@@ -43,8 +43,8 @@ class MembersIntegrationTest {
 
     @Test
     void membersPageShowsUsernameRoleAndLastLogin() throws Exception {
-        User alice = createUser("members_alice_1", UserRole.USER);
-        createUser("members_admin_1", UserRole.ADMIN);
+        User alice = createUser("members_alice_1", UserRole.RESIDENT);
+        createUser("members_admin_1", UserRole.MASTER);
         MockHttpSession session = login("members_alice_1");
 
         String today = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"));
@@ -54,15 +54,15 @@ class MembersIntegrationTest {
                 .andExpect(content().string(containsString("Участники")))
                 .andExpect(content().string(containsString("members_alice_1")))
                 .andExpect(content().string(containsString("/profile/" + alice.getId())))
-                .andExpect(content().string(containsString("ADMIN")))
+                .andExpect(content().string(containsString("MASTER")))
                 .andExpect(content().string(containsString(today)))
                 .andExpect(content().string(containsString("<span>—</span>")));
     }
 
     @Test
     void membersPageSearchesByUsername() throws Exception {
-        createUser("members_boris_2", UserRole.USER);
-        User alice = createUser("members_alice_2", UserRole.USER);
+        createUser("members_boris_2", UserRole.RESIDENT);
+        User alice = createUser("members_alice_2", UserRole.RESIDENT);
         MockHttpSession session = login("members_alice_2");
 
         mockMvc.perform(get("/users").session(session).param("search", "boris"))
@@ -73,8 +73,8 @@ class MembersIntegrationTest {
 
     @Test
     void adminCanBanUserFromMembersPage() throws Exception {
-        User admin = createUser("members_admin_3", UserRole.ADMIN);
-        User victim = createUser("members_victim_3", UserRole.USER);
+        User admin = createUser("members_admin_3", UserRole.MASTER);
+        User victim = createUser("members_victim_3", UserRole.RESIDENT);
         MockHttpSession session = login("members_admin_3");
 
         mockMvc.perform(post("/users/" + victim.getId() + "/ban").session(session).with(csrf()))
@@ -91,8 +91,8 @@ class MembersIntegrationTest {
 
     @Test
     void banButtonVisibleForAdminOnlyOnProfile() throws Exception {
-        User admin = createUser("members_admin_4", UserRole.ADMIN);
-        User target = createUser("members_user_4", UserRole.USER);
+        User admin = createUser("members_admin_4", UserRole.MASTER);
+        User target = createUser("members_user_4", UserRole.RESIDENT);
         MockHttpSession adminSession = login("members_admin_4");
         MockHttpSession userSession = login("members_user_4");
 
@@ -107,8 +107,8 @@ class MembersIntegrationTest {
 
     @Test
     void banRequiresAdminRole() throws Exception {
-        User regular = createUser("members_user_5", UserRole.USER);
-        User victim = createUser("members_victim_5", UserRole.USER);
+        User regular = createUser("members_user_5", UserRole.RESIDENT);
+        User victim = createUser("members_victim_5", UserRole.RESIDENT);
         MockHttpSession session = login("members_user_5");
 
         mockMvc.perform(post("/users/" + victim.getId() + "/ban").session(session).with(csrf()))
@@ -119,8 +119,8 @@ class MembersIntegrationTest {
 
     @Test
     void adminCannotBanSelfOrOtherAdmin() throws Exception {
-        User chief = createUser("members_chief_6", UserRole.ADMIN);
-        User deputy = createUser("members_deputy_6", UserRole.ADMIN);
+        User chief = createUser("members_chief_6", UserRole.MASTER);
+        User deputy = createUser("members_deputy_6", UserRole.MASTER);
         MockHttpSession session = login("members_chief_6");
 
         mockMvc.perform(post("/users/" + deputy.getId() + "/ban").session(session).with(csrf()))
@@ -138,8 +138,8 @@ class MembersIntegrationTest {
 
     @Test
     void bannedUserCannotLoginAndDisappearsFromMembersPage() throws Exception {
-        User admin = createUser("members_admin_7", UserRole.ADMIN);
-        User victim = createUser("members_victim_7", UserRole.USER);
+        User admin = createUser("members_admin_7", UserRole.MASTER);
+        User victim = createUser("members_victim_7", UserRole.RESIDENT);
         MockHttpSession adminSession = login("members_admin_7");
 
         mockMvc.perform(post("/users/" + victim.getId() + "/ban").session(adminSession).with(csrf()))
@@ -154,9 +154,9 @@ class MembersIntegrationTest {
 
     @Test
     void adminSeesBanButtonForUsersAndBadgesForAdminsAndSelf() throws Exception {
-        User chief = createUser("members_chief_8", UserRole.ADMIN);
-        createUser("members_deputy_8", UserRole.ADMIN);
-        User regular = createUser("members_user_8", UserRole.USER);
+        User chief = createUser("members_chief_8", UserRole.MASTER);
+        createUser("members_deputy_8", UserRole.MASTER);
+        User regular = createUser("members_user_8", UserRole.RESIDENT);
         MockHttpSession session = login("members_chief_8");
 
         String page = mockMvc.perform(get("/users").session(session))
@@ -173,8 +173,8 @@ class MembersIntegrationTest {
 
     @Test
     void adminSeesUnavailableBadgeInsteadOfBanButtonOnAdminProfile() throws Exception {
-        User chief = createUser("members_chief_9", UserRole.ADMIN);
-        User deputy = createUser("members_deputy_9", UserRole.ADMIN);
+        User chief = createUser("members_chief_9", UserRole.MASTER);
+        User deputy = createUser("members_deputy_9", UserRole.MASTER);
         MockHttpSession session = login("members_chief_9");
 
         String page = mockMvc.perform(get("/profile/" + deputy.getId()).session(session))

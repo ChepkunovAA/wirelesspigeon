@@ -44,7 +44,7 @@
                 <th>Пользователь</th>
                 <th class="text-center">Роль</th>
                 <th class="text-center">Последний вход</th>
-                <th class="text-end" sec:authorize="hasRole('ADMIN')"></th>
+                <th class="text-end" sec:authorize="hasRole('MASTER')"></th>
             </tr>
             </thead>
             <tbody>
@@ -57,7 +57,7 @@
                 </td>
                 <td class="text-center">
                     <span class="badge"
-                          th:classappend="${member.role.name() == 'ADMIN'} ? 'text-bg-warning' : 'text-bg-secondary'"
+                          th:classappend="${member.role.name() == 'MASTER'} ? 'text-bg-warning' : 'text-bg-secondary'"
                           th:text="${member.role.name()}">USER</span>
                 </td>
                 <td class="text-center text-muted">
@@ -65,15 +65,15 @@
                           th:text="${#temporals.format(member.lastLoginAt, 'dd.MM.yyyy HH:mm')}">01.01.2026 12:00</span>
                     <span th:unless="${member.lastLoginAt != null}">—</span>
                 </td>
-                <td class="text-end text-nowrap" sec:authorize="hasRole('ADMIN')">
-                    <form th:if="${member.role.name() == 'USER'} and ${member.id != currentUserId}"
+                <td class="text-end text-nowrap" sec:authorize="hasRole('MASTER')">
+                    <form th:if="${member.role.name() == 'RESIDENT'} and ${member.id != currentUserId}"
                           th:action="@{/users/{id}/ban(id=${member.id})}" method="post" class="d-inline"
                           onsubmit="return confirm('Пользователь будет забанен и удалён с сайта. Продолжить?');">
                         <button type="submit" class="btn btn-outline-danger btn-sm" title="Забанить пользователя">
                             <i class="bi bi-slash-circle"></i> Забанить
                         </button>
                     </form>
-                    <form th:if="${member.role.name() == 'USER'} and ${member.id != currentUserId}"
+                    <form th:if="${member.role.name() == 'RESIDENT'} and ${member.id != currentUserId}"
                           th:action="@{/users/{id}/reset-password(id=${member.id})}" method="post" class="d-inline ms-1"
                           onsubmit="return confirm('Сгенерировать новый пароль для пользователя?');">
                         <button type="submit" class="btn btn-outline-warning btn-sm"
@@ -83,7 +83,7 @@
                     </form>
                     <span th:if="${member.id == currentUserId}" class="badge text-bg-light border">Это вы</span>
                     <span th:unless="${member.id == currentUserId}"
-                          th:if="${member.role.name() == 'ADMIN'}"
+                          th:if="${member.role.name() == 'MASTER'}"
                           class="badge text-bg-light border" title="Администратора нельзя забанить">
                         <i class="bi bi-shield-lock"></i> Бан недоступен
                     </span>

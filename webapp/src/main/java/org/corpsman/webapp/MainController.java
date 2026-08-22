@@ -3,6 +3,9 @@ package org.corpsman.webapp;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.corpsman.auth.security.CorpsmanUserDetails;
+import org.corpsman.auth.model.User;
+import org.corpsman.auth.model.UserRole;
+import org.corpsman.auth.repository.UserRepository;
 import org.corpsman.auth.security.SecurityUtils;
 import org.corpsman.cinema.service.CinemaService;
 import org.corpsman.cinema.service.RatingService;
@@ -33,6 +36,8 @@ public class MainController {
 
     private final RatingStatsService ratingStatsService;
 
+    private final UserRepository userRepository;
+
     /**
      * Отображает главную страницу приложения.
      *
@@ -45,6 +50,8 @@ public class MainController {
         if (user != null) {
             model.addAttribute("user", user);
         }
+        boolean guest = user != null && user.getRole() == org.corpsman.auth.model.UserRole.GUEST;
+        model.addAttribute("filmsHidden", guest);
         model.addAttribute("dashboard", cinemaService.getDashboard());
         model.addAttribute("publicPost", forumService.getLatestPublicPost());
         return "home";
@@ -61,7 +68,11 @@ public class MainController {
         CorpsmanUserDetails user = SecurityUtils.currentUser();
         if (user != null) {
             model.addAttribute("user", user);
-            model.addAttribute("userFilmsStats", ratingService.getUserFilmsStats(user.getId()));
+            boolean ownGuest = user.getRole() == org.corpsman.auth.model.UserRole.GUEST;
+            model.addAttribute("ownCinemaHidden", ownGuest);
+            if (!ownGuest) {
+                model.addAttribute("userFilmsStats", ratingService.getUserFilmsStats(user.getId()));
+            }
             model.addAttribute("corruption", ratingService.getUserCorruption(user.getId()));
             model.addAttribute("myGifts", wishlistService.getUserGifts(user.getId(), user.getId()));
             model.addAttribute("forumRating", ratingStatsService.statsFor(user.getId()));
@@ -85,6 +96,12 @@ public class MainController {
         }
         try {
             model.addAttribute("profile", ratingService.getPublicProfile(id, currentId));
+            User profileOwner = userRepository.findById(id).orElse(null);
+            boolean viewerGuest = SecurityUtils.currentUser() != null
+                    && SecurityUtils.currentUser().getRole() == org.corpsman.auth.model.UserRole.GUEST;
+            boolean profileGuest = profileOwner != null
+                    && profileOwner.getRole() == UserRole.GUEST;
+            model.addAttribute("cinemaHidden", viewerGuest || profileGuest);
             model.addAttribute("gifts", wishlistService.getUserGifts(id, currentId));
             model.addAttribute("forumRating", ratingStatsService.statsFor(id));
             if (currentId != null) {

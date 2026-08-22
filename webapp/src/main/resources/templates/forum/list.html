@@ -63,6 +63,9 @@
                         <span th:if="${topic.visibility == 'CLOSED'}" class="badge text-bg-warning" title="Виден только белому списку">
                             <i class="bi bi-lock"></i> Закрытый
                         </span>
+                        <span th:if="${topic.visibility == 'GUEST'}" class="badge text-bg-success" title="Гости могут писать и модерировать">
+                            <i class="bi bi-people-fill"></i> Гостевой
+                        </span>
                         <span th:if="${topic.visibility == 'PUBLIC'}" class="badge text-bg-info" title="Виден всем и на главной">
                             <i class="bi bi-megaphone"></i> Публичный
                         </span>

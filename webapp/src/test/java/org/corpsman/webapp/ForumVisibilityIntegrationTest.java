@@ -288,7 +288,7 @@ class ForumVisibilityIntegrationTest {
         User user = new User();
         user.setUsername(username);
         user.setPasswordHash(passwordEncoder.encode(PASSWORD));
-        user.setRole(UserRole.USER);
+        user.setRole(UserRole.RESIDENT);
         user.setActive(true);
         return userRepository.save(user);
     }
@@ -369,7 +369,7 @@ String flat = html.replaceAll("\\s+", " ");
         child.setContent("Комментарий для удаления fv_del_14");
         child.setAuthorId(chief.getId());
         postRepository.save(child);
-        User adminUser = createUser("fv_admin_14", UserRole.ADMIN);
+        User adminUser = createUser("fv_admin_14", UserRole.MASTER);
         MockHttpSession session = login("fv_admin_14");
 
         // админ не может редактировать чужой тред и чужой комментарий

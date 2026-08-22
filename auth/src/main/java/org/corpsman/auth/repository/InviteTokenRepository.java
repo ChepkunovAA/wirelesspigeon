@@ -16,4 +16,6 @@ public interface InviteTokenRepository extends JpaRepository<InviteToken, Long> 
      * @return список ключей
      */
     List<InviteToken> findAllByOrderByCreatedAtDesc();
+
+    List<InviteToken> findAllByCreatedByOrderByCreatedAtDesc(Long createdBy);
 }

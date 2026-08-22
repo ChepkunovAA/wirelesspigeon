@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="attachments(attachments, base)"
+     th:if="${attachments != null and !attachments.isEmpty()}"
+     class="mt-2 d-flex flex-wrap gap-2 align-items-start">
+    <span th:each="a : ${attachments}" class="d-inline-block">
+        <a th:if="${a.image}" th:href="${base} + '/' + ${a.id}" target="_blank"
+           class="d-inline-block" title="Открыть фото">
+            <img th:src="${base} + '/' + ${a.id}" alt=""
+                 class="img-thumbnail" style="max-height:160px; max-width:220px; object-fit:cover;"/>
+        </a>
+        <video th:if="${a.video}" th:src="${base} + '/' + ${a.id}" controls
+               class="img-thumbnail" style="max-height:220px; max-width:320px; background:#000;"></video>
+        <a th:if="${!a.image and !a.video}" th:href="${base} + '/' + ${a.id}" download
+           class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-paperclip"></i> <span th:text="${a.fileName}">файл</span>
+            <small class="text-muted" th:text="'(' + ${#numbers.formatDecimal(a.size / 1024.0, 1, 1)} + ' КБ)'">(1 КБ)</small>
+        </a>
+    </span>
+</div>
+</body>
+</html>

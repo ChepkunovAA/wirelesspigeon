@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: org.corpsman.webapp.WishlistConcurrencyTest
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 5.989 s -- in org.corpsman.webapp.WishlistConcurrencyTest

@@ -56,7 +56,7 @@ public class AuthService {
         User user = new User();
         user.setUsername(username);
         user.setPasswordHash(passwordEncoder.encode(password));
-        user.setRole(UserRole.USER);
+        user.setRole(token.isGuestKey() ? UserRole.GUEST : UserRole.RESIDENT);
         user.setActive(true);
         userRepository.save(user);
 

@@ -75,9 +75,12 @@ public class SecurityConfig {
         http
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/login", "/register", "/error", "/static/**", "/css/**", "/js/**", "/images/**", "/assets/**", "/public/**", "/forum/public/**").permitAll()
-                        .requestMatchers("/admin/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/users/*/ban").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/users/*/reset-password").hasRole("ADMIN")
+                        .requestMatchers("/admin/**").hasRole("MASTER")
+                        .requestMatchers("/keys/**").hasAnyRole("RESIDENT", "MASTER")
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/users/*/promote").hasRole("MASTER")
+                        .requestMatchers("/cinema/**").hasAnyRole("RESIDENT", "MASTER")
+                        .requestMatchers(HttpMethod.POST, "/users/*/ban").hasRole("MASTER")
+                        .requestMatchers(HttpMethod.POST, "/users/*/reset-password").hasRole("MASTER")
                         .anyRequest().authenticated())
                 .csrf(Customizer.withDefaults())
                 .formLogin(form -> form.disable())

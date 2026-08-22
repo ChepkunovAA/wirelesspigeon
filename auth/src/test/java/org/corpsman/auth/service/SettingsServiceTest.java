@@ -73,7 +73,7 @@ class SettingsServiceTest {
         when(settingsRepository.findById(1L)).thenReturn(Optional.of(stored));
         when(settingsRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        settingsService.update(1L, true, true, "CLOSED", false);
+        settingsService.update(1L, true, true, "CLOSED", false, false);
 
         ArgumentCaptor<org.corpsman.auth.model.UserSettings> captor =
                 ArgumentCaptor.forClass(org.corpsman.auth.model.UserSettings.class);
@@ -81,6 +81,7 @@ class SettingsServiceTest {
         assertThat(captor.getValue().isDefaultThreadAnonymous()).isTrue();
         assertThat(captor.getValue().isDefaultCommentAnonymous()).isTrue();
         assertThat(captor.getValue().getDefaultVisibility()).isEqualTo("CLOSED");
+        assertThat(captor.getValue().isDefaultReadOnly()).isFalse();
         assertThat(captor.getValue().isShowPublicPosts()).isFalse();
     }
 

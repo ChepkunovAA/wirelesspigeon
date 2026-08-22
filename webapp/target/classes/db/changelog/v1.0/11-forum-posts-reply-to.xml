@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.25.xsd">
+
+    <changeSet id="11" author="architect">
+        <addColumn tableName="forum_posts">
+            <column name="reply_to_id" type="BIGINT">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        <createIndex tableName="forum_posts" indexName="idx_posts_reply_to">
+            <column name="reply_to_id"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

@@ -76,6 +76,20 @@ public class MembersController {
      * @param ra          flash-атрибуты для сообщений
      * @return редирект на список участников
      */
+    /**
+     * Повышает гостя до резидента. Доступно только мастеру.
+     */
+    @PostMapping("/{id}/promote")
+    public String promote(@PathVariable Long id, RedirectAttributes ra) {
+        try {
+            memberService.promoteToResident(id);
+            ra.addFlashAttribute("success", "Пользователь повышен до резидента");
+        } catch (BusinessException e) {
+            ra.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/users";
+    }
+
     @PostMapping("/{id}/reset-password")
     public String resetPassword(@PathVariable Long id, RedirectAttributes ra) {
         try {

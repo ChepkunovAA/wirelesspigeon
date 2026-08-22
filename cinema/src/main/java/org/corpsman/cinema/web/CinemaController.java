@@ -206,6 +206,6 @@ public class CinemaController {
 
     private boolean isAdmin() {
         CorpsmanUserDetails user = SecurityUtils.currentUser();
-        return user != null && user.getRole() == UserRole.ADMIN;
+        return user != null && user.getRole() == UserRole.MASTER;
     }
 }

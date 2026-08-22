@@ -35,8 +35,8 @@
                 <li class="nav-item">
                     <a class="nav-link" th:href="@{/users}"><i class="bi bi-people"></i> Участники</a>
                 </li>
-                <li class="nav-item" sec:authorize="hasRole('ADMIN')">
-                    <a class="nav-link" th:href="@{/admin/tokens}"><i class="bi bi-key"></i> Ключи</a>
+                <li class="nav-item" sec:authorize="hasAnyRole('RESIDENT','MASTER')">
+                    <a class="nav-link" th:href="@{/keys}"><i class="bi bi-key"></i> Ключи</a>
                 </li>
             </ul>
             <ul class="navbar-nav ms-auto">

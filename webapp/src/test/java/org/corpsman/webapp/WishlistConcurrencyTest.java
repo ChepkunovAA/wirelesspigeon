@@ -100,7 +100,7 @@ class WishlistConcurrencyTest {
         User user = new User();
         user.setUsername(username);
         user.setPasswordHash(passwordEncoder.encode("password123"));
-        user.setRole(UserRole.USER);
+        user.setRole(UserRole.RESIDENT);
         user.setActive(true);
         return userRepository.save(user);
     }

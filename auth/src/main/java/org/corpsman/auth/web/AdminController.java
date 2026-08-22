@@ -33,7 +33,7 @@ public class AdminController {
     @GetMapping("/tokens")
     public String tokens(Model model) {
         model.addAttribute("tokens", tokenService.getAllTokens());
-        return "admin/tokens";
+        return "redirect:/keys";
     }
 
     /**
@@ -49,6 +49,6 @@ public class AdminController {
         model.addAttribute("rawToken", rawToken);
         model.addAttribute("tokens", tokens);
         log.info("Администратором создан новый ключ регистрации, всего ключей: {}", tokens.size());
-        return "admin/tokens";
+        return "redirect:/keys";
     }
 }

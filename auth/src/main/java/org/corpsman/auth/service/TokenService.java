@@ -5,6 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.corpsman.auth.dto.InviteTokenDto;
 import org.corpsman.auth.model.InviteToken;
 import org.corpsman.auth.model.User;
+import org.corpsman.auth.model.UserRole;
+import org.corpsman.auth.model.User;
 import org.corpsman.auth.repository.InviteTokenRepository;
 import org.corpsman.auth.repository.UserRepository;
 import org.corpsman.common.exception.BusinessException;
@@ -42,11 +44,23 @@ public class TokenService {
      * @return сырой ключ для передачи администратору
      */
     public String generateToken(Long createdBy) {
+        return generateToken(createdBy, false);
+    }
+
+    /**
+     * Генерирует ключ регистрации; guestKey=true создаёт ключ гостя.
+     *
+     * @param createdBy идентификатор создателя
+     * @param guestKey  гостевой ключ (новый пользователь получит роль GUEST)
+     * @return сырой ключ
+     */
+    public String generateToken(Long createdBy, boolean guestKey) {
         String raw = UUID.randomUUID().toString();
         InviteToken token = new InviteToken();
         token.setCodeHash(passwordEncoder.encode(raw));
         token.setExpiresAt(LocalDateTime.now().plusDays(TTL_DAYS));
         token.setUsed(false);
+        token.setGuestKey(guestKey);
         token.setCreatedBy(createdBy);
         tokenRepository.save(token);
         log.info("Сгенерирован ключ регистрации, id={}, создан пользователем={}", token.getId(), createdBy);
@@ -95,20 +109,30 @@ public class TokenService {
      */
     @Transactional(readOnly = true)
     public List<InviteTokenDto> getAllTokens() {
-        List<InviteToken> tokens = tokenRepository.findAllByOrderByCreatedAtDesc();
-        List<Long> creatorIds = tokens.stream()
-                .map(InviteToken::getCreatedBy)
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-        Map<Long, String> usernamesById = creatorIds.isEmpty()
-                ? Map.of()
+        return getTokensFor(UserRole.MASTER, null);
+    }
+
+    /**
+     * Ключи для страницы /keys: MASTER видит все, RESIDENT — только свои.
+     *
+     * @param role      роль запрашивающего
+     * @param userId    идентификатор запрашивающего
+     * @return список DTO ключей
+     */
+    @Transactional(readOnly = true)
+    public List<InviteTokenDto> getTokensFor(UserRole role, Long userId) {
+        List<InviteToken> tokens = role == UserRole.RESIDENT
+                ? tokenRepository.findAllByCreatedByOrderByCreatedAtDesc(userId).stream()
+                        .filter(InviteToken::isGuestKey).toList()
+                : tokenRepository.findAllByOrderByCreatedAtDesc();
+        List<Long> creatorIds = tokens.stream().map(InviteToken::getCreatedBy).filter(Objects::nonNull).distinct().toList();
+        Map<Long, String> names = creatorIds.isEmpty() ? Map.of()
                 : userRepository.findByIdIn(creatorIds).stream()
                         .collect(Collectors.toMap(User::getId, User::getUsername));
-        return tokens.stream()
-                .map(token -> toDto(token, usernamesById))
-                .toList();
+        return tokens.stream().map(tok -> toDto(tok, names)).toList();
     }
+
+
 
     private InviteTokenDto toDto(InviteToken token, Map<Long, String> usernamesById) {
         InviteTokenDto dto = new InviteTokenDto();
@@ -116,6 +140,7 @@ public class TokenService {
         dto.setCodeHash(token.getCodeHash());
         dto.setExpiresAt(token.getExpiresAt());
         dto.setUsed(token.isUsed());
+        dto.setGuestKey(token.isGuestKey());
         dto.setCreatedBy(token.getCreatedBy());
         dto.setCreatedAt(token.getCreatedAt());
         if (token.getCreatedBy() != null) {

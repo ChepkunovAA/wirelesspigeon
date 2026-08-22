@@ -18,6 +18,7 @@ import org.corpsman.forum.service.AttachmentService;
 import org.corpsman.forum.service.FileStorageService;
 import org.corpsman.auth.repository.UserRepository;
 import org.corpsman.auth.service.SettingsService;
+import org.corpsman.auth.model.UserRole;
 import org.corpsman.forum.service.ForumService;
 import org.corpsman.forum.service.PostService;
 import org.springframework.core.io.FileSystemResource;
@@ -82,8 +83,10 @@ public class ForumController {
         List<String> tags = tag == null || tag.isBlank() ? null : List.of(tag);
         boolean hidePublic = SecurityUtils.currentUserId() != null
                 && !settingsService.getByUserId(SecurityUtils.currentUserId()).isShowPublicPosts();
+        CorpsmanUserDetails viewer = SecurityUtils.currentUser();
+        boolean guestRole = viewer != null && viewer.getRole() == UserRole.GUEST;
         model.addAttribute("page", forumService.getTopics(pageable, search, tags, hidePublic,
-                SecurityUtils.currentUserId()));
+                guestRole, SecurityUtils.currentUserId()));
         model.addAttribute("search", search);
         model.addAttribute("selectedTag", tag);
         model.addAttribute("tags", forumService.getPopularTags());
@@ -99,10 +102,17 @@ public class ForumController {
     @GetMapping("/topic/create")
     public String showCreateForm(Model model) {
         TopicCreateRequest topicForm = new TopicCreateRequest();
+        CorpsmanUserDetails viewer = SecurityUtils.currentUser();
         var userSettings = settingsService.getByUserId(SecurityUtils.currentUserId());
         topicForm.setAnonymous(userSettings.isDefaultThreadAnonymous());
-        topicForm.setVisibility(settingsService.getByUserId(SecurityUtils.currentUserId())
-                .getDefaultVisibility());
+        topicForm.setReadOnly(userSettings.isDefaultReadOnly());
+        String defaultVis = userSettings.getDefaultVisibility();
+        if (viewer != null && viewer.getRole() == UserRole.GUEST) {
+            defaultVis = "GUEST";
+        }
+        topicForm.setVisibility(defaultVis);
+        boolean guestCreator = viewer != null && viewer.getRole() == UserRole.GUEST;
+        model.addAttribute("guestCreator", guestCreator);
         model.addAttribute("topic", topicForm);
         model.addAttribute("allTags", forumService.getAllTags());
         Long me = SecurityUtils.currentUserId();
@@ -429,7 +439,7 @@ public class ForumController {
 
     private boolean isAdmin() {
         CorpsmanUserDetails user = SecurityUtils.currentUser();
-        return user != null && user.getRole() == UserRole.ADMIN;
+        return user != null && user.getRole() == UserRole.MASTER;
     }
 
     /**

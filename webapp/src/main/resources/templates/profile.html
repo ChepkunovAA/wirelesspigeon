@@ -27,7 +27,7 @@
 
                 <dt class="col-sm-4">Роль</dt>
                 <dd class="col-sm-8">
-                    <span class="badge" th:classappend="${user.role.name() == 'ADMIN'} ? 'text-bg-warning' : 'text-bg-secondary'"
+                    <span class="badge" th:classappend="${user.role.name() == 'MASTER'} ? 'text-bg-warning' : 'text-bg-secondary'"
                           th:text="${user.role.name()}">USER</span>
                 </dd>
 

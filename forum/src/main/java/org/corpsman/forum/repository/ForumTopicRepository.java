@@ -29,12 +29,14 @@ public interface ForumTopicRepository extends JpaRepository<ForumTopic, Long> {
     @Query("SELECT DISTINCT t FROM ForumTopic t LEFT JOIN t.tags tag " +
             "WHERE t.deleted = false " +
             "AND (:hidePublic = false OR t.visibility <> 'PUBLIC') " +
-            "AND (t.visibility <> 'CLOSED' OR (:uid IS NOT NULL AND t.authorId = :uid) OR :adminMode = true "
+            "AND (:guest = false OR t.visibility <> 'OPEN') "
+            + "AND (t.visibility <> 'CLOSED' OR (:uid IS NOT NULL AND t.authorId = :uid) OR :adminMode = true "
             + "OR EXISTS (SELECT w FROM TopicWhitelistEntry w WHERE w.topicId = t.id AND w.userId = :uid)) " +
             "AND (:search = '' OR LOWER(t.title) LIKE LOWER(CONCAT('%', CAST(:search AS text), '%'))) " +
             "AND (:hasTags = false OR tag.name IN :tags)")
     Page<ForumTopic> search(@Param("search") String search,
                             @Param("hidePublic") boolean hidePublic,
+                            @Param("guest") boolean guest,
                             @Param("uid") Long uid,
                             @Param("adminMode") boolean adminMode,
                             @Param("hasTags") boolean hasTags,

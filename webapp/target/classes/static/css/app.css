@@ -1,0 +1,74 @@
+[x-cloak] {
+    display: none !important;
+}
+
+/* Заглавный пост и посты-продолжения — единое отличие от обычных комментариев */
+.post-op {
+    background-color: #e8f1fe;
+    border: 1px solid #d4e4fb;
+}
+
+.closed-topic-row.closed-for-admin .stretched-link,
+.closed-topic-row.closed-for-admin h5 a { color: #6c757d; }
+
+.list-group-item.closed-topic-row:not(.can-interact) {
+    background-color: #e9ecef;
+}
+.list-group-item.closed-topic-row:not(.can-interact) .text-muted { color: #8a9299 !important; }
+
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image: url("../assets/mask-tile.png");
+    background-repeat: repeat;
+    background-size: 220px 220px;
+    opacity: .06;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.navbar,
+main,
+footer {
+    position: relative;
+    z-index: 1;
+}
+
+main {
+    flex: 1;
+}
+
+.card {
+    border: 0;
+}
+
+.card-header {
+    background-color: #fff;
+    color: inherit;
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+}
+
+.section-label {
+    font-size: .75rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: #6c757d;
+}
+
+.module-card {
+    transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.module-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .08) !important;
+}
+

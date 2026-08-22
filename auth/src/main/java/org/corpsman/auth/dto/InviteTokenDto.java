@@ -21,6 +21,7 @@ public class InviteTokenDto {
     private LocalDateTime expiresAt;
 
     private boolean used;
+    private boolean guestKey;
 
     private Long createdBy;
 

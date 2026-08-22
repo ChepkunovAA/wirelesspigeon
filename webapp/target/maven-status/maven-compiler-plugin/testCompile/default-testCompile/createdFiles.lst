@@ -1,0 +1,10 @@
+org/corpsman/webapp/ForumIntegrationTest.class
+org/corpsman/webapp/SettingsIntegrationTest.class
+org/corpsman/webapp/RegistrationFlowIntegrationTest.class
+org/corpsman/webapp/CinemaIntegrationTest.class
+org/corpsman/webapp/ForumVisibilityIntegrationTest.class
+org/corpsman/webapp/RolesAndGuestThreadsIntegrationTest.class
+org/corpsman/webapp/WishlistConcurrencyTest.class
+org/corpsman/webapp/WishlistIntegrationTest.class
+org/corpsman/webapp/DesignStyleIntegrationTest.class
+org/corpsman/webapp/MembersIntegrationTest.class

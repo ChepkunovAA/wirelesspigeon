@@ -31,4 +31,10 @@ public class InviteToken extends BaseEntity {
 
     @Column(name = "created_by")
     private Long createdBy;
+
+    /**
+     * Гостевой ключ: регистрирует пользователя с ролью GUEST.
+     */
+    @Column(name = "guest_key", nullable = false)
+    private boolean guestKey;
 }

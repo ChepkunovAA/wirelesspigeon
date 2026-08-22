@@ -1,0 +1,5 @@
+org/corpsman/users/dto/MemberDto.class
+org/corpsman/users/service/MemberService.class
+org/corpsman/users/web/MembersController.class
+org/corpsman/users/mapper/MemberMapperImpl.class
+org/corpsman/users/mapper/MemberMapper.class

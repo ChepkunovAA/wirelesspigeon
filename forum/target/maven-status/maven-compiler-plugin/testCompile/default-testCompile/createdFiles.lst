@@ -1,0 +1,4 @@
+org/corpsman/forum/service/PostServiceTest.class
+org/corpsman/forum/dto/ForumPostDtoTest.class
+org/corpsman/forum/service/RatingStatsServiceTest.class
+org/corpsman/forum/service/ForumServiceTest.class
