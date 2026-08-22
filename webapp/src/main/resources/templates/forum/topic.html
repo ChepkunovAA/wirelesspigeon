@@ -260,7 +260,8 @@
                 </template>
             </button>
             <div x-show="open" x-cloak class="mt-2 ms-3 border-start ps-3">
-                <div th:each="reply : ${topic.firstPost.replies}">
+                <div th:each="reply : ${topic.firstPost.replies}"
+                     th:if="${!reply.deleted or reply.subtreeSize > 0 or reply.deletedByAdmin}">
                     <div th:replace="~{forum/post :: post(${reply}, ${topic})}"></div>
                 </div>
                 <form th:unless="${topic.frozen or topic.banned or !topic.canWrite}"
@@ -282,13 +283,14 @@
         </div>
 
         <!-- Обычные корневые комментарии -->
-        <div th:each="post : ${topic.posts.content}" th:if="${!post.continuation}">
+        <div th:each="post : ${topic.posts.content}"
+             th:if="${!post.continuation and (!post.deleted or post.subtreeSize > 0 or post.deletedByAdmin)}">
             <div th:replace="~{forum/post :: post(${post}, ${topic})}"></div>
         </div>
 
         <!-- Посты-продолжения в стиле заглавного поста -->
         <div th:each="post : ${topic.posts.content}"
-             th:if="${post.continuation}"
+             th:if="${post.continuation and (!post.deleted or post.subtreeSize > 0)}"
              class="mb-4" th:id="|continuation-${post.id}|">
             <div class="card shadow-sm post-op">
                 <div class="card-body">
@@ -343,7 +345,8 @@
                     </template>
                 </button>
                 <div x-show="open" x-cloak class="mt-2 ms-3 border-start ps-3">
-                    <div th:each="reply : ${post.replies}">
+                    <div th:each="reply : ${post.replies}"
+                         th:if="${!reply.deleted or reply.subtreeSize > 0 or reply.deletedByAdmin}">
                         <div th:replace="~{forum/post :: post(${reply}, ${topic})}"></div>
                     </div>
                     <form th:unless="${topic.frozen or topic.banned or !topic.canWrite}"

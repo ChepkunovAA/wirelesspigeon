@@ -165,7 +165,8 @@
                 </template>
             </button>
             <div x-show="open" x-cloak class="mt-2 ms-4 border-start ps-3">
-                <div th:each="reply : ${p.replies}">
+                <div th:each="reply : ${p.replies}"
+                     th:if="${!reply.deleted or reply.subtreeSize > 0 or reply.deletedByAdmin}">
                     <div th:replace="~{forum/post :: post(${reply}, ${topic})}"></div>
                 </div>
                 <form th:if="${!topic.frozen and !topic.banned}"

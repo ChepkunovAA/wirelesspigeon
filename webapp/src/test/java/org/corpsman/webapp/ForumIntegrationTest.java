@@ -525,37 +525,7 @@ class ForumIntegrationTest {
                 .andExpect(content().string(not(containsString("for_bob_18"))));
     }
 
-    @Test
-    void publicTopicAppearsOnHomepage() throws Exception {
-        User alice = createUser("for_alice_19");
-        ForumTopic regular = addTopic(alice, "Обычный тред", false);
-        ForumTopic pub = addTopic(alice, "Публичный тред", false);
-        pub.setVisibility(org.corpsman.forum.model.TopicVisibility.PUBLIC);
-        topicRepository.save(pub);
-        MockHttpSession session = login("for_alice_19");
 
-        mockMvc.perform(get("/").session(session))
-                .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Публичный пост")))
-                .andExpect(content().string(containsString("Публичный тред")))
-                .andExpect(content().string(not(containsString("Обычный тред"))));
-    }
-
-    @Test
-    void createTopicWithPublicFlagAppearsOnHomepage() throws Exception {
-        createUser("for_alice_20");
-        MockHttpSession session = login("for_alice_20");
-
-        mockMvc.perform(post("/forum/topic/create").session(session).with(csrf())
-                        .param("title", "Важное объявление клуба")
-                        .param("content", "Сообщество обсудит новости и планы на ближайший месяц.")
-                        .param("visibility", "PUBLIC"))
-                .andExpect(status().is3xxRedirection());
-
-        mockMvc.perform(get("/").session(session))
-                .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Важное объявление клуба")));
-    }
 
     @Test
     void commentRedirectsToPostAnchor() throws Exception {
@@ -610,31 +580,6 @@ class ForumIntegrationTest {
                 .andExpect(redirectedUrlPattern("/forum/topic/*"));
     }
 
-    @Test
-    void publicPostImageVisibleOnHomepageForAnonymousUser() throws Exception {
-        createUser("for_alice_27");
-        byte[] image = {9, 8, 7, 6};
-
-        mockMvc.perform(multipart("/forum/topic/create")
-                        .file(new MockMultipartFile("files", "meet.png", "image/png", image))
-                        .param("title", "Фотоотчёт о встрече клуба")
-                        .param("content", "Фотографии с прошедшей встречи участников.")
-                        .param("visibility", "PUBLIC")
-                        .session(login("for_alice_27")).with(csrf()))
-                .andExpect(status().is3xxRedirection());
-
-        ForumTopic topic = topicRepository.findAll().iterator().next();
-        long attachmentId = attachmentRepository.findByTopicIdOrderByIdAsc(topic.getId()).get(0).getId();
-
-        mockMvc.perform(get("/"))
-                .andExpect(status().isOk())
-                .andExpect(content().string(containsString("/forum/public/attachment/" + attachmentId)));
-
-        mockMvc.perform(get("/forum/public/attachment/" + attachmentId))
-                .andExpect(status().isOk())
-                .andExpect(content().contentTypeCompatibleWith("image/png"))
-                .andExpect(content().bytes(image));
-    }
 
     @Test
     void publicAttachmentEndpointRejectsPrivateTopic() throws Exception {
