@@ -220,7 +220,7 @@ class ForumIntegrationTest {
 
         mockMvc.perform(get("/forum/topic/" + topic.getId()).session(charlieSession))
                 .andExpect(status().isOk())
-                .andExpect(content().string(matchesPattern("(?s).*Открыть поддерево - <span>1</span> <span>комментарий</span>.*")));
+                .andExpect(content().string(matchesPattern("(?s).*Раскрыть\\s+<span>1</span>\\s+<span>комментарий</span>.*")));
     }
 
     @Test
@@ -369,7 +369,7 @@ class ForumIntegrationTest {
                 .andExpect(content().string(not(containsString("Комментарий без поддерева"))))
                 .andExpect(content().string(not(containsString("Комментарий с поддеревом"))))
                 .andExpect(content().string(containsString("[Удалено]")))
-                .andExpect(content().string(matchesPattern("(?s).*Открыть поддерево - <span>1</span> <span>комментарий</span>.*")));
+                .andExpect(content().string(matchesPattern("(?s).*Раскрыть\\s+<span>1</span>\\s+<span>комментарий</span>.*")));
     }
 
     @Test
@@ -530,7 +530,7 @@ class ForumIntegrationTest {
         User alice = createUser("for_alice_19");
         ForumTopic regular = addTopic(alice, "Обычный тред", false);
         ForumTopic pub = addTopic(alice, "Публичный тред", false);
-        pub.setPublicPost(true);
+        pub.setVisibility(org.corpsman.forum.model.TopicVisibility.PUBLIC);
         topicRepository.save(pub);
         MockHttpSession session = login("for_alice_19");
 
@@ -549,7 +549,7 @@ class ForumIntegrationTest {
         mockMvc.perform(post("/forum/topic/create").session(session).with(csrf())
                         .param("title", "Важное объявление клуба")
                         .param("content", "Сообщество обсудит новости и планы на ближайший месяц.")
-                        .param("publicPost", "true"))
+                        .param("visibility", "PUBLIC"))
                 .andExpect(status().is3xxRedirection());
 
         mockMvc.perform(get("/").session(session))
@@ -619,7 +619,7 @@ class ForumIntegrationTest {
                         .file(new MockMultipartFile("files", "meet.png", "image/png", image))
                         .param("title", "Фотоотчёт о встрече клуба")
                         .param("content", "Фотографии с прошедшей встречи участников.")
-                        .param("publicPost", "true")
+                        .param("visibility", "PUBLIC")
                         .session(login("for_alice_27")).with(csrf()))
                 .andExpect(status().is3xxRedirection());
 

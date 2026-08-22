@@ -49,4 +49,22 @@ public class ForumPost extends BaseEntity {
 
     @Column(name = "is_edited", nullable = false)
     private boolean edited;
+
+    /**
+     * Заглавный пост треда (первое сообщение).
+     */
+    @Column(name = "is_op", nullable = false)
+    private boolean op;
+
+    /**
+     * Пост-продолжение, добавленный владельцем треда.
+     */
+    @Column(name = "is_continuation", nullable = false)
+    private boolean continuation;
+
+    /**
+     * Удалён администратором (для заглушки).
+     */
+    @Column(name = "deleted_by_admin", nullable = false)
+    private boolean deletedByAdmin;
 }

@@ -48,4 +48,30 @@ public interface ForumPostRepository extends JpaRepository<ForumPost, Long> {
     int decrementDislikes(@Param("id") Long id);
 
     Optional<ForumPost> findById(Long id);
+
+
+    /**
+     * Сумма лайков всех неудалённых комментариев автора.
+     *
+     * @param userId идентификатор автора
+     * @return сумма лайков
+     */
+    Optional<ForumPost> findByTopicIdAndOpTrue(Long topicId);
+
+    List<ForumPost> findByTopicIdAndParentPostIdIsNullAndContinuationTrueOrderByCreatedAtAsc(Long topicId);
+
+    @Query("SELECT p.id FROM ForumPost p WHERE p.authorId = :userId AND p.deleted = false")
+    List<Long> findIdsByAuthor(@Param("userId") Long userId);
+
+    @Query("SELECT COALESCE(SUM(p.likes), 0) FROM ForumPost p WHERE p.authorId = :userId AND p.deleted = false")
+    long sumLikesByAuthor(@Param("userId") Long userId);
+
+    /**
+     * Сумма дизлайков всех неудалённых комментариев автора.
+     *
+     * @param userId идентификатор автора
+     * @return сумма дизлайков
+     */
+    @Query("SELECT COALESCE(SUM(p.dislikes), 0) FROM ForumPost p WHERE p.authorId = :userId AND p.deleted = false")
+    long sumDislikesByAuthor(@Param("userId") Long userId);
 }

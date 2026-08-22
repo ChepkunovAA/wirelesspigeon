@@ -42,18 +42,47 @@
             </div>
 
             <div class="form-check mb-4">
-                <input type="checkbox" id="anonymous" name="anonymous" class="form-check-input"/>
+                <input type="checkbox" id="anonymous" name="anonymous" th:field="*{anonymous}" class="form-check-input"/>
                 <label class="form-check-label" for="anonymous">
                     <i class="bi bi-incognito"></i> Анонимный тред (ник автора скрыт)
                 </label>
             </div>
 
-            <div class="form-check mb-4">
-                <input type="checkbox" id="publicPost" th:field="*{publicPost}" class="form-check-input"/>
-                <label class="form-check-label" for="publicPost">
-                    <i class="bi bi-megaphone"></i> Публичный пост (показывается на главной странице)
-                </label>
-            </div>
+            <div x-data="{vis: 'OPEN'}">
+                <div class="mb-3">
+                    <label for="visibility" class="form-label">Видимость</label>
+                    <select id="visibility" name="visibility" class="form-select"
+                            th:field="*{visibility}" x-model="vis">
+                        <option value="OPEN">Открытый — виден всем пользователям</option>
+                        <option value="PUBLIC">Публичный — виден всем и на главной</option>
+                        <option value="CLOSED">Закрытый — только белый список</option>
+                    </select>
+                    <div class="form-text">Для закрытых тредов отметьте белый список</div>
+                </div>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="readOnly" name="readOnly"
+                           th:field="*{readOnly}">
+                    <label class="form-check-label" for="readOnly">
+                        Только для чтения
+                        <span class="d-block text-muted small">Никто, кроме вас, не сможет писать в этот тред</span>
+                    </label>
+                </div>
+                <div class="mb-3 dropdown" x-show="vis === 'CLOSED'" x-cloak>
+                    <label class="form-label">Белый список</label>
+                    <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button"
+                            data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                        Отметьте участников
+                    </button>
+                    <div class="dropdown-menu p-3 w-100" style="max-height: 280px; overflow: auto;">
+                        <label class="dropdown-item-text form-check" th:each="u : ${allUsers}">
+                            <input type="checkbox" name="whitelistItems" th:value="${u.username}"
+                                   class="form-check-input me-1">
+                            <span th:text="${u.username}">username</span>
+                        </label>
+                        <div th:if="${#lists.isEmpty(allUsers)}" class="text-muted small px-2">Нет других пользователей</div>
+                    </div>
+                    <div class="form-text">Тред будут видеть только вы и отмеченные пользователи</div>
+                </div>
 
             <div class="mb-4">
                 <label class="form-label" for="files">Вложения (фото, видео или файлы)</label>

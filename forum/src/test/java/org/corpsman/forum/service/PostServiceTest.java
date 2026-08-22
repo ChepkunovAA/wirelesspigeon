@@ -49,6 +49,8 @@ class PostServiceTest {
     @Mock
     private UserRepository userRepository;
     @Mock
+    private org.corpsman.forum.repository.TopicWhitelistRepository whitelistRepository;
+    @Mock
     private ApplicationEventPublisher eventPublisher;
     @Mock
     private AttachmentService attachmentService;
@@ -137,7 +139,7 @@ class PostServiceTest {
         ForumPost post = post(1L, 1L, 2L, LocalDateTime.now());
         when(postRepository.findById(1L)).thenReturn(Optional.of(post));
 
-        assertThatThrownBy(() -> postService.editPost(1L, "новый текст", 3L, false))
+        assertThatThrownBy(() -> postService.editPost(1L, "новый текст", 3L))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.PERMISSION_DENIED);
@@ -148,7 +150,7 @@ class PostServiceTest {
         ForumPost post = post(1L, 1L, 2L, LocalDateTime.now().minusHours(1));
         when(postRepository.findById(1L)).thenReturn(Optional.of(post));
 
-        postService.editPost(1L, "новый текст", 2L, false);
+        postService.editPost(1L, "новый текст", 2L);
 
         assertThat(post.getContent()).isEqualTo("новый текст");
         assertThat(post.isEdited()).isTrue();
@@ -160,7 +162,7 @@ class PostServiceTest {
         ForumPost post = post(1L, 1L, 2L, LocalDateTime.now());
         when(postRepository.findById(1L)).thenReturn(Optional.of(post));
 
-        postService.editPost(1L, "новый текст", 2L, false);
+        postService.editPost(1L, "новый текст", 2L);
 
         assertThat(post.getContent()).isEqualTo("новый текст");
         assertThat(post.isEdited()).isTrue();
@@ -171,6 +173,7 @@ class PostServiceTest {
     void likeOwnPostFails() {
         ForumPost post = post(1L, 1L, 2L, LocalDateTime.now());
         when(postRepository.findById(1L)).thenReturn(Optional.of(post));
+        when(topicRepository.findById(post.getTopicId())).thenReturn(Optional.of(openTopic(post.getTopicId())));
 
         assertThatThrownBy(() -> postService.likePost(1L, 2L))
                 .isInstanceOf(BusinessException.class)
@@ -182,6 +185,7 @@ class PostServiceTest {
     void likeThenUnlikeUpdatesCount() {
         ForumPost post = post(1L, 1L, 2L, LocalDateTime.now());
         when(postRepository.findById(1L)).thenReturn(Optional.of(post));
+        when(topicRepository.findById(post.getTopicId())).thenReturn(Optional.of(openTopic(post.getTopicId())));
         when(likeRepository.existsByPostIdAndUserId(1L, 3L)).thenReturn(false);
         when(likeRepository.findByPostIdAndUserId(1L, 3L)).thenReturn(Optional.empty());
 
@@ -219,6 +223,7 @@ class PostServiceTest {
     void dislikeOwnPostFails() {
         ForumPost post = post(1L, 1L, 2L, LocalDateTime.now());
         when(postRepository.findById(1L)).thenReturn(Optional.of(post));
+        when(topicRepository.findById(post.getTopicId())).thenReturn(Optional.of(openTopic(post.getTopicId())));
 
         assertThatThrownBy(() -> postService.dislikePost(1L, 2L))
                 .isInstanceOf(BusinessException.class)
@@ -230,6 +235,7 @@ class PostServiceTest {
     void dislikeThenUndislikeUpdatesCount() {
         ForumPost post = post(1L, 1L, 2L, LocalDateTime.now());
         when(postRepository.findById(1L)).thenReturn(Optional.of(post));
+        when(topicRepository.findById(post.getTopicId())).thenReturn(Optional.of(openTopic(post.getTopicId())));
         when(dislikeRepository.existsByPostIdAndUserId(1L, 3L)).thenReturn(false);
         when(dislikeRepository.findByPostIdAndUserId(1L, 3L)).thenReturn(Optional.empty());
 
@@ -251,6 +257,7 @@ class PostServiceTest {
     void likeRemovesDislike() {
         ForumPost post = post(1L, 1L, 2L, LocalDateTime.now());
         when(postRepository.findById(1L)).thenReturn(Optional.of(post));
+        when(topicRepository.findById(post.getTopicId())).thenReturn(Optional.of(openTopic(post.getTopicId())));
         when(likeRepository.existsByPostIdAndUserId(1L, 3L)).thenReturn(false);
         when(dislikeRepository.existsByPostIdAndUserId(1L, 3L)).thenReturn(true);
 
@@ -267,6 +274,7 @@ class PostServiceTest {
     void dislikeRemovesLike() {
         ForumPost post = post(1L, 1L, 2L, LocalDateTime.now());
         when(postRepository.findById(1L)).thenReturn(Optional.of(post));
+        when(topicRepository.findById(post.getTopicId())).thenReturn(Optional.of(openTopic(post.getTopicId())));
         when(dislikeRepository.existsByPostIdAndUserId(1L, 3L)).thenReturn(false);
         when(likeRepository.existsByPostIdAndUserId(1L, 3L)).thenReturn(true);
 
@@ -277,5 +285,12 @@ class PostServiceTest {
         verify(postRepository).incrementDislikes(1L);
         assertThat(disliked.isDisliked()).isTrue();
         assertThat(disliked.getLikes()).isZero();
+    }
+
+    private ForumTopic openTopic(Long id) {
+        ForumTopic topic = new ForumTopic();
+        topic.setId(id);
+        topic.setVisibility(org.corpsman.forum.model.TopicVisibility.OPEN);
+        return topic;
     }
 }

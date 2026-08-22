@@ -1,6 +1,7 @@
 package org.corpsman.forum.repository;
 
 import org.corpsman.forum.model.ForumTopic;
+import org.corpsman.forum.model.TopicVisibility;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -27,9 +28,15 @@ public interface ForumTopicRepository extends JpaRepository<ForumTopic, Long> {
      */
     @Query("SELECT DISTINCT t FROM ForumTopic t LEFT JOIN t.tags tag " +
             "WHERE t.deleted = false " +
+            "AND (:hidePublic = false OR t.visibility <> 'PUBLIC') " +
+            "AND (t.visibility <> 'CLOSED' OR (:uid IS NOT NULL AND t.authorId = :uid) OR :adminMode = true "
+            + "OR EXISTS (SELECT w FROM TopicWhitelistEntry w WHERE w.topicId = t.id AND w.userId = :uid)) " +
             "AND (:search = '' OR LOWER(t.title) LIKE LOWER(CONCAT('%', CAST(:search AS text), '%'))) " +
             "AND (:hasTags = false OR tag.name IN :tags)")
     Page<ForumTopic> search(@Param("search") String search,
+                            @Param("hidePublic") boolean hidePublic,
+                            @Param("uid") Long uid,
+                            @Param("adminMode") boolean adminMode,
                             @Param("hasTags") boolean hasTags,
                             @Param("tags") List<String> tags,
                             Pageable pageable);
@@ -55,5 +62,28 @@ public interface ForumTopicRepository extends JpaRepository<ForumTopic, Long> {
      *
      * @return последний публичный тред (не удалённый)
      */
-    Optional<ForumTopic> findFirstByPublicPostTrueAndDeletedFalseOrderByCreatedAtDesc();
+    Optional<ForumTopic> findFirstByVisibilityAndDeletedFalseOrderByCreatedAtDesc(
+            @Param("visibility") TopicVisibility visibility);
+
+
+    /**
+     * Сумма лайков всех неудалённых тредов автора.
+     *
+     * @param userId идентификатор автора
+     * @return сумма лайков
+     */
+    @Query("SELECT t.id FROM ForumTopic t WHERE t.authorId = :userId AND t.deleted = false")
+    List<Long> findIdsByAuthor(@Param("userId") Long userId);
+
+    @Query("SELECT COALESCE(SUM(t.likes), 0) FROM ForumTopic t WHERE t.authorId = :userId AND t.deleted = false")
+    long sumLikesByAuthor(@Param("userId") Long userId);
+
+    /**
+     * Сумма дизлайков всех неудалённых тредов автора.
+     *
+     * @param userId идентификатор автора
+     * @return сумма дизлайков
+     */
+    @Query("SELECT COALESCE(SUM(t.dislikes), 0) FROM ForumTopic t WHERE t.authorId = :userId AND t.deleted = false")
+    long sumDislikesByAuthor(@Param("userId") Long userId);
 }

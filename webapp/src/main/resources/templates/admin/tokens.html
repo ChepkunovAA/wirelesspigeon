@@ -57,7 +57,7 @@
                         <span th:if="${!token.used and !token.expiresAt.isBefore(#temporals.createNow())}"
                               class="badge text-bg-success">Активен</span>
                     </td>
-                    <td th:text="${token.createdBy ?: '—'}">1</td>
+                    <td th:text="${token.createdByUsername ?: '—'}">admin</td>
                     <td th:text="${#temporals.format(token.createdAt, 'dd.MM.yyyy HH:mm')}">01.01.2026 00:00</td>
                 </tr>
                 <tr th:if="${#lists.isEmpty(tokens)}">

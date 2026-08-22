@@ -16,6 +16,9 @@ import org.corpsman.forum.dto.TopicDetailDto;
 import org.corpsman.forum.dto.TopicSummaryDto;
 import org.corpsman.forum.model.ForumPost;
 import org.corpsman.forum.model.ForumTag;
+import org.corpsman.forum.model.TopicVisibility;
+import org.corpsman.forum.model.TopicWhitelistEntry;
+import org.corpsman.forum.repository.TopicWhitelistRepository;
 import org.corpsman.forum.model.ForumTopic;
 import org.corpsman.forum.model.PostDislike;
 import org.corpsman.forum.model.PostLike;
@@ -74,6 +77,7 @@ public class ForumService {
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final AttachmentService attachmentService;
+    private final TopicWhitelistRepository whitelistRepository;
 
     /**
      * Возвращает последний опубликованный публичный тред для главной страницы.
@@ -82,7 +86,7 @@ public class ForumService {
      */
     @Transactional(readOnly = true)
     public PublicPostDto getLatestPublicPost() {
-        return topicRepository.findFirstByPublicPostTrueAndDeletedFalseOrderByCreatedAtDesc()
+        return topicRepository.findFirstByVisibilityAndDeletedFalseOrderByCreatedAtDesc(TopicVisibility.PUBLIC)
                 .map(this::toPublicPostDto)
                 .orElse(null);
     }
@@ -111,7 +115,7 @@ public class ForumService {
     @Transactional(readOnly = true)
     public boolean isPublicTopic(Long topicId) {
         return topicRepository.findById(topicId)
-                .map(t -> t.isPublicPost() && !t.isDeleted())
+                .map(t -> t.getVisibility() == TopicVisibility.PUBLIC && !t.isDeleted())
                 .orElse(false);
     }
 
@@ -125,7 +129,8 @@ public class ForumService {
      * @return страница кратких представлений
      */
     @Transactional(readOnly = true)
-    public Page<TopicSummaryDto> getTopics(Pageable pageable, String search, List<String> tags, Long userId) {
+    public Page<TopicSummaryDto> getTopics(Pageable pageable, String search, List<String> tags,
+                                               boolean hidePublic, Long userId) {
         String normalizedSearch = StringUtils.hasText(search) ? search.trim() : "";
         boolean hasTags = tags != null && !tags.isEmpty();
         List<String> normalizedTags = hasTags
@@ -134,7 +139,8 @@ public class ForumService {
         if (hasTags && normalizedTags.isEmpty()) {
             hasTags = false;
         }
-        Page<ForumTopic> page = topicRepository.search(normalizedSearch, hasTags, normalizedTags, pageable);
+        Page<ForumTopic> page = topicRepository.search(normalizedSearch, hidePublic,
+                userId, userId != null && isAdmin(userId), hasTags, normalizedTags, pageable);
 
         Map<Long, Long> counts = countPostsByTopics(page.getContent());
         Map<Long, String> usernames = loadUsernames(page.getContent().stream()
@@ -143,8 +149,22 @@ public class ForumService {
                 .toList());
         boolean isAdmin = userId != null && isAdmin(userId);
 
+        java.util.Map<Long, Boolean> interactMap = new java.util.HashMap<>();
+        for (ForumTopic t : page.getContent()) {
+            boolean owner = userId != null && t.getAuthorId() != null && t.getAuthorId().equals(userId);
+            if (t.getVisibility() == TopicVisibility.CLOSED && !owner) {
+                interactMap.put(t.getId(), userId != null
+                        && whitelistRepository.existsByTopicIdAndUserId(t.getId(), userId));
+            } else {
+                interactMap.put(t.getId(), true);
+            }
+        }
         List<TopicSummaryDto> dtos = page.getContent().stream()
-                .map(topic -> toSummaryDto(topic, counts, usernames, userId, isAdmin))
+                .map(topic -> {
+                    TopicSummaryDto dto = toSummaryDto(topic, counts, usernames, userId, isAdmin);
+                    dto.setCanInteract(interactMap.getOrDefault(topic.getId(), true));
+                    return dto;
+                })
                 .toList();
         return new PageImpl<>(dtos, pageable, page.getTotalElements());
     }
@@ -165,6 +185,9 @@ public class ForumService {
         }
 
         boolean isAdmin = userId != null && isAdmin(userId);
+        if (!canViewClosed(topic, userId, isAdmin)) {
+            throw new BusinessException(ErrorCode.TOPIC_NOT_FOUND);
+        }
         boolean canModerate = canModerate(topic, userId, isAdmin);
 
         List<ForumPost> allPosts = postRepository.findByTopicIdOrderByCreatedAtAsc(topicId);
@@ -174,8 +197,10 @@ public class ForumService {
         Map<Long, ForumPost> byId = allPosts.stream()
                 .collect(Collectors.toMap(ForumPost::getId, p -> p));
         List<ForumPost> roots = allPosts.stream()
-                .filter(p -> p.getParentPostId() == null)
+                .filter(p -> p.getParentPostId() == null && !p.isOp())
                 .toList();
+
+        ForumPost opPost = postRepository.findByTopicIdAndOpTrue(topicId).orElse(null);
 
         Page<ForumPost> rootPage = paginate(roots, pageable);
         Set<Long> authorIds = new java.util.HashSet<>();
@@ -189,14 +214,30 @@ public class ForumService {
             authorIds.add(ban.getBannedBy());
         });
         Map<Long, String> usernames = loadUsernames(new ArrayList<>(authorIds));
-        List<Long> postIds = collectAllPostIds(rootPage.getContent(), byParent);
+        List<ForumPost> collectFrom = new ArrayList<>(rootPage.getContent());
+        if (opPost != null) {
+            collectFrom.add(opPost);
+        }
+        List<Long> postIds = collectAllPostIds(collectFrom, byParent);
         Map<Long, List<org.corpsman.forum.dto.ForumAttachmentDto>> attachmentsByPost = attachmentService.byPostIds(postIds);
         Set<Long> likedPostIds = loadLikedPostIds(postIds, userId);
         Set<Long> dislikedPostIds = loadDislikedPostIds(postIds, userId);
 
+        Long lastContinuationId = roots.stream()
+                .filter(ForumPost::isContinuation)
+                .map(ForumPost::getId)
+                .reduce((a, b) -> b)
+                .orElse(null);
+
         List<ForumPostDto> postDtos = rootPage.getContent().stream()
-                .map(root -> toPostDto(root, byParent, byId, subtreeSizes(byParent),
-                        usernames, likedPostIds, dislikedPostIds, attachmentsByPost, userId, isAdmin, canModerate, 0))
+                .map(root -> {
+                    ForumPostDto dto = toPostDto(root, byParent, byId, subtreeSizes(byParent),
+                            usernames, likedPostIds, dislikedPostIds, attachmentsByPost,
+                            userId, isAdmin, canModerate, 0);
+                    dto.setLatestContinuation(root.isContinuation()
+                            && root.getId().equals(lastContinuationId));
+                    return dto;
+                })
                 .toList();
 
         boolean topicLiked = userId != null && topicLikeRepository.existsByTopicIdAndUserId(topicId, userId);
@@ -208,12 +249,24 @@ public class ForumService {
         dto.setTitle(topic.getTitle());
         dto.setFrozen(topic.isFrozen());
         dto.setDeleted(topic.isDeleted());
+        dto.setVisibility(topic.getVisibility() == null ? TopicVisibility.OPEN.name() : topic.getVisibility().name());
+        dto.setReadOnly(topic.isReadOnly());
         dto.setAuthor(topic.getAuthorId() != null && topic.getAuthorId().equals(userId));
         dto.setCanModerate(canModerate);
         dto.setAdmin(isAdmin);
         dto.setBanned(userId != null && banRepository.existsByTopicIdAndUserId(topicId, userId));
         dto.setTags(topic.getTags().stream().map(ForumTag::getName).sorted().toList());
-        ForumPostDto firstPost = buildFirstPostDto(topic, usernames, userId, isAdmin);
+        boolean owner = topic.getAuthorId() != null && topic.getAuthorId().equals(userId);
+        dto.setReadOnly(topic.isReadOnly());
+        dto.setCanWrite(!topic.isReadOnly() || owner);
+        ForumPostDto firstPost;
+        if (opPost != null) {
+            firstPost = toPostDto(opPost, byParent, byId, subtreeSizes(byParent),
+                    usernames, likedPostIds, dislikedPostIds, attachmentsByPost,
+                    userId, isAdmin, canModerate, 0);
+        } else {
+            firstPost = buildFirstPostDto(topic, usernames, userId, isAdmin);
+        }
         firstPost.setAttachments(attachmentService.forTopic(topicId));
         firstPost.setLikes(topic.getLikes());
         firstPost.setDislikes(topic.getDislikes());
@@ -242,10 +295,22 @@ public class ForumService {
         topic.setContent(request.getContent().trim());
         topic.setAuthorId(userId);
         topic.setAnonymous(request.isAnonymous());
-        topic.setPublicPost(request.isPublicPost());
+        topic.setVisibility(resolveVisibility(request.getVisibility()));
+        topic.setReadOnly(request.isReadOnly());
         topic.setLastActivityAt(LocalDateTime.now());
         topic.setTags(resolveTags(request.getTags()));
         ForumTopic saved = topicRepository.save(topic);
+
+        ForumPost opPost = new ForumPost();
+        opPost.setTopicId(saved.getId());
+        opPost.setContent(saved.getContent());
+        opPost.setAuthorId(userId);
+        opPost.setAnonymous(saved.isAnonymous());
+        opPost.setOp(true);
+        postRepository.save(opPost);
+
+        saveWhitelist(saved.getId(), request.getWhitelist());
+
         attachmentService.attachToTopic(files, saved.getId());
         log.info("Создан тред '{}' (ID: {}) пользователем {}", saved.getTitle(), saved.getId(), userId);
         eventPublisher.publishEvent(new TopicCreatedEvent(saved.getId(), saved.isAnonymous(), userId, LocalDateTime.now()));
@@ -261,12 +326,12 @@ public class ForumService {
      * @param isAdmin    признак администратора
      */
     @Transactional
-    public void editTopic(Long topicId, String newContent, Long userId, boolean isAdmin) {
+    public void editTopic(Long topicId, String newContent, Long userId) {
         ForumTopic topic = findTopic(topicId);
         if (topic.isDeleted()) {
             throw new BusinessException(ErrorCode.TOPIC_NOT_FOUND);
         }
-        if (!topic.getAuthorId().equals(userId) && !isAdmin) {
+        if (!topic.getAuthorId().equals(userId)) {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }
         topic.setContent(newContent.trim());
@@ -381,6 +446,7 @@ public class ForumService {
      */
     @Transactional
     public LikeResponse likeTopic(Long topicId, Long userId) {
+        requireClosedInteraction(topicId, userId);
         ForumTopic topic = findTopic(topicId);
         if (topic.getAuthorId().equals(userId)) {
             throw new BusinessException(ErrorCode.CANNOT_LIKE_OWN_POST);
@@ -410,6 +476,7 @@ public class ForumService {
      */
     @Transactional
     public LikeResponse unlikeTopic(Long topicId, Long userId) {
+        requireClosedInteraction(topicId, userId);
         ForumTopic topic = findTopic(topicId);
         boolean disliked = topicDislikeRepository.existsByTopicIdAndUserId(topicId, userId);
         if (topicLikeRepository.findByTopicIdAndUserId(topicId, userId).isPresent()) {
@@ -429,6 +496,7 @@ public class ForumService {
      */
     @Transactional
     public LikeResponse dislikeTopic(Long topicId, Long userId) {
+        requireClosedInteraction(topicId, userId);
         ForumTopic topic = findTopic(topicId);
         if (topic.getAuthorId().equals(userId)) {
             throw new BusinessException(ErrorCode.CANNOT_DISLIKE_OWN_POST);
@@ -458,6 +526,7 @@ public class ForumService {
      */
     @Transactional
     public LikeResponse undislikeTopic(Long topicId, Long userId) {
+        requireClosedInteraction(topicId, userId);
         ForumTopic topic = findTopic(topicId);
         boolean liked = topicLikeRepository.existsByTopicIdAndUserId(topicId, userId);
         if (topicDislikeRepository.findByTopicIdAndUserId(topicId, userId).isPresent()) {
@@ -528,8 +597,12 @@ public class ForumService {
         dto.setCreatedAt(topic.getCreatedAt());
         dto.setLastActivityAt(topic.getLastActivityAt());
         dto.setPostsCount(counts.getOrDefault(topic.getId(), 0L));
+        dto.setLikes(topic.getLikes());
+        dto.setDislikes(topic.getDislikes());
         dto.setFrozen(topic.isFrozen());
         dto.setDeleted(topic.isDeleted());
+        dto.setVisibility(topic.getVisibility() == null ? TopicVisibility.OPEN.name() : topic.getVisibility().name());
+        dto.setReadOnly(topic.isReadOnly());
         dto.setTags(topic.getTags().stream().map(ForumTag::getName).sorted().toList());
         dto.setAuthorName(topic.isAnonymous() ? ANONYMOUS : usernames.getOrDefault(topic.getAuthorId(), ANONYMOUS));
         dto.setAuthor(topic.getAuthorId() != null && topic.getAuthorId().equals(userId));
@@ -549,6 +622,7 @@ public class ForumService {
         dto.setDeleted(topic.isDeleted());
         dto.setCreatedAt(topic.getCreatedAt());
         dto.setEdited(false);
+        dto.setOp(true);
         dto.setAuthorId(topic.getAuthorId());
         dto.setAuthor(topic.getAuthorId() != null && topic.getAuthorId().equals(userId));
         dto.setLikes(topic.getLikes());
@@ -567,11 +641,14 @@ public class ForumService {
                                    Long userId, boolean isAdmin, boolean canModerate, int depth) {
         ForumPostDto dto = new ForumPostDto();
         dto.setId(post.getId());
+        dto.setOp(post.isOp());
+        dto.setContinuation(post.isContinuation());
         dto.setParentPostId(post.getParentPostId());
         dto.setReplyToId(post.getReplyToId());
         dto.setContent(post.getContent());
         dto.setAnonymous(post.isAnonymous());
         dto.setDeleted(post.isDeleted());
+        dto.setDeletedByAdmin(post.isDeletedByAdmin());
         dto.setLikes(post.getLikes());
         dto.setDislikes(post.getDislikes());
         dto.setCreatedAt(post.getCreatedAt());
@@ -758,5 +835,207 @@ public class ForumService {
         return userRepository.findById(userId)
                 .map(user -> user.getRole() == org.corpsman.auth.model.UserRole.ADMIN)
                 .orElse(false);
+    }
+
+    /**
+     * Нормализует видимость треда из строки формы.
+     *
+     * @param raw значение из формы (PUBLIC/OPEN/CLOSED)
+     * @return видимость; по умолчанию OPEN
+     */
+    private TopicVisibility resolveVisibility(String raw) {
+        if (raw == null) {
+            return TopicVisibility.OPEN;
+        }
+        try {
+            return TopicVisibility.valueOf(raw.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            return TopicVisibility.OPEN;
+        }
+    }
+
+    /**
+     * Сохраняет белый список закрытого треда по никам через запятую.
+     *
+     * @param topicId идентификатор треда
+     * @param csv     ники через запятую
+     */
+    private void saveWhitelist(Long topicId, String csv) {
+        whitelistRepository.deleteByTopicId(topicId);
+        whitelistRepository.flush();
+        if (csv == null || csv.isBlank()) {
+            return;
+        }
+        for (String name : csv.split("[,;]")) {
+            String username = name.trim();
+            if (username.isEmpty()) {
+                continue;
+            }
+            userRepository.findByUsername(username)
+                    .filter(User::isActive)
+                    .ifPresent(u -> {
+                        TopicWhitelistEntry entry = new TopicWhitelistEntry();
+                        entry.setTopicId(topicId);
+                        entry.setUserId(u.getId());
+                        whitelistRepository.save(entry);
+                    });
+        }
+    }
+
+    /**
+     * Возвращает ники белого списка треда через запятую.
+     *
+     * @param topicId идентификатор треда
+     * @return строка ников
+     */
+    @Transactional(readOnly = true)
+    public String getWhitelistCsv(Long topicId) {
+        return String.join(", ", getWhitelistNames(topicId));
+    }
+
+    /**
+     * Возвращает ники белого списка треда.
+     *
+     * @param topicId идентификатор треда
+     * @return отсортированный список ников
+     */
+    @Transactional(readOnly = true)
+    public List<String> getWhitelistNames(Long topicId) {
+        List<Long> ids = whitelistRepository.findByTopicId(topicId).stream()
+                .map(TopicWhitelistEntry::getUserId).toList();
+        return userRepository.findByIdIn(ids).stream()
+                .map(User::getUsername).sorted().toList();
+    }
+
+    /**
+     * Заменяет белый список треда. Доступно владельцу и администратору.
+     *
+     * @param topicId идентификатор треда
+     * @param csv     ники через запятую
+     * @param userId  кто редактирует
+     * @param isAdmin признак администратора
+     */
+    @Transactional
+    public void updateWhitelist(Long topicId, String csv, Long userId, boolean isAdmin) {
+        ForumTopic topic = findTopic(topicId);
+        if (!canModerate(topic, userId, isAdmin)) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        saveWhitelist(topicId, csv);
+        log.info("Обновлён белый список треда {}", topicId);
+    }
+
+    /**
+     * Проверяет, может ли пользователь видеть закрытый тред.
+     *
+     * @param topic   тред
+     * @param userId  пользователь
+     * @param isAdmin признак администратора
+     * @return true, если доступ разрешён
+     */
+    private boolean canViewClosed(ForumTopic topic, Long userId, boolean isAdmin) {
+        if (topic.getVisibility() != TopicVisibility.CLOSED) {
+            return true;
+        }
+        if (userId == null) {
+            return false;
+        }
+        if (topic.getAuthorId() != null && topic.getAuthorId().equals(userId)) {
+            return true;
+        }
+        return isAdmin || whitelistRepository.existsByTopicIdAndUserId(topic.getId(), userId);
+    }
+
+    /**
+     * Может ли пользователь взаимодействовать с закрытым тредом
+     * (писать комментарии и ставить реакции). Администратор без
+     * членства в белом списке может только читать.
+     *
+     * @param topic тред
+     * @param userId пользователь
+     * @return true, если владелец или в белом списке
+     */
+    private boolean canInteractClosed(ForumTopic topic, Long userId) {
+        if (topic.getVisibility() != TopicVisibility.CLOSED) {
+            return true;
+        }
+        if (userId == null) {
+            return false;
+        }
+        if (topic.getAuthorId() != null && topic.getAuthorId().equals(userId)) {
+            return true;
+        }
+        return whitelistRepository.existsByTopicIdAndUserId(topic.getId(), userId);
+    }
+
+    /**
+     * Гард: запрещает действия в закрытом треде неучастникам.
+     *
+     * @param topicId идентификатор треда
+     * @param userId  пользователь
+     */
+    private void requireClosedInteraction(Long topicId, Long userId) {
+        ForumTopic topic = findTopic(topicId);
+        if (!canInteractClosed(topic, userId)) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED,
+                    "Вы не участник белого списка этого закрытого треда");
+        }
+    }
+
+    /**
+     * Добавляет пост-продолжение от владельца треда и сжимает корневые
+     * комментарии первого уровня в поддерево предыдущего поста.
+     *
+     * @param topicId   идентификатор треда
+     * @param content   текст продолжения
+     * @param anonymous анонимно ли
+     * @param userId    автор (только владелец треда)
+     * @return созданный пост
+     */
+    @Transactional
+    public ForumPost addContinuation(Long topicId, String content, boolean anonymous, Long userId) {
+        ForumTopic topic = findTopic(topicId);
+        if (!topic.getAuthorId().equals(userId)) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED);
+        }
+        List<ForumPost> existingRoots = postRepository.findByTopicIdOrderByCreatedAtAsc(topicId).stream()
+                .filter(p -> p.getParentPostId() == null && !p.isOp())
+                .toList();
+
+        ForumPost continuation = new ForumPost();
+        continuation.setTopicId(topicId);
+        continuation.setContent(content == null ? "" : content.trim());
+        continuation.setAuthorId(userId);
+        continuation.setAnonymous(anonymous);
+        continuation.setContinuation(true);
+        ForumPost savedContinuation = postRepository.save(continuation);
+
+        ForumPost previousRoot = existingRoots.stream()
+                .filter(ForumPost::isContinuation)
+                .reduce((a, b) -> b)
+                .orElse(null);
+        Long targetParentId = previousRoot != null ? previousRoot.getId()
+                : postRepository.findByTopicIdAndOpTrue(topicId).map(ForumPost::getId).orElse(null);
+        if (targetParentId != null) {
+            List<ForumPost> toReparent = existingRoots.stream()
+                    .filter(p -> !p.isContinuation()).toList();
+            toReparent.forEach(p -> p.setParentPostId(targetParentId));
+            postRepository.saveAll(toReparent);
+        }
+        log.info("Добавлено продолжение в тред {}, сжато корневых комментариев: {}",
+                topicId, existingRoots.size());
+        return savedContinuation;
+    }
+
+    /**
+     * Возвращает видимость треда.
+     *
+     * @param topicId идентификатор треда
+     * @return имя видимости (PUBLIC/OPEN/CLOSED)
+     */
+    @Transactional(readOnly = true)
+    public String getTopicVisibility(Long topicId) {
+        ForumTopic topic = findTopic(topicId);
+        return topic.getVisibility() == null ? TopicVisibility.OPEN.name() : topic.getVisibility().name();
     }
 }

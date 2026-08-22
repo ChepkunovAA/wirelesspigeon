@@ -2,7 +2,7 @@ package org.corpsman.auth.web;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.corpsman.auth.model.InviteToken;
+import org.corpsman.auth.dto.InviteTokenDto;
 import org.corpsman.auth.security.SecurityUtils;
 import org.corpsman.auth.service.TokenService;
 import org.springframework.stereotype.Controller;
@@ -45,7 +45,7 @@ public class AdminController {
     @PostMapping("/generate")
     public String generate(Model model) {
         String rawToken = tokenService.generateToken(SecurityUtils.currentUserId());
-        List<InviteToken> tokens = tokenService.getAllTokens();
+        List<InviteTokenDto> tokens = tokenService.getAllTokens();
         model.addAttribute("rawToken", rawToken);
         model.addAttribute("tokens", tokens);
         log.info("Администратором создан новый ключ регистрации, всего ключей: {}", tokens.size());

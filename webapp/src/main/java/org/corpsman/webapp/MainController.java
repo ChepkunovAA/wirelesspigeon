@@ -8,6 +8,7 @@ import org.corpsman.cinema.service.CinemaService;
 import org.corpsman.cinema.service.RatingService;
 import org.corpsman.common.exception.BusinessException;
 import org.corpsman.forum.service.ForumService;
+import org.corpsman.forum.service.RatingStatsService;
 import org.corpsman.wishlist.service.WishlistService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -29,6 +30,8 @@ public class MainController {
     private final CinemaService cinemaService;
 
     private final ForumService forumService;
+
+    private final RatingStatsService ratingStatsService;
 
     /**
      * Отображает главную страницу приложения.
@@ -61,6 +64,7 @@ public class MainController {
             model.addAttribute("userFilmsStats", ratingService.getUserFilmsStats(user.getId()));
             model.addAttribute("corruption", ratingService.getUserCorruption(user.getId()));
             model.addAttribute("myGifts", wishlistService.getUserGifts(user.getId(), user.getId()));
+            model.addAttribute("forumRating", ratingStatsService.statsFor(user.getId()));
         }
         return "profile";
     }
@@ -75,12 +79,18 @@ public class MainController {
     @GetMapping("/profile/{id}")
     public String userProfile(@PathVariable Long id, Model model) {
         Long currentId = SecurityUtils.currentUserId();
+        model.addAttribute("currentUserId", currentId);
         if (currentId != null && currentId.equals(id)) {
             return "redirect:/profile";
         }
         try {
             model.addAttribute("profile", ratingService.getPublicProfile(id, currentId));
             model.addAttribute("gifts", wishlistService.getUserGifts(id, currentId));
+            model.addAttribute("forumRating", ratingStatsService.statsFor(id));
+            if (currentId != null) {
+                model.addAttribute("targetToMe", ratingStatsService.pairwise(id, currentId));
+                model.addAttribute("meToTarget", ratingStatsService.pairwise(currentId, id));
+            }
         } catch (BusinessException ex) {
             model.addAttribute("error", ex.getMessage());
             return "profile-user";

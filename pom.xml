@@ -25,6 +25,7 @@
         <module>cinema</module>
         <module>wishlist</module>
         <module>forum</module>
+        <module>users</module>
         <module>webapp</module>
     </modules>
 
@@ -62,6 +63,11 @@
             <dependency>
                 <groupId>org.corpsman</groupId>
                 <artifactId>forum</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.corpsman</groupId>
+                <artifactId>users</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>

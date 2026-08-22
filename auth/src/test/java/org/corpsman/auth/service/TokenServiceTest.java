@@ -1,7 +1,10 @@
 package org.corpsman.auth.service;
 
+import org.corpsman.auth.dto.InviteTokenDto;
 import org.corpsman.auth.model.InviteToken;
+import org.corpsman.auth.model.User;
 import org.corpsman.auth.repository.InviteTokenRepository;
+import org.corpsman.auth.repository.UserRepository;
 import org.corpsman.common.exception.BusinessException;
 import org.corpsman.common.exception.ErrorCode;
 import org.junit.jupiter.api.Test;
@@ -28,6 +31,9 @@ class TokenServiceTest {
 
     @Mock
     private InviteTokenRepository tokenRepository;
+
+    @Mock
+    private UserRepository userRepository;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -121,6 +127,38 @@ class TokenServiceTest {
 
         assertThat(token.isUsed()).isTrue();
         verify(tokenRepository).save(token);
+    }
+
+    @Test
+    void getAllTokensResolvesCreatorUsernamesInBatch() {
+        User admin = new User();
+        admin.setId(7L);
+        admin.setUsername("chief");
+        InviteToken byAdmin = token(LocalDateTime.now().plusDays(1), false, "hash-1");
+        byAdmin.setCreatedBy(7L);
+        InviteToken orphan = token(LocalDateTime.now().plusDays(1), false, "hash-2");
+
+        when(tokenRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(byAdmin, orphan));
+        when(userRepository.findByIdIn(List.of(7L))).thenReturn(List.of(admin));
+
+        List<InviteTokenDto> result = tokenService.getAllTokens();
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getCreatedByUsername()).isEqualTo("chief");
+        assertThat(result.get(0).getCreatedBy()).isEqualTo(7L);
+        assertThat(result.get(0).getCodeHash()).isEqualTo("hash-1");
+        assertThat(result.get(1).getCreatedByUsername()).isNull();
+        verify(userRepository).findByIdIn(any());
+    }
+
+    @Test
+    void getAllTokensHandlesEmptyListWithoutUserLookup() {
+        when(tokenRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of());
+
+        List<InviteTokenDto> result = tokenService.getAllTokens();
+
+        assertThat(result).isEmpty();
+        verify(userRepository, never()).findByIdIn(any());
     }
 
     private InviteToken token(LocalDateTime expiresAt, boolean used, String hash) {

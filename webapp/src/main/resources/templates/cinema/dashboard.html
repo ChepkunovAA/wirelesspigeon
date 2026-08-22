@@ -32,7 +32,7 @@
     <div class="row g-4">
         <div class="col-lg-6">
             <div class="card shadow-sm h-100">
-                <div class="card-header bg-primary text-white">
+                <div class="card-header">
                     <h4 class="mb-0"><i class="bi bi-ticket-perforated"></i> Следующий фильм</h4>
                 </div>
                 <div class="card-body text-center">
@@ -96,7 +96,7 @@
 
         <div class="col-lg-6">
             <div class="card shadow-sm h-100">
-                <div class="card-header bg-secondary text-white">
+                <div class="card-header">
                     <h4 class="mb-0"><i class="bi bi-eye"></i> Последний просмотренный</h4>
                 </div>
                 <div class="card-body text-center">
@@ -159,9 +159,9 @@
     <div class="row mt-4">
         <div class="col-12">
             <div class="card shadow-sm">
-                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h4 class="mb-0"><i class="bi bi-list-check"></i> Мои предложения</h4>
-                    <a th:href="@{/cinema/add}" class="btn btn-light btn-sm"><i class="bi bi-plus-lg"></i> Добавить</a>
+                    <a th:href="@{/cinema/add}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-plus-lg"></i> Добавить</a>
                 </div>
                 <div class="card-body" x-data="films()">
                     <div th:each="film : ${myFilms}"

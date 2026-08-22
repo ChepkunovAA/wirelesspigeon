@@ -2,6 +2,8 @@ package org.corpsman.forum.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
@@ -45,8 +47,15 @@ public class ForumTopic extends BaseEntity {
     @Column(name = "is_deleted", nullable = false)
     private boolean deleted;
 
-    @Column(name = "public_post", nullable = false)
-    private boolean publicPost;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "visibility", nullable = false, length = 20)
+    private TopicVisibility visibility = TopicVisibility.OPEN;
+
+    /**
+     * Только для чтения: писать может только владелец треда.
+     */
+    @Column(name = "read_only", nullable = false)
+    private boolean readOnly;
 
     @Column(nullable = false)
     private int likes;

@@ -15,6 +15,8 @@ public enum ErrorCode {
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "Некорректный ввод данных"),
     USERNAME_TAKEN(HttpStatus.CONFLICT, "Имя пользователя уже занято"),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "Пользователь не найден"),
+    CANNOT_BAN_SELF(HttpStatus.BAD_REQUEST, "Нельзя забанить себя"),
+    CANNOT_BAN_ADMIN(HttpStatus.BAD_REQUEST, "Нельзя забанить администратора"),
     FORBIDDEN(HttpStatus.FORBIDDEN, "Доступ запрещён"),
     BAD_CREDENTIALS(HttpStatus.UNAUTHORIZED, "Неверный логин или пароль"),
 

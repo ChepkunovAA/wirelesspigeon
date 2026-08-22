@@ -19,4 +19,8 @@
     <include file="v1.0/12-forum-topics-public-post.xml" relativeToChangelogFile="true"/>
     <include file="v1.0/13-forum-topics-content-long.xml" relativeToChangelogFile="true"/>
     <include file="v1.0/14-forum-attachments.xml" relativeToChangelogFile="true"/>
+    <include file="v1.0/15-create-user-settings.xml" relativeToChangelogFile="true"/>
+    <include file="v1.0/16-topic-visibility-continuations.xml" relativeToChangelogFile="true"/>
+    <include file="v1.0/17-default-visibility.xml" relativeToChangelogFile="true"/>
+    <include file="v1.0/18-read-only-admin-delete.xml" relativeToChangelogFile="true"/>
 </databaseChangeLog>

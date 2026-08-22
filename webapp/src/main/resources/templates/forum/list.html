@@ -47,7 +47,9 @@
     </div>
 
     <div class="list-group mb-4" th:unless="${#lists.isEmpty(page.content)}">
-        <div th:each="topic : ${page.content}" class="list-group-item list-group-item-action">
+        <div th:each="topic : ${page.content}"
+             th:classappend="${topic.visibility == 'CLOSED' and !topic.canInteract} ? 'closed-topic-row closed-for-admin'"
+             class="list-group-item list-group-item-action">
             <div class="d-flex justify-content-between align-items-start gap-3">
                 <div>
                     <div class="d-flex align-items-center flex-wrap gap-2">
@@ -55,6 +57,15 @@
                             <a th:href="@{/forum/topic/{id}(id=${topic.id})}"
                                class="stretched-link text-decoration-none" th:text="${topic.title}">Название треда</a>
                         </h5>
+                        <span th:if="${topic.readOnly}" class="badge text-bg-secondary" title="Писать может только владелец">
+                            <i class="bi bi-book"></i> Для чтения
+                        </span>
+                        <span th:if="${topic.visibility == 'CLOSED'}" class="badge text-bg-warning" title="Виден только белому списку">
+                            <i class="bi bi-lock"></i> Закрытый
+                        </span>
+                        <span th:if="${topic.visibility == 'PUBLIC'}" class="badge text-bg-info" title="Виден всем и на главной">
+                            <i class="bi bi-megaphone"></i> Публичный
+                        </span>
                         <span th:if="${topic.frozen}" class="badge text-bg-secondary" title="Тред заморожен">
                             <i class="bi bi-snow2"></i> Заморожен
                         </span>
@@ -77,6 +88,10 @@
                 </div>
                 <div class="text-end text-muted small flex-shrink-0 position-relative z-2">
                     <div><i class="bi bi-chat-text"></i> <span th:text="${topic.postsCount}">0</span></div>
+                        <div title="Рейтинг треда">
+                            <i class="bi bi-hand-thumbs-up"></i> <span th:text="${topic.likes}">0</span>
+                            <i class="bi bi-hand-thumbs-down"></i> <span th:text="${topic.dislikes}">0</span>
+                        </div>
                 </div>
             </div>
         </div>

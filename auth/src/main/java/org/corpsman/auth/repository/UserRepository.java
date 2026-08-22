@@ -49,6 +49,24 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByActive(boolean active);
 
     /**
+     * Находит страницу активных пользователей.
+     *
+     * @param pageable пагинация и сортировка
+     * @return страница активных пользователей
+     */
+    Page<User> findByActiveTrue(Pageable pageable);
+
+    /**
+     * Находит страницу активных пользователей с поиском по нику
+     * (case-insensitive, частичное совпадение).
+     *
+     * @param username часть имени пользователя
+     * @param pageable пагинация и сортировка
+     * @return страница активных пользователей
+     */
+    Page<User> findByActiveTrueAndUsernameContainingIgnoreCase(String username, Pageable pageable);
+
+    /**
      * Находит пользователей по идентификаторам с поиском по нику и пагинацией.
      *
      * @param ids      идентификаторы пользователей

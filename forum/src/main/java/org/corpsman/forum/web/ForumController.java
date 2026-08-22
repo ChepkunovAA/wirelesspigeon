@@ -16,6 +16,8 @@ import org.corpsman.forum.dto.TopicCreateRequest;
 import org.corpsman.forum.dto.TopicDetailDto;
 import org.corpsman.forum.service.AttachmentService;
 import org.corpsman.forum.service.FileStorageService;
+import org.corpsman.auth.repository.UserRepository;
+import org.corpsman.auth.service.SettingsService;
 import org.corpsman.forum.service.ForumService;
 import org.corpsman.forum.service.PostService;
 import org.springframework.core.io.FileSystemResource;
@@ -54,6 +56,10 @@ public class ForumController {
     private static final int POSTS_PAGE_SIZE = 20;
 
     private final ForumService forumService;
+
+    private final SettingsService settingsService;
+
+    private final UserRepository userRepository;
     private final PostService postService;
     private final AttachmentService attachmentService;
     private final FileStorageService fileStorageService;
@@ -74,7 +80,10 @@ public class ForumController {
                             Model model) {
         Pageable pageable = PageRequest.of(page, TOPICS_PAGE_SIZE);
         List<String> tags = tag == null || tag.isBlank() ? null : List.of(tag);
-        model.addAttribute("page", forumService.getTopics(pageable, search, tags, SecurityUtils.currentUserId()));
+        boolean hidePublic = SecurityUtils.currentUserId() != null
+                && !settingsService.getByUserId(SecurityUtils.currentUserId()).isShowPublicPosts();
+        model.addAttribute("page", forumService.getTopics(pageable, search, tags, hidePublic,
+                SecurityUtils.currentUserId()));
         model.addAttribute("search", search);
         model.addAttribute("selectedTag", tag);
         model.addAttribute("tags", forumService.getPopularTags());
@@ -89,8 +98,17 @@ public class ForumController {
      */
     @GetMapping("/topic/create")
     public String showCreateForm(Model model) {
-        model.addAttribute("topic", new TopicCreateRequest());
+        TopicCreateRequest topicForm = new TopicCreateRequest();
+        var userSettings = settingsService.getByUserId(SecurityUtils.currentUserId());
+        topicForm.setAnonymous(userSettings.isDefaultThreadAnonymous());
+        topicForm.setVisibility(settingsService.getByUserId(SecurityUtils.currentUserId())
+                .getDefaultVisibility());
+        model.addAttribute("topic", topicForm);
         model.addAttribute("allTags", forumService.getAllTags());
+        Long me = SecurityUtils.currentUserId();
+        model.addAttribute("allUsers", userRepository.findAll().stream()
+                .filter(u -> u.isActive() && !u.getId().equals(me))
+                .toList());
         return "forum/create";
     }
 
@@ -106,7 +124,11 @@ public class ForumController {
     public String createTopic(@Valid @ModelAttribute("topic") TopicCreateRequest dto,
                               BindingResult result,
                               @RequestParam(value = "files", required = false) List<MultipartFile> files,
+                              @RequestParam(value = "whitelistItems", required = false) List<String> whitelistItems,
                               Model model) {
+        if (whitelistItems != null) {
+            dto.setWhitelist(String.join(",", whitelistItems));
+        }
         if (result.hasErrors()) {
             model.addAttribute("allTags", forumService.getAllTags());
             return "forum/create";
@@ -132,7 +154,20 @@ public class ForumController {
         model.addAttribute("topic", topic);
         ForumPostRequest form = new ForumPostRequest();
         form.setTopicId(id);
+        form.setAnonymous(settingsService.getByUserId(SecurityUtils.currentUserId()).isDefaultCommentAnonymous());
         model.addAttribute("commentForm", form);
+        model.addAttribute("currentUserId", SecurityUtils.currentUserId());
+        boolean isOwner = SecurityUtils.currentUserId() != null
+                && SecurityUtils.currentUserId().equals(topic.getTopicAuthorId());
+        model.addAttribute("isTopicOwner", isOwner);
+        model.addAttribute("visibility", forumService.getTopicVisibility(id));
+        model.addAttribute("whitelistNames", forumService.getWhitelistNames(id));
+        Long viewerId = SecurityUtils.currentUserId();
+        model.addAttribute("allUsers", userRepository.findAll().stream()
+                .filter(u -> u.isActive()
+                        && !u.getId().equals(viewerId)
+                        && (topic.getTopicAuthorId() == null || !u.getId().equals(topic.getTopicAuthorId())))
+                .toList());
         return "forum/topic";
     }
 
@@ -159,7 +194,7 @@ public class ForumController {
      */
     @PostMapping("/topic/{id}/edit")
     public String editTopic(@PathVariable Long id, @RequestParam String content) {
-        forumService.editTopic(id, content, SecurityUtils.currentUserId(), isAdmin());
+        forumService.editTopic(id, content, SecurityUtils.currentUserId());
         return "redirect:/forum/topic/" + id;
     }
 
@@ -219,7 +254,7 @@ public class ForumController {
     @PostMapping("/post/{id}/edit")
     public String editPost(@PathVariable Long id, @RequestParam String content) {
         var post = postService.getPost(id);
-        postService.editPost(id, content, SecurityUtils.currentUserId(), isAdmin());
+        postService.editPost(id, content, SecurityUtils.currentUserId());
         return "redirect:/forum/topic/" + post.getTopicId();
     }
 
@@ -396,4 +431,38 @@ public class ForumController {
         CorpsmanUserDetails user = SecurityUtils.currentUser();
         return user != null && user.getRole() == UserRole.ADMIN;
     }
+
+    /**
+     * Добавляет пост-продолжение (только владелец треда) со сжатием корневых комментариев.
+     *
+     * @param id      идентификатор треда
+     * @param content текст продолжения
+     * @param files   вложения
+     * @return редирект на тред
+     */
+    @PostMapping("/topic/{id}/continuation")
+    public String addContinuation(@PathVariable Long id,
+                                  @RequestParam String content,
+                                  @RequestParam(defaultValue = "false") boolean anonymous,
+                                  @RequestParam(value = "files", required = false) List<MultipartFile> files) {
+        forumService.addContinuation(id, content, anonymous,
+                SecurityUtils.currentUserId());
+        return "redirect:/forum/topic/" + id;
+    }
+
+    /**
+     * Сохраняет белый список закрытого треда.
+     *
+     * @param id      идентификатор треда
+     * @param whitelist ники через запятую
+     * @return редирект на тред
+     */
+    @PostMapping("/topic/{id}/whitelist")
+    public String updateWhitelist(@PathVariable Long id,
+                                  @RequestParam(required = false) List<String> whitelistItems) {
+        forumService.updateWhitelist(id, whitelistItems == null ? ""
+                : String.join(",", whitelistItems), SecurityUtils.currentUserId(), isAdmin());
+        return "redirect:/forum/topic/" + id;
+    }
 }
+

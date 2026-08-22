@@ -2,16 +2,24 @@ package org.corpsman.auth.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.corpsman.auth.dto.InviteTokenDto;
 import org.corpsman.auth.model.InviteToken;
+import org.corpsman.auth.model.User;
 import org.corpsman.auth.repository.InviteTokenRepository;
+import org.corpsman.auth.repository.UserRepository;
 import org.corpsman.common.exception.BusinessException;
 import org.corpsman.common.exception.ErrorCode;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Сервис одноразовых ключей регистрации.
@@ -24,6 +32,7 @@ public class TokenService {
     private static final int TTL_DAYS = 7;
 
     private final InviteTokenRepository tokenRepository;
+    private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
     /**
@@ -80,12 +89,39 @@ public class TokenService {
     }
 
     /**
-     * Возвращает все ключи регистрации (новые сверху).
+     * Возвращает все ключи регистрации (новые сверху) с никами создавшего администратора.
      *
-     * @return список ключей
+     * @return список DTO ключей
      */
-    public List<InviteToken> getAllTokens() {
-        return tokenRepository.findAllByOrderByCreatedAtDesc();
+    @Transactional(readOnly = true)
+    public List<InviteTokenDto> getAllTokens() {
+        List<InviteToken> tokens = tokenRepository.findAllByOrderByCreatedAtDesc();
+        List<Long> creatorIds = tokens.stream()
+                .map(InviteToken::getCreatedBy)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, String> usernamesById = creatorIds.isEmpty()
+                ? Map.of()
+                : userRepository.findByIdIn(creatorIds).stream()
+                        .collect(Collectors.toMap(User::getId, User::getUsername));
+        return tokens.stream()
+                .map(token -> toDto(token, usernamesById))
+                .toList();
+    }
+
+    private InviteTokenDto toDto(InviteToken token, Map<Long, String> usernamesById) {
+        InviteTokenDto dto = new InviteTokenDto();
+        dto.setId(token.getId());
+        dto.setCodeHash(token.getCodeHash());
+        dto.setExpiresAt(token.getExpiresAt());
+        dto.setUsed(token.isUsed());
+        dto.setCreatedBy(token.getCreatedBy());
+        dto.setCreatedAt(token.getCreatedAt());
+        if (token.getCreatedBy() != null) {
+            dto.setCreatedByUsername(usernamesById.get(token.getCreatedBy()));
+        }
+        return dto;
     }
 
     private InviteToken findByRawToken(String rawToken) {

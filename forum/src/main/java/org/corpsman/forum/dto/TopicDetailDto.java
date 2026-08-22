@@ -25,6 +25,9 @@ public class TopicDetailDto {
     private boolean admin;
     private boolean banned;
     private List<String> tags;
+    private String visibility;
+    private boolean readOnly;
+    private boolean canWrite;
     private List<TopicBanDto> bannedUsers;
     private String realAuthorName;
 }

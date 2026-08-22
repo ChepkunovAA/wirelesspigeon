@@ -24,7 +24,13 @@ public class TopicCreateRequest {
 
     private boolean anonymous;
 
-    private boolean publicPost;
+    private String visibility = "OPEN";
+
+    /** Ники пользователей белого списка через запятую (для закрытых тредов). */
+    private String whitelist = "";
+
+    /** Только для чтения: писать может только владелец треда. */
+    private boolean readOnly;
 
     private List<String> tags = new ArrayList<>();
 }

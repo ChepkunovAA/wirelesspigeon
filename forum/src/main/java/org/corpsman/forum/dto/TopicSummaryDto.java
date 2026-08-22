@@ -22,8 +22,13 @@ public class TopicSummaryDto {
     private LocalDateTime createdAt;
     private LocalDateTime lastActivityAt;
     private long postsCount;
+    private int likes;
+    private int dislikes;
     private boolean frozen;
     private boolean deleted;
+    private String visibility;
+    private boolean readOnly;
+    private boolean canInteract;
     private List<String> tags;
     private boolean author;
     private String realAuthorName;

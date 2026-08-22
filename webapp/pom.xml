@@ -32,6 +32,10 @@
             <artifactId>forum</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.corpsman</groupId>
+            <artifactId>users</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>

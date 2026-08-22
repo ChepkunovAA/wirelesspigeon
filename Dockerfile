@@ -3,6 +3,10 @@ WORKDIR /app
 COPY pom.xml .
 COPY common/pom.xml common/pom.xml
 COPY auth/pom.xml auth/pom.xml
+COPY cinema/pom.xml cinema/pom.xml
+COPY wishlist/pom.xml wishlist/pom.xml
+COPY forum/pom.xml forum/pom.xml
+COPY users/pom.xml users/pom.xml
 COPY webapp/pom.xml webapp/pom.xml
 RUN mvn -q -B dependency:go-offline || true
 COPY . .

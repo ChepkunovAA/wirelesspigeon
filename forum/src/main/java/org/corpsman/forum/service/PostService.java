@@ -2,6 +2,8 @@ package org.corpsman.forum.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.corpsman.auth.model.User;
+import org.corpsman.auth.model.UserRole;
 import org.corpsman.auth.repository.UserRepository;
 import org.corpsman.common.event.PostCreatedEvent;
 import org.corpsman.common.exception.BusinessException;
@@ -41,6 +43,7 @@ public class PostService {
     private final PostLikeRepository likeRepository;
     private final PostDislikeRepository dislikeRepository;
     private final UserRepository userRepository;
+    private final org.corpsman.forum.repository.TopicWhitelistRepository whitelistRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final AttachmentService attachmentService;
 
@@ -63,6 +66,16 @@ public class PostService {
         }
         if (banRepository.existsByTopicIdAndUserId(topic.getId(), userId)) {
             throw new BusinessException(ErrorCode.USER_BANNED);
+        }
+        if (topic.isReadOnly()
+                && (userId == null || !userId.equals(topic.getAuthorId()))) {
+            throw new BusinessException(org.corpsman.common.exception.ErrorCode.PERMISSION_DENIED,
+                    "Тред доступен только для чтения");
+        }
+        if (topic.getVisibility() == org.corpsman.forum.model.TopicVisibility.CLOSED
+                && !canInteractClosedStrict(topic, userId)) {
+            throw new BusinessException(org.corpsman.common.exception.ErrorCode.PERMISSION_DENIED,
+                    "Вы не участник белого списка этого закрытого треда");
         }
         if (request.getParentPostId() != null) {
             ForumPost parent = postRepository.findById(request.getParentPostId())
@@ -107,9 +120,9 @@ public class PostService {
      * @param isAdmin    признак администратора
      */
     @Transactional
-    public void editPost(Long postId, String newContent, Long userId, boolean isAdmin) {
+    public void editPost(Long postId, String newContent, Long userId) {
         ForumPost post = findPost(postId);
-        if (!post.getAuthorId().equals(userId) && !isAdmin) {
+        if (!post.getAuthorId().equals(userId)) {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }
         post.setContent(newContent.trim());
@@ -133,8 +146,9 @@ public class PostService {
         if (!post.getAuthorId().equals(userId) && !isModerator && !isAdmin) {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }
-        markDeletedDeep(postId, post.getTopicId());
-        log.info("Комментарий (ID: {}) удалён пользователем {}", postId, userId);
+        boolean byAdmin = isAdmin && !post.getAuthorId().equals(userId);
+        markDeletedDeep(postId, post.getTopicId(), byAdmin);
+        log.info("Комментарий (ID: {}) удалён пользователем {} (админ: {})", postId, userId, byAdmin);
     }
 
     /**
@@ -157,6 +171,9 @@ public class PostService {
      */
     @Transactional
     public LikeResponse likePost(Long postId, Long userId) {
+        ForumPost guarded = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+        requireClosedInteraction(guarded.getTopicId(), userId);
         ForumPost post = findPost(postId);
         if (post.getAuthorId().equals(userId)) {
             throw new BusinessException(ErrorCode.CANNOT_LIKE_OWN_POST);
@@ -186,6 +203,9 @@ public class PostService {
      */
     @Transactional
     public LikeResponse unlikePost(Long postId, Long userId) {
+        ForumPost guarded = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+        requireClosedInteraction(guarded.getTopicId(), userId);
         ForumPost post = findPost(postId);
         boolean disliked = dislikeRepository.existsByPostIdAndUserId(postId, userId);
         if (likeRepository.findByPostIdAndUserId(postId, userId).isPresent()) {
@@ -205,6 +225,9 @@ public class PostService {
      */
     @Transactional
     public LikeResponse dislikePost(Long postId, Long userId) {
+        ForumPost guarded = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+        requireClosedInteraction(guarded.getTopicId(), userId);
         ForumPost post = findPost(postId);
         if (post.getAuthorId().equals(userId)) {
             throw new BusinessException(ErrorCode.CANNOT_DISLIKE_OWN_POST);
@@ -234,6 +257,9 @@ public class PostService {
      */
     @Transactional
     public LikeResponse undislikePost(Long postId, Long userId) {
+        ForumPost guarded = postRepository.findById(postId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.POST_NOT_FOUND));
+        requireClosedInteraction(guarded.getTopicId(), userId);
         ForumPost post = findPost(postId);
         boolean liked = likeRepository.existsByPostIdAndUserId(postId, userId);
         if (dislikeRepository.findByPostIdAndUserId(postId, userId).isPresent()) {
@@ -259,16 +285,17 @@ public class PostService {
                 .orElse(false);
     }
 
-    private void markDeletedDeep(Long postId, Long topicId) {
+    private void markDeletedDeep(Long postId, Long topicId, boolean byAdmin) {
         ForumPost post = findPost(postId);
         post.setContent(DELETED_CONTENT);
         post.setDeleted(true);
+        post.setDeletedByAdmin(byAdmin);
         postRepository.save(post);
         List<ForumPost> children = postRepository.findByTopicIdOrderByCreatedAtAsc(topicId).stream()
                 .filter(p -> postId.equals(p.getParentPostId()))
                 .toList();
         for (ForumPost child : children) {
-            markDeletedDeep(child.getId(), topicId);
+            markDeletedDeep(child.getId(), topicId, byAdmin);
         }
     }
 
@@ -280,5 +307,41 @@ public class PostService {
     private ForumTopic findTopic(Long topicId) {
         return topicRepository.findById(topicId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TOPIC_NOT_FOUND));
+    }
+
+    /**
+     * Проверяет доступ пользователя к закрытому треду.
+     *
+     * @param topic  тред
+     * @param userId пользователь
+     * @return true, если автор, администратор или в белом списке
+     */
+    private boolean canInteractClosedStrict(ForumTopic topic, Long userId) {
+        if (topic.getVisibility() != org.corpsman.forum.model.TopicVisibility.CLOSED) {
+            return true;
+        }
+        if (topic.getAuthorId() != null && topic.getAuthorId().equals(userId)) {
+            return true;
+        }
+        User user = userRepository.findById(userId).orElse(null);
+        if (user != null && user.getRole() == UserRole.ADMIN) {
+            return false;
+        }
+        return whitelistRepository.existsByTopicIdAndUserId(topic.getId(), userId);
+    }
+
+    /**
+     * Гард: запрещает реакции в закрытом треде неучастникам (включая админа).
+     *
+     * @param topicId идентификатор треда
+     * @param userId  пользователь
+     */
+    private void requireClosedInteraction(Long topicId, Long userId) {
+        ForumTopic topic = topicRepository.findById(topicId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.TOPIC_NOT_FOUND));
+        if (!canInteractClosedStrict(topic, userId)) {
+            throw new BusinessException(org.corpsman.common.exception.ErrorCode.PERMISSION_DENIED,
+                    "Вы не участник белого списка этого закрытого треда");
+        }
     }
 }
