@@ -35,8 +35,8 @@ git checkout develop            # или feature/https / тег релиза
 # Домен сайта — Caddy сам получит сертификат Let's Encrypt
 SITE_ADDRESS=club.example.com
 
-# Пароль БД (рекомендуется сменить и указать тот же в SPRING_DATASOURCE_PASSWORD)
-POSTGRES_PASSWORD=secret
+# Пароль БД (используется и postgres, и приложением автоматически)
+POSTGRES_PASSWORD=надёжный_пароль
 
 # Cookie Secure включён в compose по умолчанию (за Caddy всегда HTTPS)
 ```
@@ -105,7 +105,7 @@ docker compose -f docker-compose.prod.yml up -d --build
 header Strict-Transport-Security "max-age=31536000; includeSubDomains"
 ```
 
-и `docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile`.
+и `docker compose -f docker-compose.prod.yml exec caddy caddy reload --config /etc/caddy/Caddyfile`.
 Внимание: после HSTS браузеры будут ходить только по HTTPS минимум год.
 
 ## 8. Резервные копии
