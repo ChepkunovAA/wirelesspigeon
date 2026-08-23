@@ -46,10 +46,15 @@ POSTGRES_PASSWORD=secret
 
 ## 4. Первый запуск
 
+Продакшен использует отдельный compose-файл с HTTPS-профилем (Caddy):
+
 ```bash
-docker compose up -d --build
-docker compose logs -f caddy app   # дождаться: certificate obtained / Started CorpsmanApplication
+docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml logs -f caddy app   # certificate obtained / Started CorpsmanApplication
 ```
+
+Все последующие команды управления прод-стеком тоже выполняются с
+`-f docker-compose.prod.yml`.
 
 Caddy при первом запросе сам выпустит сертификат Let's Encrypt —
 порты 80 и 443 должны быть открыты до этого момента.
@@ -85,7 +90,7 @@ docker exec -it corpsman-postgres psql -U app_user -d appdb -c \
 
 ```bash
 git pull
-docker compose up -d --build
+docker compose -f docker-compose.prod.yml up -d --build
 ```
 
 Миграции Liquibase применятся автоматически при старте приложения.
@@ -118,7 +123,7 @@ gunzip -c backup-2026-08-22.sql.gz | docker exec -i corpsman-postgres psql -U ap
 ## 9. Откат на HTTP (аварийно)
 
 ```bash
-docker compose stop caddy
+docker compose -f docker-compose.prod.yml stop caddy
 # в compose вернуть маппинг "8080:8080" сервису app и COOKIE_SECURE=false
 docker compose up -d app
 ```
@@ -126,6 +131,20 @@ docker compose up -d app
 Приложение полностью работоспособно по HTTP без изменений кода.
 
 ---
+
+## Локальная сборка и тестирование (HTTP)
+
+Локальный профиль — обычный `docker-compose.yml` (без Caddy, HTTP:8080,
+cookie без Secure):
+
+```bash
+docker compose up -d --build
+# приложение: http://localhost:8080
+docker compose logs -f app
+```
+
+Домен и TLS для локали не требуются. Интеграционные тесты — `mvn test`
+(используют MockMvc поверх HTTP, от профиля не зависят).
 
 ## Краткий чеклист продакшена
 

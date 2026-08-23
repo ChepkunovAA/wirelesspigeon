@@ -58,3 +58,8 @@ webapp = 83% времени (все интеграционные тесты с M
 - E2E по https: `curl -sk https://localhost/...` (-k из-за internal CA);
   HTTP автоматически редиректится на HTTPS (308)
 - Продление сертификатов не требуется (Caddy сам); для домена — Let's Encrypt автоматом
+
+### Профили сборки (релиз 2.0.0 п.1)
+- Локально: `docker compose up -d --build` → http://localhost:8080 (HTTP, без Caddy)
+- Прод: `SITE_ADDRESS=<домен> docker compose -f docker-compose.prod.yml up -d --build`
+- Caddyfile: deploy/caddy/Caddyfile (домен из SITE_ADDRESS)
