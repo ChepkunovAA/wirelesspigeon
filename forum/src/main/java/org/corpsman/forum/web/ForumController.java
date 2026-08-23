@@ -21,9 +21,11 @@ import org.corpsman.auth.service.SettingsService;
 import org.corpsman.auth.model.UserRole;
 import org.corpsman.forum.service.ForumService;
 import org.corpsman.forum.service.PostService;
+import org.corpsman.forum.service.SubscriptionService;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -53,7 +55,7 @@ import java.util.Map;
 @Slf4j
 public class ForumController {
 
-    private static final int TOPICS_PAGE_SIZE = 20;
+    private static final int TOPICS_PAGE_SIZE = 10;
     private static final int POSTS_PAGE_SIZE = 20;
 
     private final ForumService forumService;
@@ -62,6 +64,8 @@ public class ForumController {
 
     private final UserRepository userRepository;
     private final PostService postService;
+
+    private final SubscriptionService subscriptionService;
     private final AttachmentService attachmentService;
     private final FileStorageService fileStorageService;
 
@@ -78,16 +82,21 @@ public class ForumController {
     public String topicList(@RequestParam(defaultValue = "0") int page,
                             @RequestParam(required = false) String search,
                             @RequestParam(required = false) String tag,
+                            @RequestParam(defaultValue = "ALL") String type,
                             Model model) {
-        Pageable pageable = PageRequest.of(page, TOPICS_PAGE_SIZE);
+        Pageable pageable = PageRequest.of(page, TOPICS_PAGE_SIZE, Sort.by(Sort.Direction.DESC, "lastActivityAt"));
         List<String> tags = tag == null || tag.isBlank() ? null : List.of(tag);
         boolean hidePublic = SecurityUtils.currentUserId() != null
                 && !settingsService.getByUserId(SecurityUtils.currentUserId()).isShowPublicPosts();
         CorpsmanUserDetails viewer = SecurityUtils.currentUser();
         boolean guestRole = viewer != null && viewer.getRole() == UserRole.GUEST;
+        boolean hideGuestThreads = viewer != null
+                && settingsService.getByUserId(SecurityUtils.currentUserId()).isHideGuestThreads()
+                && !guestRole;
         model.addAttribute("page", forumService.getTopics(pageable, search, tags, hidePublic,
-                guestRole, SecurityUtils.currentUserId()));
+                guestRole, hideGuestThreads, type.toUpperCase(), SecurityUtils.currentUserId()));
         model.addAttribute("search", search);
+        model.addAttribute("type", type);
         model.addAttribute("selectedTag", tag);
         model.addAttribute("tags", forumService.getPopularTags());
         return "forum/list";
@@ -172,6 +181,8 @@ public class ForumController {
         model.addAttribute("isTopicOwner", isOwner);
         model.addAttribute("visibility", forumService.getTopicVisibility(id));
         model.addAttribute("whitelistNames", forumService.getWhitelistNames(id));
+        model.addAttribute("subscribedToTopic", subscriptionService.isSubscribedToTopic(
+                SecurityUtils.currentUserId(), id));
         Long viewerId = SecurityUtils.currentUserId();
         model.addAttribute("allUsers", userRepository.findAll().stream()
                 .filter(u -> u.isActive()

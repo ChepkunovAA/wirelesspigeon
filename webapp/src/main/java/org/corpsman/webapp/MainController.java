@@ -12,6 +12,7 @@ import org.corpsman.cinema.service.RatingService;
 import org.corpsman.common.exception.BusinessException;
 import org.corpsman.forum.service.ForumService;
 import org.corpsman.forum.service.RatingStatsService;
+import org.corpsman.forum.service.SubscriptionService;
 import org.corpsman.wishlist.service.WishlistService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -35,6 +36,8 @@ public class MainController {
     private final ForumService forumService;
 
     private final RatingStatsService ratingStatsService;
+
+    private final SubscriptionService subscriptionService;
 
     private final UserRepository userRepository;
 
@@ -102,6 +105,9 @@ public class MainController {
             boolean profileGuest = profileOwner != null
                     && profileOwner.getRole() == UserRole.GUEST;
             model.addAttribute("cinemaHidden", viewerGuest || profileGuest);
+            model.addAttribute("subscribedToUser",
+                    subscriptionService.isSubscribedToTopic(currentId, id)
+                            || subscriptionService.isSubscribedToUser(currentId, id));
             model.addAttribute("gifts", wishlistService.getUserGifts(id, currentId));
             model.addAttribute("forumRating", ratingStatsService.statsFor(id));
             if (currentId != null) {

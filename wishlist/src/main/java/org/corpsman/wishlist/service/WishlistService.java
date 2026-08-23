@@ -16,6 +16,7 @@ import org.corpsman.wishlist.model.Gift;
 import org.corpsman.wishlist.model.GiftReservation;
 import org.corpsman.wishlist.repository.GiftRepository;
 import org.corpsman.wishlist.repository.GiftReservationRepository;
+import org.corpsman.common.event.WishlistChangedEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -72,6 +73,8 @@ public class WishlistService {
         gift.setOwnerId(userId);
         gift.setReservedCount(0);
         Gift saved = giftRepository.save(gift);
+        eventPublisher.publishEvent(new org.corpsman.common.event.WishlistChangedEvent(
+                "CREATED", saved.getTitle(), userId, List.of(), java.time.LocalDateTime.now()));
         log.info("Добавлен подарок {} (ID: {}) для пользователя {}", saved.getTitle(), saved.getId(), userId);
         return toDto(saved, userId);
     }
@@ -105,6 +108,10 @@ public class WishlistService {
     public void deleteGift(Long giftId, Long userId) {
         Gift gift = findGift(giftId);
         requireOwner(gift, userId);
+        List<Long> reservers = reservationRepository.findByGiftId(giftId).stream()
+                .map(r -> r.getUserId()).toList();
+        eventPublisher.publishEvent(new org.corpsman.common.event.WishlistChangedEvent(
+                "DELETED", gift.getTitle(), userId, reservers, java.time.LocalDateTime.now()));
         reservationRepository.deleteByGiftId(giftId);
         giftRepository.delete(gift);
         log.info("Удалён подарок {} (ID: {})", gift.getTitle(), giftId);
@@ -138,6 +145,10 @@ public class WishlistService {
             cancelExcessReservations(gift, dto.getLimit());
         }
         Gift updated = giftRepository.save(gift);
+        List<Long> reservers = reservationRepository.findByGiftId(giftId).stream()
+                .map(r -> r.getUserId()).toList();
+        eventPublisher.publishEvent(new org.corpsman.common.event.WishlistChangedEvent(
+                "UPDATED", updated.getTitle(), userId, reservers, java.time.LocalDateTime.now()));
         log.info("Обновлён подарок {} (ID: {})", updated.getTitle(), giftId);
         return toDto(updated, userId);
     }

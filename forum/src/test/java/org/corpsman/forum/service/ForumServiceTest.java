@@ -141,13 +141,13 @@ class ForumServiceTest {
         ForumTag tag = new ForumTag();
         tag.setName("важное");
         visible.setTags(Set.of(tag));
-        when(topicRepository.search(any(), anyBoolean(), anyBoolean(), any(), anyBoolean(), anyBoolean(), anyList(), any(PageRequest.class)))
+        when(topicRepository.search(any(), anyBoolean(), anyBoolean(), any(), anyBoolean(), any(), anyBoolean(), anyBoolean(), anyList(), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of(visible), PageRequest.of(0, 20), 1));
         when(postRepository.countByTopicIdIn(List.of(1L))).thenReturn(List.<Object[]>of(new Object[]{1L, 5L}));
         when(userRepository.findByIdIn(anyList())).thenReturn(List.of(user(10L, "luke", UserRole.RESIDENT)));
         when(userRepository.findById(10L)).thenReturn(Optional.of(user(10L, "luke", UserRole.RESIDENT)));
 
-        Page<TopicSummaryDto> result = forumService.getTopics(PageRequest.of(0, 20), "фильм", null, false, false, 10L);
+        Page<TopicSummaryDto> result = forumService.getTopics(PageRequest.of(0, 20), "фильм", null, false, false, false, "ALL", 10L);
 
         assertThat(result.getContent()).hasSize(1);
         TopicSummaryDto dto = result.getContent().get(0);

@@ -34,6 +34,10 @@ public class UserSettings {
     @Column(name = "default_read_only", nullable = false)
     private boolean defaultReadOnly;
 
+    /** Скрывать гостевые треды в списке форума. */
+    @Column(name = "hide_guest_threads", nullable = false)
+    private boolean hideGuestThreads;
+
     @Column(name = "show_public_posts", nullable = false)
     private boolean showPublicPosts = true;
 }

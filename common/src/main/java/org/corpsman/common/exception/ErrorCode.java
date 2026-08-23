@@ -17,6 +17,7 @@ public enum ErrorCode {
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "Пользователь не найден"),
     CANNOT_BAN_SELF(HttpStatus.BAD_REQUEST, "Нельзя забанить себя"),
     CANNOT_BAN_ADMIN(HttpStatus.BAD_REQUEST, "Нельзя забанить мастера"),
+    SUBSCRIPTION_SELF(HttpStatus.BAD_REQUEST, "Нельзя подписаться на себя"),
     FORBIDDEN(HttpStatus.FORBIDDEN, "Доступ запрещён"),
     BAD_CREDENTIALS(HttpStatus.UNAUTHORIZED, "Неверный логин или пароль"),
 

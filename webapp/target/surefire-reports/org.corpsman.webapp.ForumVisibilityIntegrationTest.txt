@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: org.corpsman.webapp.ForumVisibilityIntegrationTest
--------------------------------------------------------------------------------
-Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 11.11 s -- in org.corpsman.webapp.ForumVisibilityIntegrationTest

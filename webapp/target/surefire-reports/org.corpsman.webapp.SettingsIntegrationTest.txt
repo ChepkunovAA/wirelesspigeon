@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: org.corpsman.webapp.SettingsIntegrationTest
--------------------------------------------------------------------------------
-Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 8.918 s -- in org.corpsman.webapp.SettingsIntegrationTest

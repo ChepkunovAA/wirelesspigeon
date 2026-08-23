@@ -319,7 +319,9 @@ class RolesAndGuestThreadsIntegrationTest {
         MockHttpSession resSession = login("rg_resident_17");
         mockMvc.perform(get("/profile/" + guest.getId()).session(resSession))
                 .andExpect(status().isOk())
-                .andExpect(content().string(not(containsString("Кинотеатр"))));
+                .andExpect(content().string(not(containsString("Кинотеатр"))))
+                .andExpect(content().string(not(containsString("Средняя оценка вами его фильмов"))))
+                .andExpect(content().string(not(containsString("Средняя оценка им ваших фильмов"))));
 
         MockHttpSession guestSession = login("rg_guest_17");
         mockMvc.perform(get("/profile/" + resident.getId()).session(guestSession))

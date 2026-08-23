@@ -32,10 +32,15 @@ public interface ForumTopicRepository extends JpaRepository<ForumTopic, Long> {
             "AND (:guest = false OR t.visibility <> 'OPEN') "
             + "AND (t.visibility <> 'CLOSED' OR (:uid IS NOT NULL AND t.authorId = :uid) OR :adminMode = true "
             + "OR EXISTS (SELECT w FROM TopicWhitelistEntry w WHERE w.topicId = t.id AND w.userId = :uid)) " +
+            "AND (:typeFilter IS NULL OR t.visibility = :typeFilter) " +
+            "AND (:guestHide = false OR t.visibility <> 'GUEST') " +
             "AND (:search = '' OR LOWER(t.title) LIKE LOWER(CONCAT('%', CAST(:search AS text), '%'))) " +
-            "AND (:hasTags = false OR tag.name IN :tags)")
+            "AND (:hasTags = false OR tag.name IN :tags) " +
+            "ORDER BY t.lastActivityAt DESC")
     Page<ForumTopic> search(@Param("search") String search,
                             @Param("hidePublic") boolean hidePublic,
+                            @Param("guestHide") boolean guestHide,
+                            @Param("typeFilter") org.corpsman.forum.model.TopicVisibility typeFilter,
                             @Param("guest") boolean guest,
                             @Param("uid") Long uid,
                             @Param("adminMode") boolean adminMode,

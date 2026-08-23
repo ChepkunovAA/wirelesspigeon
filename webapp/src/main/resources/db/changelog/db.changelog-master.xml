@@ -25,4 +25,5 @@
     <include file="v1.0/18-read-only-admin-delete.xml" relativeToChangelogFile="true"/>
     <include file="v1.0/19-roles-guest-keys.xml" relativeToChangelogFile="true"/>
     <include file="v1.0/20-default-read-only.xml" relativeToChangelogFile="true"/>
+    <include file="v1.0/21-notifications-subscriptions.xml" relativeToChangelogFile="true"/>
 </databaseChangeLog>

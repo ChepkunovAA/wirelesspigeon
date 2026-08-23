@@ -54,6 +54,8 @@ class PostServiceTest {
     private ApplicationEventPublisher eventPublisher;
     @Mock
     private AttachmentService attachmentService;
+    @Mock
+    private org.corpsman.forum.service.NotificationService notificationService;
 
     @InjectMocks
     private PostService postService;

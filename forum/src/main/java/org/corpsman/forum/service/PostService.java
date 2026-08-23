@@ -46,6 +46,7 @@ public class PostService {
     private final org.corpsman.forum.repository.TopicWhitelistRepository whitelistRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final AttachmentService attachmentService;
+    private final NotificationService notificationService;
 
     /**
      * Создаёт комментарий в треде.
@@ -115,6 +116,7 @@ public class PostService {
         topic.setLastActivityAt(LocalDateTime.now());
         topicRepository.save(topic);
         attachmentService.attachToPost(files, saved.getId());
+        notifyAboutNewPost(saved, topic, userId);
         log.info("Создан комментарий (ID: {}) в треде {} пользователем {}", saved.getId(), topic.getId(), userId);
         eventPublisher.publishEvent(new PostCreatedEvent(
                 saved.getId(), topic.getId(), saved.isAnonymous(), userId, LocalDateTime.now()));
@@ -138,6 +140,8 @@ public class PostService {
         post.setContent(newContent.trim());
         post.setEdited(true);
         postRepository.save(post);
+        topicRepository.findById(post.getTopicId()).ifPresent(
+                tp -> { tp.setLastActivityAt(java.time.LocalDateTime.now()); topicRepository.save(tp); });
         log.info("Изменён комментарий (ID: {}) пользователем {}", postId, userId);
     }
 
@@ -158,6 +162,8 @@ public class PostService {
         }
         boolean byAdmin = isAdmin && !post.getAuthorId().equals(userId);
         markDeletedDeep(postId, post.getTopicId(), byAdmin);
+        topicRepository.findById(post.getTopicId()).ifPresent(
+                tp -> { tp.setLastActivityAt(java.time.LocalDateTime.now()); topicRepository.save(tp); });
         log.info("Комментарий (ID: {}) удалён пользователем {} (админ: {})", postId, userId, byAdmin);
     }
 
@@ -353,5 +359,44 @@ public class PostService {
             throw new BusinessException(org.corpsman.common.exception.ErrorCode.PERMISSION_DENIED,
                     "Вы не участник белого списка этого закрытого треда");
         }
+    }
+
+    /**
+     * Уведомления по новому комментарию: автор родителя (ответ), владелец треда,
+     * подписчики треда и подписчики автора.
+     */
+    private void notifyAboutNewPost(ForumPost post, ForumTopic topic, Long actorId) {
+        String url = "/forum/topic/" + topic.getId() + "#post-" + post.getId();
+        String actorName = userRepository.findById(actorId)
+                .map(User::getUsername).orElse("Пользователь");
+        Long notifiedReplyTo = null;
+
+        if (post.getReplyToId() != null) {
+            ForumPost target = findPost(post.getReplyToId());
+            if (target.getAuthorId() != null && !target.getAuthorId().equals(actorId)) {
+                notificationService.notify(target.getAuthorId(), "REPLY",
+                        actorName + " ответил на ваш комментарий", url);
+                notifiedReplyTo = target.getAuthorId();
+            }
+        } else if (post.getParentPostId() != null) {
+            ForumPost parent = findPost(post.getParentPostId());
+            if (parent.getAuthorId() != null && !parent.getAuthorId().equals(actorId)) {
+                notificationService.notify(parent.getAuthorId(), "REPLY",
+                        actorName + " ответил на ваш комментарий", url);
+                notifiedReplyTo = parent.getAuthorId();
+            }
+        }
+
+        if (topic.getAuthorId() != null
+                && !topic.getAuthorId().equals(actorId)
+                && !topic.getAuthorId().equals(notifiedReplyTo)) {
+            notificationService.notify(topic.getAuthorId(), "TOPIC_COMMENT",
+                    "Новый комментарий в вашем треде «" + topic.getTitle() + "»", url);
+        }
+
+        notificationService.notifyTopicSubscribers(topic.getId(), actorId, "SUBSCRIPTION",
+                "Новый комментарий пользователя " + actorName + " в треде «" + topic.getTitle() + "»", url);
+        notificationService.notifyUserSubscribers(actorId, actorId, "SUBSCRIPTION",
+                "Пользователь " + actorName + " оставил комментарий", url);
     }
 }

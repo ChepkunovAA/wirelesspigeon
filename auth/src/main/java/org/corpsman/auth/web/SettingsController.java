@@ -46,6 +46,7 @@ public class SettingsController {
      * @param defaultVisibility видимость новых тредов по умолчанию
      * @param defaultReadOnly   новые треды только для чтения
      * @param showPublicPosts   показывать публичные посты
+     * @param hideGuestThreads  скрывать гостевые треды
      * @param ra               flash-атрибуты для сообщений
      * @return редирект на страницу настроек
      */
@@ -55,6 +56,7 @@ public class SettingsController {
                               @RequestParam(defaultValue = "OPEN") String defaultVisibility,
                               @RequestParam(defaultValue = "false") boolean defaultReadOnly,
                               @RequestParam(defaultValue = "false") boolean showPublicPosts,
+                              @RequestParam(defaultValue = "false") boolean hideGuestThreads,
                               RedirectAttributes ra) {
         CorpsmanUserDetails actor = SecurityUtils.currentUser();
         var existingSettings = settingsService.getByUserId(SecurityUtils.currentUserId());
@@ -62,7 +64,8 @@ public class SettingsController {
                 ? existingSettings.getDefaultVisibility()
                 : defaultVisibility;
         settingsService.update(SecurityUtils.currentUserId(), defaultThreadAnonymous,
-                defaultCommentAnonymous, effectiveVis, defaultReadOnly, showPublicPosts);
+                defaultCommentAnonymous, effectiveVis, defaultReadOnly, showPublicPosts,
+                hideGuestThreads);
         ra.addFlashAttribute("success", "Настройки сохранены");
         return "redirect:/settings";
     }

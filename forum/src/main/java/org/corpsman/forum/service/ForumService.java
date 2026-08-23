@@ -78,6 +78,7 @@ public class ForumService {
     private final ApplicationEventPublisher eventPublisher;
     private final AttachmentService attachmentService;
     private final TopicWhitelistRepository whitelistRepository;
+    private final NotificationService notificationService;
 
     /**
      * Возвращает последний опубликованный публичный тред для главной страницы.
@@ -130,7 +131,8 @@ public class ForumService {
      */
     @Transactional(readOnly = true)
     public Page<TopicSummaryDto> getTopics(Pageable pageable, String search, List<String> tags,
-                                               boolean hidePublic, boolean guestRole, Long userId) {
+                                               boolean hidePublic, boolean guestRole, boolean hideGuestThreads,
+                                               String typeFilter, Long userId) {
         String normalizedSearch = StringUtils.hasText(search) ? search.trim() : "";
         boolean hasTags = tags != null && !tags.isEmpty();
         List<String> normalizedTags = hasTags
@@ -139,8 +141,16 @@ public class ForumService {
         if (hasTags && normalizedTags.isEmpty()) {
             hasTags = false;
         }
-        Page<ForumTopic> page = topicRepository.search(normalizedSearch, hidePublic,
-                guestRole, userId, userId != null && isAdmin(userId), hasTags, normalizedTags, pageable);
+        org.corpsman.forum.model.TopicVisibility typeEnum =
+                switch (typeFilter == null ? "" : typeFilter.toUpperCase()) {
+                    case "PUBLIC" -> TopicVisibility.PUBLIC;
+                    case "GUEST" -> TopicVisibility.GUEST;
+                    case "OPEN" -> TopicVisibility.OPEN;
+                    case "CLOSED" -> TopicVisibility.CLOSED;
+                    default -> null;
+                };
+        Page<ForumTopic> page = topicRepository.search(normalizedSearch, hidePublic, hideGuestThreads,
+                typeEnum, guestRole, userId, userId != null && isAdmin(userId), hasTags, normalizedTags, pageable);
 
         Map<Long, Long> counts = countPostsByTopics(page.getContent());
         Map<Long, String> usernames = loadUsernames(page.getContent().stream()
@@ -274,6 +284,12 @@ public class ForumService {
         firstPost.setDislikedByCurrentUser(topicDisliked);
         dto.setFirstPost(firstPost);
         dto.setPosts(new PageImpl<>(postDtos, pageable, rootPage.getTotalElements()));
+
+        // Единая хронологическая лента первого уровня: дети заглавного поста + корневые
+        List<ForumPostDto> timeline = new ArrayList<>(firstPost.getReplies());
+        timeline.addAll(postDtos);
+        timeline.sort(java.util.Comparator.comparing(ForumPostDto::getCreatedAt));
+        dto.setTimeline(timeline);
         if (canModerate) {
             dto.setBannedUsers(buildBanDtos(bans, usernames));
         }
@@ -339,6 +355,7 @@ public class ForumService {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }
         topic.setContent(newContent.trim());
+        topic.setLastActivityAt(LocalDateTime.now());
         topicRepository.save(topic);
         log.info("Изменено содержание треда {} (ID: {})", topic.getTitle(), topicId);
     }
@@ -1041,6 +1058,9 @@ public class ForumService {
             toReparent.forEach(p -> p.setParentPostId(targetParentId));
             postRepository.saveAll(toReparent);
         }
+        notificationService.notifyTopicSubscribers(topicId, userId, "SUBSCRIPTION",
+                "Владелец опубликовал пост-продолжение в треде «" + topic.getTitle() + "»",
+                "/forum/topic/" + topicId);
         log.info("Добавлено продолжение в тред {}, сжато корневых комментариев: {}",
                 topicId, existingRoots.size());
         return savedContinuation;

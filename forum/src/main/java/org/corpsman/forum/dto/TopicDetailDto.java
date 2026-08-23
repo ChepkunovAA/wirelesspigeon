@@ -18,6 +18,8 @@ public class TopicDetailDto {
     private String title;
     private ForumPostDto firstPost;
     private Page<ForumPostDto> posts;
+    /** Единая хронологическая лента первого уровня (для плоского режима). */
+    private List<ForumPostDto> timeline = new java.util.ArrayList<>();
     private boolean frozen;
     private boolean deleted;
     private boolean author;

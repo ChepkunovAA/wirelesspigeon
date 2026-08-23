@@ -24,7 +24,7 @@
         <div class="collapse navbar-collapse" id="navMenu">
             <ul class="navbar-nav me-auto" sec:authorize="isAuthenticated()">
                 <li class="nav-item">
-                    <a class="nav-link" th:href="@{/cinema}"><i class="bi bi-film"></i> Кино</a>
+                    <a class="nav-link" th:href="@{/cinema}" sec:authorize="hasAnyRole('RESIDENT','MASTER')"><i class="bi bi-film"></i> Кино</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" th:href="@{/gifts}"><i class="bi bi-gift"></i> Подарки</a>
@@ -40,8 +40,16 @@
                 </li>
             </ul>
             <ul class="navbar-nav ms-auto">
+                <li class="nav-item me-2" sec:authorize="isAuthenticated()">
+                    <a class="nav-link position-relative" th:href="@{/notifications}" title="Уведомления">
+                        <i class="bi bi-bell" style="font-size:1.1rem;"></i>
+                        <span th:if="${unreadNotifications != null and unreadNotifications > 0}"
+                              class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                              th:text="${unreadNotifications}">0</span>
+                    </a>
+                </li>
                 <li class="nav-item me-3" sec:authorize="isAuthenticated()">
-                    <a class="navbar-text text-decoration-none text-light" th:href="@{/profile}">
+                    <a class="nav-link" th:href="@{/profile}">
                         <i class="bi bi-person-circle"></i>
                         <span sec:authentication="name">user</span>
                     </a>

@@ -66,14 +66,14 @@
                     <span th:unless="${member.lastLoginAt != null}">—</span>
                 </td>
                 <td class="text-end text-nowrap" sec:authorize="hasRole('MASTER')">
-                    <form th:if="${member.role.name() == 'RESIDENT'} and ${member.id != currentUserId}"
+                    <form th:if="${member.role.name() != 'MASTER'} and ${member.id != currentUserId}"
                           th:action="@{/users/{id}/ban(id=${member.id})}" method="post" class="d-inline"
                           onsubmit="return confirm('Пользователь будет забанен и удалён с сайта. Продолжить?');">
                         <button type="submit" class="btn btn-outline-danger btn-sm" title="Забанить пользователя">
                             <i class="bi bi-slash-circle"></i> Забанить
                         </button>
                     </form>
-                    <form th:if="${member.role.name() == 'RESIDENT'} and ${member.id != currentUserId}"
+                    <form th:if="${member.role.name() != 'MASTER'} and ${member.id != currentUserId}"
                           th:action="@{/users/{id}/reset-password(id=${member.id})}" method="post" class="d-inline ms-1"
                           onsubmit="return confirm('Сгенерировать новый пароль для пользователя?');">
                         <button type="submit" class="btn btn-outline-warning btn-sm"

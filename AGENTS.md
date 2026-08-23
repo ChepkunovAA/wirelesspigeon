@@ -48,8 +48,13 @@ webapp = 83% времени (все интеграционные тесты с M
    артефакты (`mvn -q install -DskipTests`). Симптом: ClassNotFoundException /
    старое поведение при зелёном исходнике.
 3. `-T 1C` не использовать — ускорения нет.
-4. Дубликаты тестов удалены (public-on-home покрыт
-   ForumVisibilityIntegrationTest.publicBadgeOnHomeOnlyForPublicTopics);
-   восстанавливать их не нужно.
-5. Удалённые комментарии: админ-удаление оставляет заглушку
-   «Удалено администратором» (deleted_by_admin), авторское — скрывает пост.
+4. Избегай дублирования тестов
+5. Добейся прохождения unit-тестов до запуска интеграционных тестов из webapp
+### HTTPS (релиз 2.0.0 п.1, ветка feature/https, вариант C — Caddy)
+- Деплой: caddy терминирует TLS (авто-сертификаты), приложение только :8080 внутри сети
+- Домен задаётся `SITE_ADDRESS=домен` (по умолчанию localhost, internal CA)
+- Cookie: Secure+HttpOnly+SameSite=Lax включаются переменной COOKIE_SECURE=true
+  (в compose включена; локальный dev без прокси остаётся на HTTP с secure=false)
+- E2E по https: `curl -sk https://localhost/...` (-k из-за internal CA);
+  HTTP автоматически редиректится на HTTPS (308)
+- Продление сертификатов не требуется (Caddy сам); для домена — Let's Encrypt автоматом

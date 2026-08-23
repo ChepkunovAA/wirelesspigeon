@@ -21,7 +21,25 @@
 
     <div class="card shadow-sm mb-4">
         <div class="card-body">
-            <form th:action="@{/forum}" method="get" class="row g-2 align-items-center">
+                <div class="d-flex gap-2 flex-wrap mb-3">
+        <a th:href="@{/forum(search=${search})}"
+           class="badge text-decoration-none p-2"
+           th:classappend="${type == 'ALL'} ? 'text-bg-primary' : 'text-bg-light border text-dark'">Все</a>
+        <a th:href="@{/forum(type='PUBLIC', search=${search})}"
+           class="badge text-decoration-none p-2"
+           th:classappend="${type == 'PUBLIC'} ? 'text-bg-primary' : 'text-bg-light border text-dark'">Публичные</a>
+        <a th:href="@{/forum(type='GUEST', search=${search})}"
+           class="badge text-decoration-none p-2"
+           th:classappend="${type == 'GUEST'} ? 'text-bg-primary' : 'text-bg-light border text-dark'">Гостевые</a>
+        <a th:href="@{/forum(type='OPEN', search=${search})}"
+           class="badge text-decoration-none p-2"
+           th:classappend="${type == 'OPEN'} ? 'text-bg-primary' : 'text-bg-light border text-dark'">Открытые</a>
+        <a th:href="@{/forum(type='CLOSED', search=${search})}"
+           class="badge text-decoration-none p-2"
+           th:classappend="${type == 'CLOSED'} ? 'text-bg-primary' : 'text-bg-light border text-dark'">Закрытые</a>
+    </div>
+
+<form th:action="@{/forum}" method="get" class="row g-2 align-items-center">
                 <div class="col-lg-8">
                     <input type="text" name="search" class="form-control" placeholder="Поиск по названию..."
                            th:value="${search}"/>

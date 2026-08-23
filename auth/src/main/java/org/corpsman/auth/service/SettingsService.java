@@ -40,6 +40,7 @@ public class SettingsService {
                     created.setUserId(userId);
                     created.setDefaultVisibility("OPEN");
                     created.setDefaultReadOnly(false);
+                    created.setHideGuestThreads(false);
                     created.setShowPublicPosts(true);
                     log.debug("Созданы настройки по умолчанию для пользователя {}", userId);
                     return settingsRepository.save(created);
@@ -55,16 +56,19 @@ public class SettingsService {
      * @param defaultVisibility   видимость новых тредов по умолчанию
      * @param defaultReadOnly     новые треды только для чтения
      * @param showPublicPosts     показывать публичные посты
+     * @param hideGuestThreads    скрывать гостевые треды в списке форума
      */
     @Transactional
     public void update(Long userId, boolean threadAnonymous, boolean commentAnonymous,
-                       String defaultVisibility, boolean defaultReadOnly, boolean showPublicPosts) {
+                       String defaultVisibility, boolean defaultReadOnly,
+                       boolean showPublicPosts, boolean hideGuestThreads) {
         UserSettings settings = getByUserId(userId);
         settings.setDefaultThreadAnonymous(threadAnonymous);
         settings.setDefaultCommentAnonymous(commentAnonymous);
         settings.setDefaultVisibility(normalizeVisibility(defaultVisibility));
         settings.setDefaultReadOnly(defaultReadOnly);
         settings.setShowPublicPosts(showPublicPosts);
+        settings.setHideGuestThreads(hideGuestThreads);
         settingsRepository.save(settings);
         log.info("Обновлены настройки пользователя {}", userId);
     }
