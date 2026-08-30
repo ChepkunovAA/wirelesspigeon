@@ -89,14 +89,20 @@ public class ForumController {
         boolean hidePublic = SecurityUtils.currentUserId() != null
                 && !settingsService.getByUserId(SecurityUtils.currentUserId()).isShowPublicPosts();
         CorpsmanUserDetails viewer = SecurityUtils.currentUser();
+        boolean anonymous = viewer == null;
         boolean guestRole = viewer != null && viewer.getRole() == UserRole.GUEST;
+        boolean hidePublicFor = viewer != null
+                && !settingsService.getByUserId(SecurityUtils.currentUserId()).isShowPublicPosts();
         boolean hideGuestThreads = viewer != null
                 && settingsService.getByUserId(SecurityUtils.currentUserId()).isHideGuestThreads()
                 && !guestRole;
+        // Аноним видит только публичные треды
+        String effectiveType = anonymous ? "PUBLIC" : type.toUpperCase();
         model.addAttribute("page", forumService.getTopics(pageable, search, tags, hidePublic,
-                guestRole, hideGuestThreads, type.toUpperCase(), SecurityUtils.currentUserId()));
+                guestRole, hideGuestThreads, effectiveType, SecurityUtils.currentUserId()));
         model.addAttribute("search", search);
-        model.addAttribute("type", type);
+        model.addAttribute("type", effectiveType);
+        model.addAttribute("anonymous", anonymous);
         model.addAttribute("selectedTag", tag);
         model.addAttribute("tags", forumService.getPopularTags());
         return "forum/list";
@@ -464,9 +470,8 @@ public class ForumController {
     @PostMapping("/topic/{id}/continuation")
     public String addContinuation(@PathVariable Long id,
                                   @RequestParam String content,
-                                  @RequestParam(defaultValue = "false") boolean anonymous,
                                   @RequestParam(value = "files", required = false) List<MultipartFile> files) {
-        forumService.addContinuation(id, content, anonymous,
+        forumService.addContinuation(id, content,
                 SecurityUtils.currentUserId());
         return "redirect:/forum/topic/" + id;
     }

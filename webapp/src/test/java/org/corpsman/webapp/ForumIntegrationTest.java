@@ -86,9 +86,13 @@ class ForumIntegrationTest {
 
     @Test
     void forumPagesRequireAuthentication() throws Exception {
-        mockMvc.perform(get("/forum")).andExpect(status().is3xxRedirection());
-        mockMvc.perform(get("/forum/topic/1")).andExpect(status().is3xxRedirection());
-        mockMvc.perform(post("/forum/topic/1/comment").with(csrf())).andExpect(status().is3xxRedirection());
+        // 2.2.0 п.1: чтение форума доступно анониму, запись — нет
+        mockMvc.perform(get("/forum")).andExpect(status().isOk());
+        // аноним не может писать: с CSRF-токеном -> редирект на логин, без -> 403
+        mockMvc.perform(post("/forum/topic/1/comment").with(csrf()))
+                .andExpect(status().is3xxRedirection());
+        mockMvc.perform(post("/forum/topic/1/comment"))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -121,6 +125,34 @@ class ForumIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Читальный клуб")))
                 .andExpect(content().string(containsString("/forum/topic/" + topic.getId())));
+    }
+
+    @Test
+    void topicCardPreviewShowsLatestPostNotComment() throws Exception {
+        User alice = createUser("for_preview_2");
+        ForumTopic topic = addTopic(alice, "Карточка с превью", false);
+
+        ForumPost op = new ForumPost();
+        op.setTopicId(topic.getId());
+        op.setParentPostId(null);
+        op.setContent("Содержимое стартового поста карточки");
+        op.setAuthorId(alice.getId());
+        op.setAnonymous(false);
+        op.setDeleted(false);
+        op.setOp(true);
+        postRepository.save(op);
+
+        ForumPost comment = addPost(topic, alice, "Свежий комментарий после стартового поста");
+        assertThat(comment.getId()).isGreaterThan(op.getId());
+
+        MockHttpSession session = login("for_preview_2");
+        String page = mockMvc.perform(get("/forum").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(page)
+                .contains("Содержимое стартового поста карточки")
+                .doesNotContain("Свежий комментарий после стартового поста");
     }
 
     @Test

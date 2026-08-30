@@ -225,17 +225,23 @@ class ForumVisibilityIntegrationTest {
     }
 
     @Test
-    void publicBadgeOnHomeOnlyForPublicTopics() throws Exception {
+    void homePostVisibilityFollowsRoleAndSettings() throws Exception {
         User owner = createUser("fv_owner_5");
         createTopic(owner, "Публичный анонс fv_p5", TopicVisibility.PUBLIC, null);
         createTopic(owner, "Открытый обычный fv_o5", TopicVisibility.OPEN, null);
-        createUser("fv_reader_5");
-        MockHttpSession session = login("fv_reader_5");
 
-        mockMvc.perform(get("/").session(session))
+        // Аноним видит только публичные треды
+        mockMvc.perform(get("/"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Публичный анонс fv_p5")))
                 .andExpect(content().string(not(containsString("Открытый обычный fv_o5"))));
+
+        // RESIDENT видит и публичные, и открытые треды (открытый побеждает в блоках)
+        createUser("fv_reader_5");
+        MockHttpSession session = login("fv_reader_5");
+        mockMvc.perform(get("/").session(session))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Открытый обычный fv_o5")));
 
         mockMvc.perform(get("/forum").session(session))
                 .andExpect(content().string(containsString("fv_p5")))

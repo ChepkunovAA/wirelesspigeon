@@ -108,4 +108,20 @@ public class NotificationService {
     public void markAllRead(Long userId) {
         notificationRepository.markAllRead(userId);
     }
+
+    /**
+     * Отмечает одно уведомление прочитанным (если оно принадлежит пользователю).
+     *
+     * @param id     идентификатор уведомления
+     * @param userId пользователь
+     */
+    @Transactional
+    public void markRead(Long id, Long userId) {
+        notificationRepository.findById(id)
+                .filter(n -> n.getUserId().equals(userId))
+                .ifPresent(n -> {
+                    n.setRead(true);
+                    notificationRepository.save(n);
+                });
+    }
 }

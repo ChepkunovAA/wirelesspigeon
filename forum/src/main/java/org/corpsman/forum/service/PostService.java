@@ -161,7 +161,9 @@ public class PostService {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }
         boolean byAdmin = isAdmin && !post.getAuthorId().equals(userId);
-        markDeletedDeep(postId, post.getTopicId(), byAdmin);
+        boolean byOwner = !byAdmin && topic.getAuthorId() != null
+                && topic.getAuthorId().equals(userId) && !post.getAuthorId().equals(userId);
+        markDeletedDeep(postId, post.getTopicId(), byAdmin, byOwner);
         topicRepository.findById(post.getTopicId()).ifPresent(
                 tp -> { tp.setLastActivityAt(java.time.LocalDateTime.now()); topicRepository.save(tp); });
         log.info("Комментарий (ID: {}) удалён пользователем {} (админ: {})", postId, userId, byAdmin);
@@ -301,17 +303,18 @@ public class PostService {
                 .orElse(false);
     }
 
-    private void markDeletedDeep(Long postId, Long topicId, boolean byAdmin) {
+    private void markDeletedDeep(Long postId, Long topicId, boolean byAdmin, boolean byOwner) {
         ForumPost post = findPost(postId);
         post.setContent(DELETED_CONTENT);
         post.setDeleted(true);
         post.setDeletedByAdmin(byAdmin);
+        post.setDeletedByOwner(byOwner);
         postRepository.save(post);
         List<ForumPost> children = postRepository.findByTopicIdOrderByCreatedAtAsc(topicId).stream()
                 .filter(p -> postId.equals(p.getParentPostId()))
                 .toList();
         for (ForumPost child : children) {
-            markDeletedDeep(child.getId(), topicId, byAdmin);
+            markDeletedDeep(child.getId(), topicId, byAdmin, byOwner);
         }
     }
 

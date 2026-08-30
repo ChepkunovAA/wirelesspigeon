@@ -20,15 +20,17 @@ public interface ForumTopicRepository extends JpaRepository<ForumTopic, Long> {
     /**
      * Поиск тредов по названию и тегам с сортировкой по последней активности.
      *
-     * @param search   подстрока названия (пустая строка для пропуска)
-     * @param hasTags  признак фильтрации по тегам
-     * @param tags     фильтр по тегам (актуален при hasTags=true)
-     * @param pageable постраничность
+     * @param search    подстрока названия (пустая строка для пропуска)
+     * @param hidePublic признак скрытия публичных тредов (кроме собственных)
+     *                  — пользователь с showPublicPosts=false видит свои публичные треды
+     * @param hasTags   признак фильтрации по тегам
+     * @param tags      фильтр по тегам (актуален при hasTags=true)
+     * @param pageable  постраничность
      * @return страница тредов
      */
     @Query("SELECT DISTINCT t FROM ForumTopic t LEFT JOIN t.tags tag " +
             "WHERE t.deleted = false " +
-            "AND (:hidePublic = false OR t.visibility <> 'PUBLIC') " +
+            "AND (:hidePublic = false OR t.visibility <> 'PUBLIC' OR (:uid IS NOT NULL AND t.authorId = :uid)) " +
             "AND (:guest = false OR t.visibility <> 'OPEN') "
             + "AND (t.visibility <> 'CLOSED' OR (:uid IS NOT NULL AND t.authorId = :uid) OR :adminMode = true "
             + "OR EXISTS (SELECT w FROM TopicWhitelistEntry w WHERE w.topicId = t.id AND w.userId = :uid)) " +
@@ -71,6 +73,14 @@ public interface ForumTopicRepository extends JpaRepository<ForumTopic, Long> {
      */
     Optional<ForumTopic> findFirstByVisibilityAndDeletedFalseOrderByCreatedAtDesc(
             @Param("visibility") TopicVisibility visibility);
+
+    /**
+     * Все неудалённые треды форума.
+     *
+     * @return список тредов
+     */
+    @Query("SELECT t FROM ForumTopic t WHERE t.deleted = false")
+    List<ForumTopic> findAllByDeletedFalse();
 
 
     /**

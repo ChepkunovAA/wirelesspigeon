@@ -67,4 +67,10 @@ public class ForumPost extends BaseEntity {
      */
     @Column(name = "deleted_by_admin", nullable = false)
     private boolean deletedByAdmin;
+
+    /**
+     * Удалено владельцем треда (для заглушки).
+     */
+    @Column(name = "deleted_by_owner", nullable = false)
+    private boolean deletedByOwner;
 }

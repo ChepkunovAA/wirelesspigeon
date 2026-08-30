@@ -3,6 +3,7 @@ package org.corpsman.forum.repository;
 import org.corpsman.forum.model.TopicWhitelistEntry;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -17,6 +18,14 @@ public interface TopicWhitelistRepository extends JpaRepository<TopicWhitelistEn
      * @return список записей
      */
     List<TopicWhitelistEntry> findByTopicId(Long topicId);
+
+    /**
+     * Все записи белого списка для указанных тредов.
+     *
+     * @param topicIds список тредов
+     * @return список записей
+     */
+    List<TopicWhitelistEntry> findByTopicIdIn(Collection<Long> topicIds);
 
     /**
      * Существует ли запись для пользователя в треде.

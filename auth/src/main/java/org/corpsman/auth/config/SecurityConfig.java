@@ -79,6 +79,7 @@ public class SecurityConfig {
                         .requestMatchers("/keys/**").hasAnyRole("RESIDENT", "MASTER")
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/users/*/promote").hasRole("MASTER")
                         .requestMatchers("/cinema/**").hasAnyRole("RESIDENT", "MASTER")
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/forum", "/forum/topic/*").permitAll()
                         .requestMatchers(HttpMethod.POST, "/users/*/ban").hasRole("MASTER")
                         .requestMatchers(HttpMethod.POST, "/users/*/reset-password").hasRole("MASTER")
                         .anyRequest().authenticated())

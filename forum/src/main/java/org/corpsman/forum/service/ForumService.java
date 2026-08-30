@@ -3,7 +3,10 @@ package org.corpsman.forum.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.corpsman.auth.model.User;
+import org.corpsman.auth.model.UserRole;
+import org.corpsman.auth.model.UserSettings;
 import org.corpsman.auth.repository.UserRepository;
+import org.corpsman.auth.service.SettingsService;
 import org.corpsman.common.event.TopicCreatedEvent;
 import org.corpsman.common.exception.BusinessException;
 import org.corpsman.common.exception.ErrorCode;
@@ -79,31 +82,131 @@ public class ForumService {
     private final AttachmentService attachmentService;
     private final TopicWhitelistRepository whitelistRepository;
     private final NotificationService notificationService;
+    private final SettingsService settingsService;
 
     /**
-     * Возвращает последний опубликованный публичный тред для главной страницы.
+     * Возвращает последний пост (стартовый или продолжение) среди тредов,
+     * доступных пользователю с учётом его роли и настроек видимости.
+     * Неавторизованным пользователям доступны только публичные треды.
      *
-     * @return публичный тред или null, если таких нет
+     * @param userId идентификатор пользователя (null — аноним)
+     * @return пост или null, если доступных тредов нет
      */
     @Transactional(readOnly = true)
-    public PublicPostDto getLatestPublicPost() {
-        return topicRepository.findFirstByVisibilityAndDeletedFalseOrderByCreatedAtDesc(TopicVisibility.PUBLIC)
-                .map(this::toPublicPostDto)
-                .orElse(null);
+    public PublicPostDto getLatestVisiblePost(Long userId) {
+        List<Long> visible = visibleTopicIds(viewerContext(userId));
+        if (visible.isEmpty()) {
+            return null;
+        }
+        return postRepository.findLatestByTopicIds(visible, PageRequest.of(0, 1)).stream()
+                .findFirst().map(this::toPublicPostDtoForPost).orElse(null);
     }
 
-    private PublicPostDto toPublicPostDto(ForumTopic topic) {
+    /**
+     * Возвращает лучший пост (максимум лайки минус дизлайки) среди тредов,
+     * доступных пользователю с учётом его роли и настроек видимости.
+     * Неавторизованным пользователям доступны только публичные треды.
+     *
+     * @param userId идентификатор пользователя (null — аноним)
+     * @return пост или null, если доступных тредов нет
+     */
+    @Transactional(readOnly = true)
+    public PublicPostDto getBestVisiblePost(Long userId) {
+        List<Long> visible = visibleTopicIds(viewerContext(userId));
+        if (visible.isEmpty()) {
+            return null;
+        }
+        return postRepository.findBestByTopicIds(visible, PageRequest.of(0, 1)).stream()
+                .findFirst().map(this::toPublicPostDtoForPost).orElse(null);
+    }
+
+    /**
+     * Контекст видимости текущего зрителя: роль и настройки видимости.
+     */
+    private record ViewerContext(Long userId, boolean anonymous, boolean guestRole,
+                                 boolean adminMode, boolean hidePublic, boolean hideGuestThreads) {
+    }
+
+    /**
+     * Формирует контекст видимости для пользователя (или анонима).
+     *
+     * @param userId идентификатор пользователя (null — аноним)
+     * @return контекст
+     */
+    private ViewerContext viewerContext(Long userId) {
+        if (userId == null) {
+            return new ViewerContext(null, true, false, false, false, false);
+        }
+        User user = userRepository.findById(userId).orElse(null);
+        UserRole role = user == null ? null : user.getRole();
+        boolean guest = role == UserRole.GUEST;
+        boolean admin = role == UserRole.MASTER;
+        UserSettings settings = settingsService.getByUserId(userId);
+        return new ViewerContext(userId, false, guest, admin,
+                !settings.isShowPublicPosts(),
+                settings.isHideGuestThreads() && !guest);
+    }
+
+    /**
+     * Идентификаторы тредов, доступных зрителю.
+     */
+    private List<Long> visibleTopicIds(ViewerContext ctx) {
+        List<ForumTopic> topics = topicRepository.findAllByDeletedFalse();
+        Set<Long> whitelisted = ctx.userId() == null
+                ? Set.of()
+                : whitelistRepository.findByTopicIdIn(topics.stream().map(ForumTopic::getId).toList())
+                        .stream().filter(e -> e.getUserId().equals(ctx.userId()))
+                        .map(TopicWhitelistEntry::getTopicId).collect(Collectors.toSet());
+        return topics.stream()
+                .filter(t -> isVisible(t, ctx, whitelisted))
+                .map(ForumTopic::getId)
+                .toList();
+    }
+
+    /**
+     * Доступен ли тред зрителю по правилам видимости форума.
+     */
+    private boolean isVisible(ForumTopic topic, ViewerContext ctx, Set<Long> whitelisted) {
+        TopicVisibility v = topic.getVisibility();
+        if (ctx.anonymous()) {
+            return v == TopicVisibility.PUBLIC;
+        }
+        if (ctx.guestRole() && v == TopicVisibility.OPEN) {
+            return false;
+        }
+        // Публичные треды скрываются, если пользователь отключил showPublicPosts,
+        // но свои собственные треды он видит всегда (новые треды не должны пропадать)
+        if (ctx.hidePublic() && v == TopicVisibility.PUBLIC
+                && !topic.getAuthorId().equals(ctx.userId())) {
+            return false;
+        }
+        if (ctx.hideGuestThreads() && v == TopicVisibility.GUEST) {
+            return false;
+        }
+        if (v == TopicVisibility.CLOSED) {
+            boolean owner = topic.getAuthorId() != null && topic.getAuthorId().equals(ctx.userId());
+            return ctx.adminMode() || owner || whitelisted.contains(topic.getId());
+        }
+        return true;
+    }
+
+    private PublicPostDto toPublicPostDtoForPost(ForumPost post) {
+        ForumTopic topic = post.getTopicId() == null
+                ? null
+                : topicRepository.findById(post.getTopicId()).orElse(null);
         PublicPostDto dto = new PublicPostDto();
-        dto.setId(topic.getId());
-        dto.setTitle(topic.getTitle());
-        dto.setAnonymous(topic.isAnonymous());
-        dto.setFirstPostPreview(preview(topic.getContent()));
-        dto.setCreatedAt(topic.getCreatedAt());
-        Map<Long, String> usernames = topic.getAuthorId() == null
+        dto.setId(post.getTopicId());
+        dto.setTitle(topic == null ? "" : topic.getTitle());
+        dto.setAnonymous(post.isAnonymous());
+        dto.setFirstPostPreview(preview(post.getContent()));
+        dto.setCreatedAt(post.getCreatedAt());
+        dto.setLikes(post.getLikes());
+        dto.setDislikes(post.getDislikes());
+        Map<Long, String> usernames = post.getAuthorId() == null
                 ? Map.of()
-                : loadUsernames(List.of(topic.getAuthorId()));
-        dto.setAuthorName(topic.isAnonymous() ? ANONYMOUS : usernames.getOrDefault(topic.getAuthorId(), ANONYMOUS));
-        dto.setAttachments(attachmentService.forTopic(topic.getId()));
+                : loadUsernames(List.of(post.getAuthorId()));
+        dto.setAuthorName(post.isAnonymous() ? ANONYMOUS : usernames.getOrDefault(post.getAuthorId(), ANONYMOUS));
+        dto.setAttachments(attachmentService.forTopic(post.getTopicId()));
         return dto;
     }
 
@@ -157,6 +260,7 @@ public class ForumService {
                 .map(ForumTopic::getAuthorId)
                 .filter(Objects::nonNull)
                 .toList());
+        Map<Long, String> latestPreviews = loadLatestPostPreviews(page.getContent());
         boolean isAdmin = userId != null && isAdmin(userId);
 
         java.util.Map<Long, Boolean> interactMap = new java.util.HashMap<>();
@@ -171,12 +275,27 @@ public class ForumService {
         }
         List<TopicSummaryDto> dtos = page.getContent().stream()
                 .map(topic -> {
-                    TopicSummaryDto dto = toSummaryDto(topic, counts, usernames, userId, isAdmin);
+                    TopicSummaryDto dto = toSummaryDto(topic, counts, usernames, latestPreviews, userId, isAdmin);
                     dto.setCanInteract(interactMap.getOrDefault(topic.getId(), true));
                     return dto;
                 })
                 .toList();
         return new PageImpl<>(dtos, pageable, page.getTotalElements());
+    }
+
+    /**
+     * Загружает превью последнего поста для каждого треда.
+     *
+     * @param topics треды текущей страницы
+     * @return map topicId -> превью последнего поста
+     */
+    private Map<Long, String> loadLatestPostPreviews(List<ForumTopic> topics) {
+        if (topics.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> ids = topics.stream().map(ForumTopic::getId).toList();
+        return postRepository.findLatestPostEachByTopicIds(ids).stream()
+                .collect(Collectors.toMap(ForumPost::getTopicId, p -> preview(p.getContent())));
     }
 
     /**
@@ -195,6 +314,9 @@ public class ForumService {
         }
 
         boolean isAdmin = userId != null && isAdmin(userId);
+        if (userId == null && topic.getVisibility() != TopicVisibility.PUBLIC) {
+            throw new BusinessException(ErrorCode.TOPIC_NOT_FOUND);
+        }
         if (!canViewClosed(topic, userId, isAdmin)) {
             throw new BusinessException(ErrorCode.TOPIC_NOT_FOUND);
         }
@@ -312,7 +434,9 @@ public class ForumService {
         topic.setAuthorId(userId);
         topic.setAnonymous(request.isAnonymous());
         TopicVisibility resolved = resolveVisibility(request.getVisibility());
-        if (isGuest(userId) && resolved != TopicVisibility.GUEST) {
+        if (isGuest(userId) && resolved != TopicVisibility.GUEST
+                && resolved != TopicVisibility.CLOSED) {
+            // Гость может создавать только «Открытые» (GUEST) и «Закрытые» треды
             resolved = TopicVisibility.GUEST;
         }
         topic.setVisibility(resolved);
@@ -607,14 +731,16 @@ public class ForumService {
     }
 
     private TopicSummaryDto toSummaryDto(ForumTopic topic, Map<Long, Long> counts,
-                                         Map<Long, String> usernames, Long userId, boolean isAdmin) {
+                                         Map<Long, String> usernames, Map<Long, String> latestPreviews,
+                                         Long userId, boolean isAdmin) {
         TopicSummaryDto dto = new TopicSummaryDto();
         dto.setId(topic.getId());
         dto.setAuthorId(topic.getAuthorId());
         dto.setTitle(topic.getTitle());
         dto.setAuthorName(topic.isAnonymous() ? ANONYMOUS : usernames.getOrDefault(topic.getAuthorId(), ANONYMOUS));
         dto.setAnonymous(topic.isAnonymous());
-        dto.setFirstPostPreview(preview(topic.getContent()));
+        // Вместо стартового поста на карточке показываем последний пост треда
+        dto.setFirstPostPreview(latestPreviews.getOrDefault(topic.getId(), preview(topic.getContent())));
         dto.setCreatedAt(topic.getCreatedAt());
         dto.setLastActivityAt(topic.getLastActivityAt());
         dto.setPostsCount(counts.getOrDefault(topic.getId(), 0L));
@@ -670,6 +796,7 @@ public class ForumService {
         dto.setAnonymous(post.isAnonymous());
         dto.setDeleted(post.isDeleted());
         dto.setDeletedByAdmin(post.isDeletedByAdmin());
+        dto.setDeletedByOwner(post.isDeletedByOwner());
         dto.setLikes(post.getLikes());
         dto.setDislikes(post.getDislikes());
         dto.setCreatedAt(post.getCreatedAt());
@@ -863,6 +990,7 @@ public class ForumService {
                 .orElse(false);
     }
 
+
     /**
      * Нормализует видимость треда из строки формы.
      *
@@ -1024,12 +1152,11 @@ public class ForumService {
      *
      * @param topicId   идентификатор треда
      * @param content   текст продолжения
-     * @param anonymous анонимно ли
      * @param userId    автор (только владелец треда)
      * @return созданный пост
      */
     @Transactional
-    public ForumPost addContinuation(Long topicId, String content, boolean anonymous, Long userId) {
+    public ForumPost addContinuation(Long topicId, String content, Long userId) {
         ForumTopic topic = findTopic(topicId);
         if (!topic.getAuthorId().equals(userId)) {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
@@ -1042,7 +1169,9 @@ public class ForumService {
         continuation.setTopicId(topicId);
         continuation.setContent(content == null ? "" : content.trim());
         continuation.setAuthorId(userId);
-        continuation.setAnonymous(anonymous);
+        // Анонимность продолжения наследуется от треда (у постов-продолжений
+        // собственного чекбокса «Анонимно» нет — он бессмысленен)
+        continuation.setAnonymous(topic.isAnonymous());
         continuation.setContinuation(true);
         ForumPost savedContinuation = postRepository.save(continuation);
 

@@ -45,7 +45,7 @@ class DesignStyleIntegrationTest {
     void homeShowsPublicPostPlaceholderWhenNoneExists() throws Exception {
         mockMvc.perform(get("/"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Публичного поста пока нет")));
+                .andExpect(content().string(containsString("Постов пока нет")));
     }
 
     @Test

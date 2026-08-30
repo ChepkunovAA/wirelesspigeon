@@ -9,6 +9,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 
@@ -30,6 +31,16 @@ public class SubscriptionController {
         Long uid = SecurityUtils.currentUserId();
         model.addAttribute("notifications", notificationService.listFor(uid));
         return "notifications";
+    }
+
+    /**
+     * Отмечает уведомление прочитанным и переходит по его ссылке.
+     */
+    @PostMapping("/notifications/{id}/read")
+    public String readOne(@PathVariable Long id,
+                          @RequestParam(required = false) String to) {
+        notificationService.markRead(id, SecurityUtils.currentUserId());
+        return "redirect:" + (to != null && to.startsWith("/") ? to : "/notifications");
     }
 
     /**

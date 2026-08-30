@@ -53,10 +53,13 @@ public class MainController {
         if (user != null) {
             model.addAttribute("user", user);
         }
-        boolean guest = user != null && user.getRole() == org.corpsman.auth.model.UserRole.GUEST;
-        model.addAttribute("filmsHidden", guest);
+        boolean residentPlus = user != null && (user.getRole() == org.corpsman.auth.model.UserRole.RESIDENT
+                || user.getRole() == org.corpsman.auth.model.UserRole.MASTER);
+        model.addAttribute("filmsHidden", !residentPlus);
         model.addAttribute("dashboard", cinemaService.getDashboard());
-        model.addAttribute("publicPost", forumService.getLatestPublicPost());
+        Long viewerId = user == null ? null : user.getId();
+        model.addAttribute("latestPost", forumService.getLatestVisiblePost(viewerId));
+        model.addAttribute("bestPost", forumService.getBestVisiblePost(viewerId));
         return "home";
     }
 

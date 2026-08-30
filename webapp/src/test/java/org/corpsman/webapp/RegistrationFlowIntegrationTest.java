@@ -106,8 +106,12 @@ class RegistrationFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Зарегистрироваться")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Войти")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Следующий фильм")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Последний просмотренный")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Следующий фильм"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Последний просмотренный"))))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Лучший пост")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Последний пост")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("anonymousUser"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Выйти"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("/cinema"))));

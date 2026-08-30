@@ -25,6 +25,7 @@ private Long id;
     private boolean anonymous;
     private boolean deleted;
     private boolean deletedByAdmin;
+    private boolean deletedByOwner;
     private int likes;
     private boolean likedByCurrentUser;
     private int dislikes;

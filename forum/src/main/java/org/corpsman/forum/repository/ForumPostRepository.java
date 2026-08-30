@@ -60,6 +60,42 @@ public interface ForumPostRepository extends JpaRepository<ForumPost, Long> {
 
     List<ForumPost> findByTopicIdAndParentPostIdIsNullAndContinuationTrueOrderByCreatedAtAsc(Long topicId);
 
+    /**
+     * Последний (самый новый) неудалённый пост по каждому из указанных тредов.
+     * Только посты — стартовый (OP) или продолжение; комментарии не участвуют.
+     *
+     * @param topicIds идентификаторы тредов
+     * @return список последних постов (по одному на тред)
+     */
+    @Query("SELECT p FROM ForumPost p WHERE p.deleted = false AND (p.op = true OR p.continuation = true) "
+            + "AND p.topicId IN :topicIds "
+            + "AND p.id = (SELECT MAX(p2.id) FROM ForumPost p2 WHERE p2.topicId = p.topicId "
+            + "AND p2.deleted = false AND (p2.op = true OR p2.continuation = true))")
+    List<ForumPost> findLatestPostEachByTopicIds(@Param("topicIds") List<Long> topicIds);
+
+
+    /**
+     * Последний пост (стартовый или продолжение) среди указанных тредов.
+     *
+     * @param topicIds  список доступных пользователю тредов
+     * @param pageable первая страница (лимит 1)
+     * @return список из одного поста
+     */
+    @Query("SELECT p FROM ForumPost p WHERE p.deleted = false AND (p.op = true OR p.continuation = true) "
+            + "AND p.topicId IN :topicIds ORDER BY p.createdAt DESC, p.id DESC")
+    List<ForumPost> findLatestByTopicIds(@Param("topicIds") List<Long> topicIds, Pageable pageable);
+
+    /**
+     * Лучший пост по рейтингу (лайки минус дизлайки) среди указанных тредов.
+     *
+     * @param topicIds  список доступных пользователю тредов
+     * @param pageable первая страница (лимит 1)
+     * @return список из одного поста
+     */
+    @Query("SELECT p FROM ForumPost p WHERE p.deleted = false AND (p.op = true OR p.continuation = true) "
+            + "AND p.topicId IN :topicIds ORDER BY (p.likes - p.dislikes) DESC, p.id DESC")
+    List<ForumPost> findBestByTopicIds(@Param("topicIds") List<Long> topicIds, Pageable pageable);
+
     @Query("SELECT p.id FROM ForumPost p WHERE p.authorId = :userId AND p.deleted = false")
     List<Long> findIdsByAuthor(@Param("userId") Long userId);
 

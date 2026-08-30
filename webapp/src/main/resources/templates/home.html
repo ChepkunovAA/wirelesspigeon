@@ -23,111 +23,14 @@
         </p>
     </header>
 
-    <section class="row g-4 mb-5" sec:authorize="isAuthenticated()">
-        <div class="col-md-4">
-            <a th:href="@{/forum}" th:if="${user != null}" class="text-decoration-none text-reset">
-                <div class="card h-100 shadow-sm module-card">
-                    <div class="card-body text-center p-4">
-                        <i class="bi bi-chat-square-text fs-2 text-success"></i>
-                        <h6 class="mt-3 mb-1">Форум</h6>
-                        <p class="text-muted small mb-0">Треды без имён</p>
-                    </div>
-                </div>
-            </a>
-        </div>
-        <div class="col-md-4">
-            <a th:href="@{/gifts}" th:if="${user != null}" class="text-decoration-none text-reset">
-                <div class="card h-100 shadow-sm module-card">
-                    <div class="card-body text-center p-4">
-                        <i class="bi bi-gift fs-2 text-danger"></i>
-                        <h6 class="mt-3 mb-1">Вишлисты</h6>
-                        <p class="text-muted small mb-0">Подарки и брони</p>
-                    </div>
-                </div>
-            </a>
-        </div>
-        <div class="col-md-4">
-            <a th:href="@{/cinema}" th:if="${user != null}" class="text-decoration-none text-reset">
-                <div class="card h-100 shadow-sm module-card">
-                    <div class="card-body text-center p-4">
-                        <i class="bi bi-film fs-2 text-primary"></i>
-                        <h6 class="mt-3 mb-1">Кинотеатр</h6>
-                        <p class="text-muted small mb-0">Смотрим вместе</p>
-                    </div>
-                </div>
-            </a>
-        </div>
-    </section>
-
-    <section class="row g-4 mb-5" th:unless="${filmsHidden}">
-        <div class="col-md-6">
-            <p class="section-label mb-2"><i class="bi bi-ticket-perforated"></i> Следующий фильм</p>
-            <div class="card shadow-sm h-100">
-                <div class="card-body py-4 text-center">
-                    <div th:if="${dashboard.nextFilm == null}">
-                        <p class="text-muted fs-5 mb-0">Фильм не выбран</p>
-                    </div>
-                    <div th:if="${dashboard.nextFilm != null}">
-                        <p class="h5 mb-1" th:text="'«' + ${dashboard.nextFilm.title} + '»'">Название</p>
-                        <p class="text-muted small mb-0" th:text="${dashboard.nextFilm.year}">2024</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <p class="section-label mb-2"><i class="bi bi-eye"></i> Последний просмотренный</p>
-            <div class="card shadow-sm h-100">
-                <div class="card-body py-4 text-center">
-                    <div th:if="${dashboard.lastFilm == null}">
-                        <p class="text-muted fs-5 mb-0">Нет просмотренных фильмов</p>
-                    </div>
-                    <div th:if="${dashboard.lastFilm != null}">
-                        <p class="h5 mb-1" th:text="'«' + ${dashboard.lastFilm.title} + '»'">Название</p>
-                        <p class="text-muted small mb-0">
-                            <span th:text="${dashboard.lastFilm.year}">1999</span>
-                            <span th:if="${dashboard.lastFilmStats != null && dashboard.lastFilmStats.totalVotes > 0}"
-                                  th:text="'· ' + ${#numbers.formatDecimal(dashboard.lastFilmStats.average, 1, 1)} + ' ★ · ' + ${dashboard.lastFilmStats.totalVotes} + ' голосов'"></span>
-                            <span class="badge bg-danger ms-1"
-                                  th:if="${dashboard.lastFilm.censorship != null}"
-                                  th:text="${dashboard.lastFilm.censorship.displayName}">Цензура</span>
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <section class="mb-5">
+        <p class="section-label mb-2"><i class="bi bi-trophy"></i> Лучший пост</p>
+        <div th:replace="~{fragments/home-post :: card(post=${bestPost})}"></div>
     </section>
 
     <section>
-        <p class="section-label mb-2"><i class="bi bi-megaphone"></i> Публичный пост форума</p>
-        <div class="card shadow-sm">
-            <div class="card-body p-4" th:if="${publicPost != null}">
-                <h6 class="mb-1" th:text="${publicPost.title}">Заголовок</h6>
-                <p class="text-muted small mb-2">
-                    <span class="badge text-bg-light border" th:if="${publicPost.anonymous}">Анонимно</span>
-                    <span th:if="${!publicPost.anonymous}"
-                          th:text="${publicPost.authorName}">Автор</span>
-                    <span class="ms-2" th:if="${publicPost.createdAt}"
-                          th:text="${#temporals.format(publicPost.createdAt, 'dd.MM.yyyy')}"></span>
-                </p>
-                <p class="mb-0 text-body-secondary" th:if="${publicPost.firstPostPreview}"
-                   th:text="${#strings.abbreviate(publicPost.firstPostPreview, 500)}"></p>
-                <div th:if="${publicPost.attachments != null and !publicPost.attachments.isEmpty()}" class="mt-3">
-                    <div th:each="att : ${publicPost.attachments}" class="d-inline-block me-2 mb-2">
-                        <img th:if="${att.contentType != null and att.contentType.startsWith('image/')}"
-                             th:src="@{/forum/public/attachment/{id}(id=${att.id})}"
-                             th:alt="${att.fileName}"
-                             class="img-thumbnail" style="max-height:150px"/>
-                        <a th:unless="${att.contentType != null and att.contentType.startsWith('image/')}"
-                           th:href="@{/forum/public/attachment/{id}(id=${att.id})}"
-                           th:text="${att.fileName}" class="btn btn-sm btn-outline-primary"></a>
-                    </div>
-                </div>
-            </div>
-            <div class="card-body p-4 text-center text-muted" th:if="${publicPost == null}">
-                <i class="bi bi-megaphone fs-2 d-block mb-2 opacity-50"></i>
-                Публичного поста пока нет — загляните позже
-            </div>
-        </div>
+        <p class="section-label mb-2"><i class="bi bi-megaphone"></i> Последний пост</p>
+        <div th:replace="~{fragments/home-post :: card(post=${latestPost})}"></div>
     </section>
 </main>
 

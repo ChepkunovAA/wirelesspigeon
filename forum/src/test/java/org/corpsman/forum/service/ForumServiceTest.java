@@ -2,6 +2,7 @@ package org.corpsman.forum.service;
 
 import org.corpsman.auth.model.User;
 import org.corpsman.auth.model.UserRole;
+import org.corpsman.auth.model.UserSettings;
 import org.corpsman.auth.repository.UserRepository;
 import org.corpsman.common.event.TopicCreatedEvent;
 import org.corpsman.common.exception.BusinessException;
@@ -12,6 +13,7 @@ import org.corpsman.forum.dto.TopicSummaryDto;
 import org.corpsman.forum.model.ForumPost;
 import org.corpsman.forum.model.ForumTag;
 import org.corpsman.forum.model.ForumTopic;
+import org.corpsman.forum.model.TopicVisibility;
 import org.corpsman.forum.repository.ForumPostRepository;
 import org.corpsman.forum.repository.ForumTagRepository;
 import org.corpsman.forum.repository.ForumTopicRepository;
@@ -73,6 +75,8 @@ class ForumServiceTest {
     private ApplicationEventPublisher eventPublisher;
     @Mock
     private AttachmentService attachmentService;
+    @Mock
+    private org.corpsman.auth.service.SettingsService settingsService;
 
     @InjectMocks
     private ForumService forumService;
@@ -147,6 +151,14 @@ class ForumServiceTest {
         when(userRepository.findByIdIn(anyList())).thenReturn(List.of(user(10L, "luke", UserRole.RESIDENT)));
         when(userRepository.findById(10L)).thenReturn(Optional.of(user(10L, "luke", UserRole.RESIDENT)));
 
+        ForumPost latest = new ForumPost();
+        latest.setId(7L);
+        latest.setTopicId(1L);
+        latest.setContent("Последнее сообщение в треде «Обсуждение фильма» с подписями");
+        latest.setAuthorId(11L);
+        latest.setAnonymous(false);
+        when(postRepository.findLatestPostEachByTopicIds(List.of(1L))).thenReturn(List.of(latest));
+
         Page<TopicSummaryDto> result = forumService.getTopics(PageRequest.of(0, 20), "фильм", null, false, false, false, "ALL", 10L);
 
         assertThat(result.getContent()).hasSize(1);
@@ -156,6 +168,7 @@ class ForumServiceTest {
         assertThat(dto.getAuthorName()).isEqualTo("Аноним");
         assertThat(dto.getTags()).containsExactly("важное");
         assertThat(dto.isAuthor()).isTrue();
+        assertThat(dto.getFirstPostPreview()).isEqualTo("Последнее сообщение в треде «Обсуждение фильма» с подписями");
     }
 
     @Test
@@ -315,5 +328,103 @@ class ForumServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
                 .isEqualTo(ErrorCode.CANNOT_DISLIKE_OWN_POST);
+    }
+
+    private ForumTopic visibleTopic(long id, long authorId, TopicVisibility visibility) {
+        ForumTopic t = topic(id, authorId, false, false);
+        t.setVisibility(visibility);
+        return t;
+    }
+
+    private ForumPost post(long topicId, long authorId, int likes, int dislikes) {
+        ForumPost p = new ForumPost();
+        p.setTopicId(topicId);
+        p.setContent("Содержимое поста для превью.");
+        p.setAnonymous(false);
+        p.setAuthorId(authorId);
+        p.setOp(true);
+        p.setLikes(likes);
+        p.setDislikes(dislikes);
+        p.setDeleted(false);
+        p.setCreatedAt(LocalDateTime.now());
+        return p;
+    }
+
+    private UserSettings settings(boolean showPublic, boolean hideGuest) {
+        UserSettings s = new UserSettings();
+        s.setShowPublicPosts(showPublic);
+        s.setHideGuestThreads(hideGuest);
+        return s;
+    }
+
+    @Test
+    void latestVisiblePostForAnonymousUsesOnlyPublicTopics() {
+        ForumTopic pub = visibleTopic(1L, 10L, TopicVisibility.PUBLIC);
+        ForumTopic closed = visibleTopic(2L, 11L, TopicVisibility.CLOSED);
+        when(topicRepository.findAllByDeletedFalse()).thenReturn(List.of(pub, closed));
+        when(userRepository.findByIdIn(anyList())).thenReturn(List.of(user(10L, "luke", UserRole.RESIDENT)));
+        when(topicRepository.findById(1L)).thenReturn(Optional.of(pub));
+        when(attachmentService.forTopic(1L)).thenReturn(List.of());
+        when(postRepository.findLatestByTopicIds(anyList(), any())).thenReturn(List.of(post(1L, 10L, 1, 0)));
+
+        org.corpsman.forum.dto.PublicPostDto dto = forumService.getLatestVisiblePost(null);
+
+        assertThat(dto).isNotNull();
+        assertThat(dto.getId()).isEqualTo(1L);
+        assertThat(dto.getTitle()).isEqualTo("Обсуждение фильма");
+        assertThat(dto.getAuthorName()).isEqualTo("luke");
+    }
+
+    @Test
+    void bestVisiblePostExcludesClosedTopicNotWhitelisted() {
+        ForumTopic pub = visibleTopic(1L, 10L, TopicVisibility.PUBLIC);
+        ForumTopic closed = visibleTopic(2L, 11L, TopicVisibility.CLOSED);
+        when(topicRepository.findAllByDeletedFalse()).thenReturn(List.of(pub, closed));
+        when(userRepository.findById(10L)).thenReturn(Optional.of(user(10L, "luke", UserRole.RESIDENT)));
+        when(settingsService.getByUserId(10L)).thenReturn(settings(true, false));
+        when(whitelistRepository.findByTopicIdIn(anyList())).thenReturn(List.of());
+        when(userRepository.findByIdIn(anyList())).thenReturn(List.of(user(10L, "luke", UserRole.RESIDENT)));
+        when(topicRepository.findById(1L)).thenReturn(Optional.of(pub));
+        when(attachmentService.forTopic(1L)).thenReturn(List.of());
+        when(postRepository.findBestByTopicIds(anyList(), any())).thenReturn(List.of(post(1L, 10L, 9, 1)));
+
+        org.corpsman.forum.dto.PublicPostDto dto = forumService.getBestVisiblePost(10L);
+
+        assertThat(dto).isNotNull();
+        assertThat(dto.getId()).isEqualTo(1L);
+        assertThat(dto.getLikes()).isEqualTo(9);
+        assertThat(dto.getDislikes()).isEqualTo(1);
+    }
+
+    @Test
+    void guestBestVisiblePostDoesNotSeeOpenTopics() {
+        ForumTopic open = visibleTopic(1L, 10L, TopicVisibility.OPEN);
+        ForumTopic guestTopic = visibleTopic(2L, 10L, TopicVisibility.GUEST);
+        when(topicRepository.findAllByDeletedFalse()).thenReturn(List.of(open, guestTopic));
+        when(userRepository.findById(20L)).thenReturn(Optional.of(user(20L, "guest1", UserRole.GUEST)));
+        when(settingsService.getByUserId(20L)).thenReturn(settings(true, false));
+        when(whitelistRepository.findByTopicIdIn(anyList())).thenReturn(List.of());
+        when(userRepository.findByIdIn(anyList())).thenReturn(List.of(user(10L, "luke", UserRole.RESIDENT)));
+        when(topicRepository.findById(2L)).thenReturn(Optional.of(guestTopic));
+        when(attachmentService.forTopic(2L)).thenReturn(List.of());
+        when(postRepository.findBestByTopicIds(anyList(), any())).thenReturn(List.of(post(2L, 10L, 3, 0)));
+
+        org.corpsman.forum.dto.PublicPostDto dto = forumService.getBestVisiblePost(20L);
+
+        assertThat(dto).isNotNull();
+        assertThat(dto.getId()).isEqualTo(2L);
+    }
+
+    @Test
+    void latestVisiblePostHidesPublicWhenSettingDisabled() {
+        ForumTopic pub = visibleTopic(1L, 10L, TopicVisibility.PUBLIC);
+        when(topicRepository.findAllByDeletedFalse()).thenReturn(List.of(pub));
+        when(userRepository.findById(10L)).thenReturn(Optional.of(user(10L, "luke", UserRole.RESIDENT)));
+        when(settingsService.getByUserId(10L)).thenReturn(settings(false, false));
+        when(whitelistRepository.findByTopicIdIn(anyList())).thenReturn(List.of());
+
+        org.corpsman.forum.dto.PublicPostDto dto = forumService.getLatestVisiblePost(10L);
+
+        assertThat(dto).isNull();
     }
 }

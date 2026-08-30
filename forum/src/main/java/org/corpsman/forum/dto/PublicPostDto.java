@@ -25,5 +25,9 @@ public class PublicPostDto {
 
     private LocalDateTime createdAt;
 
+    private int likes;
+
+    private int dislikes;
+
     private List<ForumAttachmentDto> attachments;
 }

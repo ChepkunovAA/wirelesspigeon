@@ -163,6 +163,24 @@ class SettingsIntegrationTest {
                 .andExpect(content().string(containsString("Вы поставили ему")));
     }
 
+    @Test
+    void hidingPublicPostsKeepsOwnPublicThreadInForumList() throws Exception {
+        User author = createUser("set_author_11");
+        ForumTopic myPublic = createPublicTopic(author, "Мой публичный тред set_pub_11");
+        MockHttpSession session = login("set_author_11");
+
+        mockMvc.perform(post("/settings/prefs").session(session).with(csrf())
+                        .param("showPublicPosts", "false"))
+                .andExpect(status().is3xxRedirection());
+
+        String page = mockMvc.perform(get("/forum").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(page).contains("Мой публичный тред set_pub_11");
+        assertThat(myPublic.getVisibility()).isEqualTo(org.corpsman.forum.model.TopicVisibility.PUBLIC);
+    }
+
     private ForumTopic createPublicTopic(User author, String title) {
         ForumTopic topic = new ForumTopic();
         topic.setTitle(title);
