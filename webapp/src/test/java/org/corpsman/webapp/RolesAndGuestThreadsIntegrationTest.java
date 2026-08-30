@@ -6,6 +6,7 @@ import org.corpsman.auth.repository.UserRepository;
 import org.corpsman.forum.model.ForumTopic;
 import org.corpsman.forum.model.TopicVisibility;
 import org.corpsman.forum.repository.ForumTopicRepository;
+import org.corpsman.forum.service.NotificationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -48,6 +49,40 @@ class RolesAndGuestThreadsIntegrationTest {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private NotificationService notificationService;
+
+    @Test
+    void anonymousSeesForumNavLinkOnly() throws Exception {
+        String home = mockMvc.perform(get("/"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(home).contains("bi-chat-dots\"></i> Форум");
+        assertThat(home).doesNotContain("Профиль");
+        assertThat(home).contains("Войти");
+        assertThat(home).doesNotContain("Участники");
+    }
+
+    @Test
+    void notificationRowIsClickableAndRedirectsAfterRead() throws Exception {
+        User resident = createUser("rg_notif_1", UserRole.RESIDENT);
+        MockHttpSession session = login("rg_notif_1");
+        notificationService.notify(resident.getId(), "TOPIC_COMMENT", "Новый комментарий", "/forum/topic/1");
+
+        String page = mockMvc.perform(get("/notifications").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(page).contains("Новый комментарий");
+        assertThat(page).contains("onclick=\"this.submit();\"");
+
+        Long notifId = notificationService.listFor(resident.getId()).get(0).getId();
+        mockMvc.perform(post("/notifications/{id}/read", notifId).session(session).with(csrf())
+                        .param("to", "/forum/topic/1"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/forum/topic/1"));
+        assertThat(notificationService.listFor(resident.getId()).get(0).isRead()).isTrue();
+    }
 
     @Test
     void guestSeesPublicAndGuestTopicsButNotOpen() throws Exception {

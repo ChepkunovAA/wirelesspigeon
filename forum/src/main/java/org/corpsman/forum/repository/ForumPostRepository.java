@@ -28,7 +28,8 @@ public interface ForumPostRepository extends JpaRepository<ForumPost, Long> {
      * @param topicIds идентификаторы тредов
      * @return массив [topicId, count]
      */
-    @Query("SELECT p.topicId, COUNT(p) FROM ForumPost p WHERE p.topicId IN :topicIds GROUP BY p.topicId")
+    @Query("SELECT p.topicId, COUNT(p) FROM ForumPost p "
+            + "WHERE p.topicId IN :topicIds AND p.deleted = false GROUP BY p.topicId")
     List<Object[]> countByTopicIdIn(@Param("topicIds") List<Long> topicIds);
 
     @Modifying

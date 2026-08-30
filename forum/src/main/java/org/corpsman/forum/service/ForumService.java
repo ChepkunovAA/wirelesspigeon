@@ -406,6 +406,9 @@ public class ForumService {
         firstPost.setDislikedByCurrentUser(topicDisliked);
         dto.setFirstPost(firstPost);
         dto.setPosts(new PageImpl<>(postDtos, pageable, rootPage.getTotalElements()));
+        dto.setNonDeletedCount(allPosts.stream()
+                .filter(p -> !p.isDeleted() && !p.isOp())
+                .count());
 
         // Единая хронологическая лента первого уровня: дети заглавного поста + корневые
         List<ForumPostDto> timeline = new ArrayList<>(firstPost.getReplies());
@@ -862,6 +865,9 @@ public class ForumService {
         }
         long size = 0;
         for (ForumPost reply : byParent.getOrDefault(postId, List.of())) {
+            if (reply.isDeleted()) {
+                continue;
+            }
             size += 1 + subtreeSize(reply.getId(), byParent, sizes);
         }
         sizes.put(postId, size);

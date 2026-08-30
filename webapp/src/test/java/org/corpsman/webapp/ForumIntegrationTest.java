@@ -400,8 +400,51 @@ class ForumIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(not(containsString("Комментарий без поддерева"))))
                 .andExpect(content().string(not(containsString("Комментарий с поддеревом"))))
-                .andExpect(content().string(containsString("[Удалено]")))
-                .andExpect(content().string(matchesPattern("(?s).*Раскрыть\\s+<span>1</span>\\s+<span>комментарий</span>.*")));
+                .andExpect(content().string(not(containsString("Ответ в ветку"))))
+                .andExpect(content().string(not(containsString("[Удалено]"))))
+                .andExpect(content().string(containsString("(<span>0</span>)")));
+    }
+
+    @Test
+    void ownerDeletesCommentWithoutSubtreeShowsPlaceholder() throws Exception {
+        User alice = createUser("for_alice_22");
+        User bob = createUser("for_bob_22");
+        ForumTopic topic = addTopic(alice, "Спорт", false);
+        ForumPost post = addPost(topic, bob, "Без поддерева, удалит владелец");
+        MockHttpSession ownerSession = login("for_alice_22");
+
+        mockMvc.perform(post("/forum/post/" + post.getId() + "/delete").session(ownerSession).with(csrf()))
+                .andExpect(status().is3xxRedirection());
+
+        ForumPost deleted = postRepository.findById(post.getId()).orElseThrow();
+        assertThat(deleted.isDeleted()).isTrue();
+        assertThat(deleted.isDeletedByOwner()).isTrue();
+
+        mockMvc.perform(get("/forum/topic/" + topic.getId()).session(ownerSession))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Удалено владельцем треда")));
+    }
+
+    @Test
+    void adminDeletesCommentWithoutSubtreeShowsPlaceholder() throws Exception {
+        User alice = createUser("for_alice_23");
+        User admin = createUser("for_admin_23");
+        admin.setRole(UserRole.MASTER);
+        userRepository.save(admin);
+        ForumTopic topic = addTopic(alice, "Кино", false);
+        ForumPost post = addPost(topic, alice, "Без поддерева, удалит админ");
+        MockHttpSession adminSession = login("for_admin_23");
+
+        mockMvc.perform(post("/forum/post/" + post.getId() + "/delete").session(adminSession).with(csrf()))
+                .andExpect(status().is3xxRedirection());
+
+        ForumPost deleted = postRepository.findById(post.getId()).orElseThrow();
+        assertThat(deleted.isDeleted()).isTrue();
+        assertThat(deleted.isDeletedByAdmin()).isTrue();
+
+        mockMvc.perform(get("/forum/topic/" + topic.getId()).session(adminSession))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Удалено администратором")));
     }
 
     @Test

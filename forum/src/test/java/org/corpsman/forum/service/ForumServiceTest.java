@@ -10,6 +10,7 @@ import org.corpsman.common.exception.ErrorCode;
 import org.corpsman.forum.dto.TopicCreateRequest;
 import org.corpsman.forum.dto.TopicDetailDto;
 import org.corpsman.forum.dto.TopicSummaryDto;
+import org.corpsman.forum.dto.ForumPostDto;
 import org.corpsman.forum.model.ForumPost;
 import org.corpsman.forum.model.ForumTag;
 import org.corpsman.forum.model.ForumTopic;
@@ -213,6 +214,29 @@ class ForumServiceTest {
     }
 
     @Test
+    void countsExcludeDeletedPosts() {
+        ForumTopic topic = topic(1L, 10L, false, false);
+        when(topicRepository.findById(1L)).thenReturn(Optional.of(topic));
+        when(userRepository.findById(10L)).thenReturn(Optional.of(user(10L, "luke", UserRole.RESIDENT)));
+        when(userRepository.findByIdIn(anyList())).thenReturn(List.of(user(10L, "luke", UserRole.RESIDENT)));
+
+        ForumPost root = post(1L, 1L, null, "Корневой", 10L, false, false);
+        ForumPost activeChild = post(2L, 1L, 1L, "Живой ответ", 11L, false, false);
+        ForumPost deletedChild = post(3L, 1L, 1L, "[Удалено]", 12L, true, false);
+        when(postRepository.findByTopicIdOrderByCreatedAtAsc(1L))
+                .thenReturn(List.of(root, activeChild, deletedChild));
+        when(likeRepository.findByPostIdInAndUserId(anyList(), any())).thenReturn(List.of());
+        when(banRepository.findByTopicIdOrderByCreatedAtDesc(1L)).thenReturn(List.of());
+
+        TopicDetailDto dto = forumService.getTopic(1L, 10L, PageRequest.of(0, 20));
+
+        assertThat(dto.getNonDeletedCount()).isEqualTo(2L);
+        ForumPostDto rootDto = dto.getPosts().getContent().get(0);
+        assertThat(rootDto.getReplies()).hasSize(2);
+        assertThat(rootDto.getSubtreeSize()).isEqualTo(1L);
+    }
+
+    @Test
     void freezeTopicByNonModeratorFails() {
         ForumTopic topic = topic(1L, 10L, false, false);
         when(topicRepository.findById(1L)).thenReturn(Optional.of(topic));
@@ -346,6 +370,22 @@ class ForumServiceTest {
         p.setLikes(likes);
         p.setDislikes(dislikes);
         p.setDeleted(false);
+        p.setCreatedAt(LocalDateTime.now());
+        return p;
+    }
+
+    private ForumPost post(long id, long topicId, Long parentPostId, String content,
+                           long authorId, boolean deleted, boolean anonymous) {
+        ForumPost p = new ForumPost();
+        p.setId(id);
+        p.setTopicId(topicId);
+        p.setParentPostId(parentPostId);
+        p.setContent(content);
+        p.setAuthorId(authorId);
+        p.setAnonymous(anonymous);
+        p.setLikes(0);
+        p.setDislikes(0);
+        p.setDeleted(deleted);
         p.setCreatedAt(LocalDateTime.now());
         return p;
     }

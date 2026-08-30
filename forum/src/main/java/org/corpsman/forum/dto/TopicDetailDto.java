@@ -32,4 +32,6 @@ public class TopicDetailDto {
     private boolean canWrite;
     private List<TopicBanDto> bannedUsers;
     private String realAuthorName;
+    /** Количество неудалённых комментариев треда (без OP). */
+    private long nonDeletedCount;
 }
