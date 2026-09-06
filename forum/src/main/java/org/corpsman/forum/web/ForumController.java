@@ -118,15 +118,26 @@ public class ForumController {
     public String showCreateForm(Model model) {
         TopicCreateRequest topicForm = new TopicCreateRequest();
         CorpsmanUserDetails viewer = SecurityUtils.currentUser();
-        var userSettings = settingsService.getByUserId(SecurityUtils.currentUserId());
+        if (viewer == null) {
+            // аноним не может создавать треды (кнопка в UI не показывается), прямой
+            // переход на форму не должен падать с findById(null) в настройках
+            return "redirect:/login";
+        }
+        var userSettings = settingsService.getByUserId(viewer.getId());
         topicForm.setAnonymous(userSettings.isDefaultThreadAnonymous());
         topicForm.setReadOnly(userSettings.isDefaultReadOnly());
         String defaultVis = userSettings.getDefaultVisibility();
-        if (viewer != null && viewer.getRole() == UserRole.GUEST) {
+        boolean guestCreator = viewer != null && viewer.getRole() == UserRole.GUEST;
+        if (guestCreator) {
             defaultVis = "GUEST";
         }
-        topicForm.setVisibility(defaultVis);
-        boolean guestCreator = viewer != null && viewer.getRole() == UserRole.GUEST;
+        if ("GUEST".equals(defaultVis)) {
+            // «Открытый» + чекбокс «доступен гостям»
+            topicForm.setVisibility("OPEN");
+            topicForm.setGuestAccess(true);
+        } else {
+            topicForm.setVisibility(defaultVis);
+        }
         model.addAttribute("guestCreator", guestCreator);
         model.addAttribute("topic", topicForm);
         model.addAttribute("allTags", forumService.getAllTags());
@@ -177,19 +188,20 @@ public class ForumController {
         Pageable pageable = PageRequest.of(page, POSTS_PAGE_SIZE);
         TopicDetailDto topic = forumService.getTopic(id, SecurityUtils.currentUserId(), pageable);
         model.addAttribute("topic", topic);
+        Long viewerId = SecurityUtils.currentUserId();
         ForumPostRequest form = new ForumPostRequest();
         form.setTopicId(id);
-        form.setAnonymous(settingsService.getByUserId(SecurityUtils.currentUserId()).isDefaultCommentAnonymous());
+        // Анонимный посетитель не имеет настроек пользователя — используем дефолт
+        form.setAnonymous(viewerId != null
+                && settingsService.getByUserId(viewerId).isDefaultCommentAnonymous());
         model.addAttribute("commentForm", form);
-        model.addAttribute("currentUserId", SecurityUtils.currentUserId());
-        boolean isOwner = SecurityUtils.currentUserId() != null
-                && SecurityUtils.currentUserId().equals(topic.getTopicAuthorId());
+        model.addAttribute("currentUserId", viewerId);
+        boolean isOwner = viewerId != null && viewerId.equals(topic.getTopicAuthorId());
         model.addAttribute("isTopicOwner", isOwner);
         model.addAttribute("visibility", forumService.getTopicVisibility(id));
         model.addAttribute("whitelistNames", forumService.getWhitelistNames(id));
-        model.addAttribute("subscribedToTopic", subscriptionService.isSubscribedToTopic(
-                SecurityUtils.currentUserId(), id));
-        Long viewerId = SecurityUtils.currentUserId();
+        model.addAttribute("subscribedToTopic", viewerId != null
+                && subscriptionService.isSubscribedToTopic(viewerId, id));
         model.addAttribute("allUsers", userRepository.findAll().stream()
                 .filter(u -> u.isActive()
                         && !u.getId().equals(viewerId)

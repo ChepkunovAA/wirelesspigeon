@@ -116,6 +116,24 @@ class ForumIntegrationTest {
     }
 
     @Test
+    void topicPageShowsScrollToBottomButton() throws Exception {
+        createUser("for_scroll_1");
+        MockHttpSession session = login("for_scroll_1");
+
+        mockMvc.perform(post("/forum/topic/create").session(session).with(csrf())
+                        .param("title", "Тред с кнопкой прокрутки")
+                        .param("content", "Контент.")
+                        .param("tags", "тест"))
+                .andExpect(status().is3xxRedirection());
+
+        ForumTopic topic = topicRepository.findAll().iterator().next();
+        mockMvc.perform(get("/forum/topic/" + topic.getId()).session(session))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("id=\"scroll-bottom-btn\"")))
+                .andExpect(content().string(containsString("id=\"comment-form\"")));
+    }
+
+    @Test
     void topicListShowsCreatedThread() throws Exception {
         User alice = createUser("for_alice_2");
         ForumTopic topic = addTopic(alice, "Читальный клуб", false);

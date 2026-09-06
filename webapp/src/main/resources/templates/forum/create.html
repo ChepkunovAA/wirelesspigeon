@@ -7,6 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link th:href="@{/css/app.css}" rel="stylesheet">
+    <style>[x-cloak]{display:none!important}</style>
 </head>
 <body class="bg-light">
 <nav th:replace="~{fragments/nav :: nav}"></nav>
@@ -48,7 +49,7 @@
                 </label>
             </div>
 
-            <div x-data="{vis: 'OPEN'}">
+            <div th:attr="x-data=|{vis: '${topic.visibility}'}|">
                 <div class="mb-3" th:unless="${guestCreator}">
                     <label for="visibility" class="form-label">Видимость</label>
                     <select id="visibility" name="visibility" class="form-select"
@@ -60,6 +61,14 @@
                     <div class="form-text">Для закрытых тредов отметьте белый список</div>
                 </div>
 
+                <div class="form-check mb-3" th:unless="${guestCreator}" x-show="vis === 'OPEN'" x-cloak>
+                    <input class="form-check-input" type="checkbox" id="guestAccess" th:field="*{guestAccess}"/>
+                    <label class="form-check-label" for="guestAccess">
+                        <i class="bi bi-people-fill"></i> Доступен гостям
+                        <span class="d-block text-muted small">Гости смогут писать и модерировать в этом треде</span>
+                    </label>
+                </div>
+
                 <div class="form-check form-switch mb-3">
                     <input class="form-check-input" type="checkbox" id="readOnly" name="readOnly"
                            th:field="*{readOnly}">
@@ -68,14 +77,18 @@
                         <span class="d-block text-muted small">Никто, кроме вас, не сможет писать в этот тред</span>
                     </label>
                 </div>
-                <div class="mb-3 dropdown" x-show="vis === 'CLOSED'" x-cloak>
+                <div class="mb-3 dropdown" x-show="vis === 'CLOSED'" x-cloak x-data="{ q: '' }">
                     <label class="form-label">Белый список</label>
                     <button class="btn btn-outline-secondary dropdown-toggle w-100" type="button"
                             data-bs-toggle="dropdown" data-bs-auto-close="outside">
                         Отметьте участников
                     </button>
                     <div class="dropdown-menu p-3 w-100" style="max-height: 280px; overflow: auto;">
-                        <label class="dropdown-item-text form-check" th:each="u : ${allUsers}">
+                        <input type="text" x-model="q" class="form-control form-control-sm mb-2"
+                               placeholder="Поиск по нику..." autocomplete="off" aria-label="Поиск по нику">
+                        <label class="dropdown-item-text form-check" th:each="u : ${allUsers}"
+                               th:attr="data-u=${u.username}"
+                               x-show="!q || $el.getAttribute('data-u').toLowerCase().includes(q.toLowerCase())">
                             <input type="checkbox" name="whitelistItems" th:value="${u.username}"
                                    class="form-check-input me-1">
                             <span th:text="${u.username}">username</span>
@@ -100,5 +113,6 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
 </body>
 </html>

@@ -105,7 +105,10 @@ class RolesAndGuestThreadsIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
         assertThat(guestPage).contains("rg_p1", "rg_g1").doesNotContain("rg_o1");
-        assertThat(guestPage).contains("Гостевой"); // маркер типа треда
+        // гость видит гостевые треды, но маркер «доступен гостям» не видит (нет намёков на скрытый функционал)
+        assertThat(guestPage).doesNotContain("доступен гостям");
+        // резидент маркер видит
+        assertThat(residentPage).contains("доступен гостям");
 
         // прямой переход на открытый тред запрещён
         Long openId = topicRepository.findAll().stream()
@@ -156,10 +159,72 @@ class RolesAndGuestThreadsIntegrationTest {
         assertThat(created.getVisibility()).isEqualTo(TopicVisibility.GUEST);
 
         MockHttpSession session2 = login("rg_guest_3");
+        // гость, создавший гостевой тред, не видит маркер «доступен гостям» на странице треда
         mockMvc.perform(get("/forum/topic/" + created.getId()).session(session2))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Гостевой")));
+                .andExpect(content().string(not(containsString("доступен гостям"))));
         assertThat(created.isReadOnly()).isFalse();
+    }
+
+    @Test
+    void residentGuestAccessCheckboxResolvesToGuestVisibility() throws Exception {
+        createUser("rg_resident_ga1", UserRole.RESIDENT);
+        MockHttpSession session = login("rg_resident_ga1");
+
+        mockMvc.perform(post("/forum/topic/create").session(session).with(csrf())
+                        .param("title", "Открытый с гостями rg_ga1")
+                        .param("content", "Контент")
+                        .param("visibility", "OPEN")
+                        .param("guestAccess", "true"))
+                .andExpect(status().is3xxRedirection());
+
+        ForumTopic guest = topicRepository.findAll().stream()
+                .filter(t -> t.getTitle().equals("Открытый с гостями rg_ga1")).findFirst().orElseThrow();
+        assertThat(guest.getVisibility()).isEqualTo(TopicVisibility.GUEST);
+
+        mockMvc.perform(post("/forum/topic/create").session(session).with(csrf())
+                        .param("title", "Открытый без гостей rg_ga2")
+                        .param("content", "Контент")
+                        .param("visibility", "OPEN"))
+                .andExpect(status().is3xxRedirection());
+
+        ForumTopic open = topicRepository.findAll().stream()
+                .filter(t -> t.getTitle().equals("Открытый без гостей rg_ga2")).findFirst().orElseThrow();
+        assertThat(open.getVisibility()).isEqualTo(TopicVisibility.OPEN);
+    }
+
+    @Test
+    void guestAccessCheckboxPresentOnlyForResidentAndMasters() throws Exception {
+        createUser("rg_resident_ga3", UserRole.RESIDENT);
+        MockHttpSession resSession = login("rg_resident_ga3");
+        mockMvc.perform(get("/forum/topic/create").session(resSession))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("guestAccess")))
+                .andExpect(content().string(containsString("Доступен гостям")))
+                // x-data должен быть объектным литералом {vis: '...'}, иначе Alpine не покажет чекбокс
+                .andExpect(content().string(containsString("x-data=\"{vis: &#39;")));
+
+        createUser("rg_guest_ga4", UserRole.GUEST);
+        MockHttpSession guestSession = login("rg_guest_ga4");
+        mockMvc.perform(get("/forum/topic/create").session(guestSession))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("guestAccess"))));
+    }
+
+    @Test
+    void guestDefaultVisibilityPrefillsCheckboxInCreateForm() throws Exception {
+        createUser("rg_resident_ga5", UserRole.RESIDENT);
+        MockHttpSession session = login("rg_resident_ga5");
+
+        mockMvc.perform(post("/settings/prefs").session(session).with(csrf())
+                        .param("defaultVisibility", "GUEST"))
+                .andExpect(status().is3xxRedirection());
+
+        String page = mockMvc.perform(get("/forum/topic/create").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8)
+                .replaceAll("\\s+", " ");
+        assertThat(page).contains("id=\"guestAccess\" name=\"guestAccess\" value=\"true\" checked=\"checked\"");
     }
 
     @Test
@@ -206,6 +271,38 @@ class RolesAndGuestThreadsIntegrationTest {
                 .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8)
                 .replaceAll("\\s+", " ");
         assertThat(page).contains("id=\"readOnly\" name=\"readOnly\" value=\"true\" checked=\"checked\"");
+    }
+
+    @Test
+    void anonymousOpensPublicTopicWithoutError() throws Exception {
+        User resident = createUser("rg_resident_anon", UserRole.RESIDENT);
+        createTopic(resident, "Публичный для анонима rg_anon1", TopicVisibility.PUBLIC);
+        Long tid = topicIdByTitle("Публичный для анонима rg_anon1");
+
+        mockMvc.perform(get("/forum/topic/" + tid))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Публичный для анонима rg_anon1")));
+    }
+
+    @Test
+    void anonymousCreateFormRedirectsToLoginWithoutError() throws Exception {
+        // прямой переход анонима на форму создания не даёт 500
+        // (SettingsService.getByUserId(null) → findById(null))
+        mockMvc.perform(get("/forum/topic/create"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(result -> assertThat(result.getResponse().getRedirectedUrl())
+                        .contains("/login"));
+    }
+
+    @Test
+    void residentSeesGuestMarkerOnGuestThread() throws Exception {
+        User resident = createUser("rg_resident_mk1", UserRole.RESIDENT);
+        createTopic(resident, "Гостевой с маркером rg_mk1", TopicVisibility.GUEST);
+        MockHttpSession session = login("rg_resident_mk1");
+
+        mockMvc.perform(get("/forum/topic/" + topicIdByTitle("Гостевой с маркером rg_mk1")).session(session))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("доступен гостям")));
     }
 
     @Test

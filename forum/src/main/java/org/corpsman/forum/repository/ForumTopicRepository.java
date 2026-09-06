@@ -23,6 +23,7 @@ public interface ForumTopicRepository extends JpaRepository<ForumTopic, Long> {
      * @param search    подстрока названия (пустая строка для пропуска)
      * @param hidePublic признак скрытия публичных тредов (кроме собственных)
      *                  — пользователь с showPublicPosts=false видит свои публичные треды
+     * @param typeFilters фильтр по типам видимости (null — без фильтра)
      * @param hasTags   признак фильтрации по тегам
      * @param tags      фильтр по тегам (актуален при hasTags=true)
      * @param pageable  постраничность
@@ -32,9 +33,9 @@ public interface ForumTopicRepository extends JpaRepository<ForumTopic, Long> {
             "WHERE t.deleted = false " +
             "AND (:hidePublic = false OR t.visibility <> 'PUBLIC' OR (:uid IS NOT NULL AND t.authorId = :uid)) " +
             "AND (:guest = false OR t.visibility <> 'OPEN') "
-            + "AND (t.visibility <> 'CLOSED' OR (:uid IS NOT NULL AND t.authorId = :uid) OR :adminMode = true "
+            + "AND (t.visibility <> 'CLOSED' OR (:uid IS NOT NULL AND t.authorId = :uid) "
             + "OR EXISTS (SELECT w FROM TopicWhitelistEntry w WHERE w.topicId = t.id AND w.userId = :uid)) " +
-            "AND (:typeFilter IS NULL OR t.visibility = :typeFilter) " +
+            "AND (:typeFilters IS NULL OR t.visibility IN :typeFilters) " +
             "AND (:guestHide = false OR t.visibility <> 'GUEST') " +
             "AND (:search = '' OR LOWER(t.title) LIKE LOWER(CONCAT('%', CAST(:search AS text), '%'))) " +
             "AND (:hasTags = false OR tag.name IN :tags) " +
@@ -42,10 +43,9 @@ public interface ForumTopicRepository extends JpaRepository<ForumTopic, Long> {
     Page<ForumTopic> search(@Param("search") String search,
                             @Param("hidePublic") boolean hidePublic,
                             @Param("guestHide") boolean guestHide,
-                            @Param("typeFilter") org.corpsman.forum.model.TopicVisibility typeFilter,
+                            @Param("typeFilters") List<TopicVisibility> typeFilters,
                             @Param("guest") boolean guest,
                             @Param("uid") Long uid,
-                            @Param("adminMode") boolean adminMode,
                             @Param("hasTags") boolean hasTags,
                             @Param("tags") List<String> tags,
                             Pageable pageable);

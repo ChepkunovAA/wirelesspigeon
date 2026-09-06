@@ -9,12 +9,15 @@
     <link th:href="@{/css/app.css}" rel="stylesheet">
 </head>
 <body class="bg-light">
+<script th:src="@{/js/theme.js}"></script>
 <div class="container d-flex justify-content-center align-items-center min-vh-100">
     <div class="card shadow-sm" style="max-width: 420px; width: 100%;">
         <div class="card-body p-4">
             <div class="text-center mb-4">
                 <img th:src="@{/assets/logo.png}" alt="Логотип Corpsman"
-                     width="44" height="44" class="rounded-circle border border-secondary-subtle mb-2">
+                     width="44" height="44" class="logo-light rounded-circle border border-secondary-subtle mb-2">
+                <img th:src="@{/assets/dark-asset.png}" alt="Логотип Corpsman"
+                     width="44" height="44" class="logo-dark rounded-circle border border-secondary-subtle mb-2">
                 <h1 class="h3 fw-bold">Corpsman</h1>
                 <p class="text-muted">Закрытый клуб</p>
             </div>
@@ -45,5 +48,9 @@
         </div>
     </div>
 </div>
+<button type="button" id="theme-toggle" class="theme-toggle btn"
+        aria-label="Тёмная тема" title="Тёмная тема">
+    <i class="bi bi-moon-stars"></i>
+</button>
 </body>
 </html>

@@ -1,3 +1,129 @@
+/* ============ Тёмная тема (П.4) ============ */
+/* Инвертируются только цвета приложения; user-content (аватарки, вложения, фото) — нет. */
+
+:root {
+    --app-bg: #f8f9fa;
+    --app-surface: #ffffff;
+    --app-logo: url("../assets/logo.png");
+    --app-mask-tile: url("../assets/mask-tile.png");
+    --app-tile-opacity: .06;
+}
+
+html[data-bs-theme="dark"] {
+    --app-bg: #1e242c;
+    --app-surface: #2a313c;
+    --app-post-op-bg: #232a34;
+    --app-post-op-border: #33404f;
+    --app-header-bg: #2a313c;
+    --app-muted: #9aa5b1;
+    --app-logo: url("../assets/dark-asset.png");
+    --app-mask-tile: url("../assets/mask-tile-dark.png");
+    --app-tile-opacity: .10;
+}
+
+/* Тело страницы: переопределяем .bg-light (фиксированный светло-серый с !important), body — под тему */
+html[data-bs-theme] body {
+    background-color: var(--app-bg) !important;
+    color: var(--bs-body-color);
+}
+
+/* Фоновая маска-плитка: подставляем тёмный ассет для тёмной темы */
+html[data-bs-theme] body::before {
+    background-image: var(--app-mask-tile);
+    opacity: var(--app-tile-opacity);
+}
+
+/* Логотип: в тёмной теме — dark-asset вместо стандартного */
+html[data-bs-theme] .logo-light { display: inline-block; }
+html[data-bs-theme] .logo-dark { display: none; }
+html[data-bs-theme="dark"] .logo-light { display: none; }
+html[data-bs-theme="dark"] .logo-dark { display: inline-block; }
+
+/* Заглавный пост / карточки — тёмные поверхности */
+html[data-bs-theme="dark"] .post-op {
+    background-color: var(--app-post-op-bg);
+    border-color: var(--app-post-op-border);
+}
+
+html[data-bs-theme="dark"] .card-header {
+    background-color: var(--app-header-bg);
+    border-bottom-color: var(--bs-border-color-translucent);
+}
+
+html[data-bs-theme="dark"] .card-footer {
+    background-color: transparent;
+}
+
+/* Закрытые треды в списке — тёмные ряды */
+html[data-bs-theme="dark"] .closed-topic-row.closed-for-admin .stretched-link,
+html[data-bs-theme="dark"] .closed-topic-row.closed-for-admin h5 a { color: var(--app-muted); }
+
+html[data-bs-theme="dark"] .list-group-item.closed-topic-row:not(.can-interact) {
+    background-color: #262d37;
+}
+html[data-bs-theme="dark"] .list-group-item.closed-topic-row:not(.can-interact) .text-muted { color: var(--app-muted) !important; }
+
+/* Секционные лейблы — светлее в тёмной теме */
+html[data-bs-theme="dark"] .section-label { color: var(--app-muted); }
+
+/* Прикладные поверхности/текст с захардкоженными светлыми цветами —
+   инвертируются только цвета приложения, не user-content (аватарки, вложения, фото) */
+html[data-bs-theme="dark"] .bg-white {
+    background-color: var(--app-surface) !important;
+}
+html[data-bs-theme="dark"] .text-dark {
+    color: var(--bs-body-color) !important;
+}
+html[data-bs-theme="dark"] .border-light {
+    border-color: var(--bs-border-color) !important;
+}
+
+/* Тумблер темы (слева внизу) */
+.theme-toggle {
+    position: fixed;
+    left: 1.25rem;
+    bottom: 1.25rem;
+    z-index: 1050;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .25);
+    border: 1px solid var(--bs-border-color);
+    background-color: var(--app-surface);
+    color: var(--bs-body-color);
+    opacity: .85;
+}
+
+.theme-toggle:hover { opacity: 1; }
+
+/* Кнопка прокрутки вниз (правый нижний угол, в тредах) */
+.scroll-bottom-btn {
+    position: fixed;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    z-index: 1050;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .25);
+    border: 1px solid var(--bs-border-color);
+    background-color: var(--app-surface);
+    color: var(--bs-body-color);
+    opacity: .85;
+}
+
+.scroll-bottom-btn:hover { opacity: 1; }
+
+/* ============ Тёмная тема: конец ============ */
+
 [x-cloak] {
     display: none !important;
 }
@@ -39,6 +165,12 @@ body::before {
 main,
 footer {
     position: relative;
+}
+
+/* Только navbar создаёт stacking context (z-index:1): контент main/footer
+   никогда не перекрывает фиксированный тумблер темы (z-index:1050 внутри nav),
+   а сам main/footer не запирают z-index своих потомков (modal, скролл-кнопка). */
+.navbar {
     z-index: 1;
 }
 

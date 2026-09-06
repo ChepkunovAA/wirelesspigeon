@@ -86,6 +86,34 @@ class ForumVisibilityIntegrationTest {
     }
 
     @Test
+    void adminDoesNotSeeClosedTopicUnlessWhitelistedOrOwner() throws Exception {
+        User owner = createUser("fv_6owner");
+        User admin = createUser("fv_6admin", UserRole.MASTER);
+        User whitelistedAdmin = createUser("fv_6wiadmin", UserRole.MASTER);
+        ForumTopic topic = createTopic(owner, "Закрытый тред fv_p6_1", TopicVisibility.CLOSED, null);
+        whitelistRepository.save(entry(topic.getId(), whitelistedAdmin.getId()));
+
+        // админ вне белого списка НЕ видит закрытый тред ни в списке, ни по прямой ссылке
+        MockHttpSession adminSession = login("fv_6admin");
+        mockMvc.perform(get("/forum/topic/" + topic.getId()).session(adminSession))
+                .andExpect(status().is4xxClientError());
+        mockMvc.perform(get("/forum").session(adminSession))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("fv_p6_1"))));
+
+        // админ, добавленный в белый список, видит тред
+        MockHttpSession whitelistedSession = login("fv_6wiadmin");
+        mockMvc.perform(get("/forum/topic/" + topic.getId()).session(whitelistedSession))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("fv_p6_1")));
+
+        // владелец-не-админ также видит
+        MockHttpSession ownerSession = login("fv_6owner");
+        mockMvc.perform(get("/forum/topic/" + topic.getId()).session(ownerSession))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void createFormSavesVisibilityAndWhitelist() throws Exception {
         createUser("fv_owner_2");
         createUser("fv_friend_2");
@@ -323,6 +351,25 @@ class ForumVisibilityIntegrationTest {
 
         assertThat(page).contains("value=\"" + activeFriend.getUsername() + "\"");
         assertThat(page).doesNotContain("value=\"fv_banned_12\"");
+    }
+
+    @Test
+    void whitelistSearchBoxPresentOnCreateAndTopicPages() throws Exception {
+        User owner = createUser("fv_ws_owner");
+        createUser("fv_ws_friend");
+        MockHttpSession session = login("fv_ws_owner");
+
+        String createPage = mockMvc.perform(get("/forum/topic/create").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(createPage).contains("Поиск по нику");
+
+        ForumTopic closed = createTopic(owner, "Закрытый fv_ws_topic", TopicVisibility.CLOSED, null);
+        String topicPage = mockMvc.perform(get("/forum/topic/" + closed.getId()).session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(topicPage).contains("Поиск по нику");
+        assertThat(topicPage).contains("name=\"whitelistItems\"");
     }
 
     @Test

@@ -26,6 +26,9 @@ public class TopicCreateRequest {
 
     private String visibility = "OPEN";
 
+    /** «Открытый» тред дополнительно доступен гостям (OPEN→GUEST). */
+    private boolean guestAccess;
+
     /** Ники пользователей белого списка через запятую (для закрытых тредов). */
     private String whitelist = "";
 

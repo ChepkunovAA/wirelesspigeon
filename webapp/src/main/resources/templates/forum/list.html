@@ -28,9 +28,6 @@
         <a th:href="@{/forum(type='PUBLIC', search=${search})}"
            class="badge text-decoration-none p-2"
            th:classappend="${type == 'PUBLIC'} ? 'text-bg-primary' : 'text-bg-light border text-dark'">Публичные</a>
-        <a th:href="@{/forum(type='GUEST', search=${search})}"
-           class="badge text-decoration-none p-2"
-           th:classappend="${type == 'GUEST'} ? 'text-bg-primary' : 'text-bg-light border text-dark'">Гостевые</a>
         <a th:href="@{/forum(type='OPEN', search=${search})}"
            class="badge text-decoration-none p-2"
            th:classappend="${type == 'OPEN'} ? 'text-bg-primary' : 'text-bg-light border text-dark'">Открытые</a>
@@ -81,10 +78,14 @@
                         <span th:if="${topic.visibility == 'CLOSED'}" class="badge text-bg-warning" title="Виден только белому списку">
                             <i class="bi bi-lock"></i> Закрытый
                         </span>
-                        <span th:if="${topic.visibility == 'GUEST'}" class="badge text-bg-success" title="Гости могут писать и модерировать">
-                            <i class="bi bi-people-fill"></i> Гостевой
+                        <span th:if="${topic.visibility == 'OPEN' or topic.visibility == 'GUEST'}" class="badge text-bg-info" title="Виден всем пользователям">
+                            <i class="bi bi-unlock"></i> Открытый
                         </span>
-                        <span th:if="${topic.visibility == 'PUBLIC'}" class="badge text-bg-info" title="Виден всем и на главной">
+                        <span th:if="${topic.visibility == 'GUEST'}" sec:authorize="hasAnyRole('RESIDENT','MASTER')"
+                              class="badge text-bg-success" title="Гости могут писать и модерировать">
+                            <i class="bi bi-people-fill"></i> доступен гостям
+                        </span>
+                        <span th:if="${topic.visibility == 'PUBLIC'}" class="badge text-bg-primary" title="Виден всем и на главной">
                             <i class="bi bi-megaphone"></i> Публичный
                         </span>
                         <span th:if="${topic.frozen}" class="badge text-bg-secondary" title="Тред заморожен">

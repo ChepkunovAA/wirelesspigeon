@@ -140,13 +140,65 @@ class ForumServiceTest {
     }
 
     @Test
+    void createTopicGuestAccessMapsOpenToGuest() {
+        TopicCreateRequest request = new TopicCreateRequest();
+        request.setTitle("Тред с гостями");
+        request.setContent("Контент");
+        request.setVisibility("OPEN");
+        request.setGuestAccess(true);
+        when(topicRepository.save(any(ForumTopic.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        forumService.createTopic(request, 3L, null);
+
+        ArgumentCaptor<ForumTopic> captor = ArgumentCaptor.forClass(ForumTopic.class);
+        verify(topicRepository).save(captor.capture());
+        assertThat(captor.getValue().getVisibility()).isEqualTo(TopicVisibility.GUEST);
+    }
+
+    @Test
+    void createTopicWithoutGuestAccessKeepsOpen() {
+        TopicCreateRequest request = new TopicCreateRequest();
+        request.setTitle("Обычный открытый тред");
+        request.setContent("Контент");
+        request.setVisibility("OPEN");
+        request.setGuestAccess(false);
+        when(topicRepository.save(any(ForumTopic.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        forumService.createTopic(request, 3L, null);
+
+        ArgumentCaptor<ForumTopic> captor = ArgumentCaptor.forClass(ForumTopic.class);
+        verify(topicRepository).save(captor.capture());
+        assertThat(captor.getValue().getVisibility()).isEqualTo(TopicVisibility.OPEN);
+    }
+
+    @Test
+    void getTopicsOpenTypeFilterIncludesGuestTopics() {
+        ForumTopic openTopic = topic(1L, 10L, false, false);
+        openTopic.setVisibility(TopicVisibility.OPEN);
+        when(topicRepository.search(any(), anyBoolean(), anyBoolean(), anyList(),
+                anyBoolean(), any(), anyBoolean(), anyList(), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(openTopic), PageRequest.of(0, 20), 1));
+        when(postRepository.countByTopicIdIn(List.of(1L))).thenReturn(List.<Object[]>of(new Object[]{1L, 5L}));
+        when(userRepository.findByIdIn(anyList())).thenReturn(List.of(user(10L, "luke", UserRole.RESIDENT)));
+        when(userRepository.findById(10L)).thenReturn(Optional.of(user(10L, "luke", UserRole.RESIDENT)));
+        when(postRepository.findLatestPostEachByTopicIds(List.of(1L))).thenReturn(List.of());
+
+        forumService.getTopics(PageRequest.of(0, 20), null, null, false, false, false, "OPEN", 10L);
+
+        ArgumentCaptor<java.util.List<TopicVisibility>> captor = ArgumentCaptor.forClass(java.util.List.class);
+        verify(topicRepository).search(any(), anyBoolean(), anyBoolean(), captor.capture(),
+                anyBoolean(), any(), anyBoolean(), anyList(), any(PageRequest.class));
+        assertThat(captor.getValue()).containsExactly(TopicVisibility.OPEN, TopicVisibility.GUEST);
+    }
+
+    @Test
     void getTopicsMapsSummaryWithCountsAndAnonymousAuthor() {
         ForumTopic visible = topic(1L, 10L, true, false);
         visible.setTags(Set.of());
         ForumTag tag = new ForumTag();
         tag.setName("важное");
         visible.setTags(Set.of(tag));
-        when(topicRepository.search(any(), anyBoolean(), anyBoolean(), any(), anyBoolean(), any(), anyBoolean(), anyBoolean(), anyList(), any(PageRequest.class)))
+        when(topicRepository.search(any(), anyBoolean(), anyBoolean(), any(), anyBoolean(), any(), anyBoolean(), anyList(), any(PageRequest.class)))
                 .thenReturn(new PageImpl<>(List.of(visible), PageRequest.of(0, 20), 1));
         when(postRepository.countByTopicIdIn(List.of(1L))).thenReturn(List.<Object[]>of(new Object[]{1L, 5L}));
         when(userRepository.findByIdIn(anyList())).thenReturn(List.of(user(10L, "luke", UserRole.RESIDENT)));

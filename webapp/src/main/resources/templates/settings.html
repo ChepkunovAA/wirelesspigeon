@@ -45,6 +45,8 @@
                     <select id="defaultVisibility" name="defaultVisibility" class="form-select">
                         <option value="OPEN" th:selected="${settings.defaultVisibility == 'OPEN'}">
                             Открытый — виден всем пользователям</option>
+                        <option value="GUEST" th:selected="${settings.defaultVisibility == 'GUEST'}">
+                            Открытый — доступен гостям</option>
                         <option value="PUBLIC" th:selected="${settings.defaultVisibility == 'PUBLIC'}">
                             Публичный — виден всем и на главной</option>
                         <option value="CLOSED" th:selected="${settings.defaultVisibility == 'CLOSED'}">
@@ -71,8 +73,8 @@
                     <input class="form-check-input" type="checkbox" id="hideGuestThreads" name="hideGuestThreads"
                            th:checked="${settings.hideGuestThreads}">
                     <label class="form-check-label" for="hideGuestThreads">
-                        Скрывать гостевые треды
-                        <span class="d-block text-muted small">Гостевые треды не будут отображаться в списке форума</span>
+                        Скрывать открытые треды, доступные гостям
+                        <span class="d-block text-muted small">Такие треды не будут отображаться в списке форума</span>
                     </label>
                 </div>
                 <button type="submit" class="btn btn-primary w-100">Сохранить настройки</button>

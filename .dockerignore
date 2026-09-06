@@ -1,0 +1,9 @@
+*/target
+**/target
+!webapp/target/webapp-*.jar
+.git
+.gitignore
+AGENTS.md
+tmp
+doc
+*.log

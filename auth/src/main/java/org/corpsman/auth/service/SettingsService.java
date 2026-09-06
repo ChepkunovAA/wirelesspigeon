@@ -85,7 +85,7 @@ public class SettingsService {
      * Нормализует значение видимости; неизвестное заменяется на OPEN.
      *
      * @param raw сырое значение
-     * @return PUBLIC/OPEN/CLOSED
+     * @return PUBLIC/OPEN/GUEST/CLOSED
      */
     private String normalizeVisibility(String raw) {
         if (raw == null) {
@@ -93,6 +93,7 @@ public class SettingsService {
         }
         return switch (raw.trim().toUpperCase()) {
             case "PUBLIC" -> "PUBLIC";
+            case "GUEST" -> "GUEST";
             case "CLOSED" -> "CLOSED";
             default -> "OPEN";
         };

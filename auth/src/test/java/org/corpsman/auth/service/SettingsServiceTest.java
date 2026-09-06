@@ -87,6 +87,20 @@ class SettingsServiceTest {
     }
 
     @Test
+    void updatePersistsGuestDefaultVisibility() {
+        var stored = settings(1L, false, false, "OPEN", true);
+        when(settingsRepository.findById(1L)).thenReturn(Optional.of(stored));
+        when(settingsRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        settingsService.update(1L, false, false, "GUEST", false, true, false);
+
+        ArgumentCaptor<org.corpsman.auth.model.UserSettings> captor =
+                ArgumentCaptor.forClass(org.corpsman.auth.model.UserSettings.class);
+        verify(settingsRepository).save(captor.capture());
+        assertThat(captor.getValue().getDefaultVisibility()).isEqualTo("GUEST");
+    }
+
+    @Test
     void changePasswordVerifiesOldAndEncodesNew() {
         User user = new User();
         user.setId(1L);

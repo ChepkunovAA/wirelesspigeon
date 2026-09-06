@@ -124,7 +124,7 @@ public class ForumService {
      * Контекст видимости текущего зрителя: роль и настройки видимости.
      */
     private record ViewerContext(Long userId, boolean anonymous, boolean guestRole,
-                                 boolean adminMode, boolean hidePublic, boolean hideGuestThreads) {
+                                 boolean hidePublic, boolean hideGuestThreads) {
     }
 
     /**
@@ -135,14 +135,13 @@ public class ForumService {
      */
     private ViewerContext viewerContext(Long userId) {
         if (userId == null) {
-            return new ViewerContext(null, true, false, false, false, false);
+            return new ViewerContext(null, true, false, false, false);
         }
         User user = userRepository.findById(userId).orElse(null);
         UserRole role = user == null ? null : user.getRole();
         boolean guest = role == UserRole.GUEST;
-        boolean admin = role == UserRole.MASTER;
         UserSettings settings = settingsService.getByUserId(userId);
-        return new ViewerContext(userId, false, guest, admin,
+        return new ViewerContext(userId, false, guest,
                 !settings.isShowPublicPosts(),
                 settings.isHideGuestThreads() && !guest);
     }
@@ -185,7 +184,7 @@ public class ForumService {
         }
         if (v == TopicVisibility.CLOSED) {
             boolean owner = topic.getAuthorId() != null && topic.getAuthorId().equals(ctx.userId());
-            return ctx.adminMode() || owner || whitelisted.contains(topic.getId());
+            return owner || whitelisted.contains(topic.getId());
         }
         return true;
     }
@@ -244,16 +243,17 @@ public class ForumService {
         if (hasTags && normalizedTags.isEmpty()) {
             hasTags = false;
         }
-        org.corpsman.forum.model.TopicVisibility typeEnum =
+        // «Открытые» — единый термин для OPEN и GUEST
+        List<TopicVisibility> typeFilters =
                 switch (typeFilter == null ? "" : typeFilter.toUpperCase()) {
-                    case "PUBLIC" -> TopicVisibility.PUBLIC;
-                    case "GUEST" -> TopicVisibility.GUEST;
-                    case "OPEN" -> TopicVisibility.OPEN;
-                    case "CLOSED" -> TopicVisibility.CLOSED;
+                    case "PUBLIC" -> List.of(TopicVisibility.PUBLIC);
+                    case "GUEST" -> List.of(TopicVisibility.GUEST);
+                    case "OPEN" -> List.of(TopicVisibility.OPEN, TopicVisibility.GUEST);
+                    case "CLOSED" -> List.of(TopicVisibility.CLOSED);
                     default -> null;
                 };
         Page<ForumTopic> page = topicRepository.search(normalizedSearch, hidePublic, hideGuestThreads,
-                typeEnum, guestRole, userId, userId != null && isAdmin(userId), hasTags, normalizedTags, pageable);
+                typeFilters, guestRole, userId, hasTags, normalizedTags, pageable);
 
         Map<Long, Long> counts = countPostsByTopics(page.getContent());
         Map<Long, String> usernames = loadUsernames(page.getContent().stream()
@@ -317,7 +317,7 @@ public class ForumService {
         if (userId == null && topic.getVisibility() != TopicVisibility.PUBLIC) {
             throw new BusinessException(ErrorCode.TOPIC_NOT_FOUND);
         }
-        if (!canViewClosed(topic, userId, isAdmin)) {
+        if (!canViewClosed(topic, userId)) {
             throw new BusinessException(ErrorCode.TOPIC_NOT_FOUND);
         }
         boolean canModerate = canModerate(topic, userId, isAdmin);
@@ -437,6 +437,10 @@ public class ForumService {
         topic.setAuthorId(userId);
         topic.setAnonymous(request.isAnonymous());
         TopicVisibility resolved = resolveVisibility(request.getVisibility());
+        if (request.isGuestAccess() && resolved == TopicVisibility.OPEN) {
+            // «Открытый тред, доступный гостям» ⇔ GUEST
+            resolved = TopicVisibility.GUEST;
+        }
         if (isGuest(userId) && resolved != TopicVisibility.GUEST
                 && resolved != TopicVisibility.CLOSED) {
             // Гость может создавать только «Открытые» (GUEST) и «Закрытые» треды
@@ -1087,13 +1091,14 @@ public class ForumService {
 
     /**
      * Проверяет, может ли пользователь видеть закрытый тред.
+     * Администратор является участником (видит тред) только если он автор
+     * или добавлен в белый список.
      *
      * @param topic   тред
      * @param userId  пользователь
-     * @param isAdmin признак администратора
      * @return true, если доступ разрешён
      */
-    private boolean canViewClosed(ForumTopic topic, Long userId, boolean isAdmin) {
+    private boolean canViewClosed(ForumTopic topic, Long userId) {
         if (topic.getVisibility() == TopicVisibility.OPEN
                 && userId != null && isGuest(userId)) {
             return false;
@@ -1107,13 +1112,13 @@ public class ForumService {
         if (topic.getAuthorId() != null && topic.getAuthorId().equals(userId)) {
             return true;
         }
-        return isAdmin || whitelistRepository.existsByTopicIdAndUserId(topic.getId(), userId);
+        return whitelistRepository.existsByTopicIdAndUserId(topic.getId(), userId);
     }
 
     /**
      * Может ли пользователь взаимодействовать с закрытым тредом
-     * (писать комментарии и ставить реакции). Администратор без
-     * членства в белом списке может только читать.
+     * (писать комментарии и ставить реакции). Только автор или участник
+     * белого списка; администратор без членства не взаимодействует.
      *
      * @param topic тред
      * @param userId пользователь

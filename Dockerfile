@@ -1,19 +1,12 @@
-FROM maven:3.9-eclipse-temurin-17 AS build
-WORKDIR /app
-COPY pom.xml .
-COPY common/pom.xml common/pom.xml
-COPY auth/pom.xml auth/pom.xml
-COPY cinema/pom.xml cinema/pom.xml
-COPY wishlist/pom.xml wishlist/pom.xml
-COPY forum/pom.xml forum/pom.xml
-COPY users/pom.xml users/pom.xml
-COPY webapp/pom.xml webapp/pom.xml
-RUN mvn -q -B dependency:go-offline || true
-COPY . .
-RUN mvn -q -B clean package -DskipTests
-
+# Сборка jar выполняется на хосте: mvn clean package -DskipTests
+# (~/.m2 на хосте тёплый). Docker-образ только упаковывает готовый jar —
+# ни Maven, ни скачивания зависимостей из сети (dependency:go-offline
+# зависал на медленном канале до ~30 минут).
+#
+# Предусловие: webapp/target/webapp-*.jar должен существовать
+# (см. webapp/target исключение в .dockerignore).
 FROM eclipse-temurin:17-jre
 WORKDIR /app
-COPY --from=build /app/webapp/target/webapp-*.jar app.jar
+COPY webapp/target/webapp-*.jar app.jar
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
