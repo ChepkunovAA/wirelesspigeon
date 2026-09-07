@@ -105,10 +105,10 @@ class RolesAndGuestThreadsIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
         assertThat(guestPage).contains("rg_p1", "rg_g1").doesNotContain("rg_o1");
-        // гость видит гостевые треды, но маркер «доступен гостям» не видит (нет намёков на скрытый функционал)
-        assertThat(guestPage).doesNotContain("доступен гостям");
+        // гость видит гостевые треды, но маркер «Гостевой» не видит (нет намёков на скрытый функционал)
+        assertThat(guestPage).doesNotContain("text-bg-success");
         // резидент маркер видит
-        assertThat(residentPage).contains("доступен гостям");
+        assertThat(residentPage).contains("text-bg-success");
 
         // прямой переход на открытый тред запрещён
         Long openId = topicRepository.findAll().stream()
@@ -141,6 +141,74 @@ class RolesAndGuestThreadsIntegrationTest {
                         topicIdByTitle("Публичный rg_p2")).session(session).with(csrf())
                         .param("content", "комментарий гостя в публичном треде"))
                 .andExpect(status().is3xxRedirection());
+    }
+
+    @Test
+    void guestCanCreateClosedAndGuestThreadsButNotPublic() throws Exception {
+        createUser("rg_guest_p2a", UserRole.GUEST);
+        MockHttpSession session = login("rg_guest_p2a");
+
+        // гость создаёт «Закрытый» тред
+        mockMvc.perform(post("/forum/topic/create").session(session).with(csrf())
+                        .param("title", "Закрытый гостя rg_p2c")
+                        .param("content", "Контент")
+                        .param("visibility", "CLOSED"))
+                .andExpect(status().is3xxRedirection());
+        ForumTopic closed = topicRepository.findAll().stream()
+                .filter(t -> t.getTitle().equals("Закрытый гостя rg_p2c")).findFirst().orElseThrow();
+        assertThat(closed.getVisibility()).isEqualTo(TopicVisibility.CLOSED);
+
+        // автор-гость может открыть свой закрытый тред
+        mockMvc.perform(get("/forum/topic/" + closed.getId()).session(session))
+                .andExpect(status().isOk());
+
+        // гость создаёт «Открытый» (GUEST) тред
+        mockMvc.perform(post("/forum/topic/create").session(session).with(csrf())
+                        .param("title", "Открытый гостя rg_p2g")
+                        .param("content", "Контент")
+                        .param("visibility", "GUEST"))
+                .andExpect(status().is3xxRedirection());
+        ForumTopic guestTopic = topicRepository.findAll().stream()
+                .filter(t -> t.getTitle().equals("Открытый гостя rg_p2g")).findFirst().orElseThrow();
+        assertThat(guestTopic.getVisibility()).isEqualTo(TopicVisibility.GUEST);
+
+        // гость НЕ может создать «Публичный» тред → становится GUEST
+        mockMvc.perform(post("/forum/topic/create").session(session).with(csrf())
+                        .param("title", "Публичный гость rg_p2p")
+                        .param("content", "Контент")
+                        .param("visibility", "PUBLIC"))
+                .andExpect(status().is3xxRedirection());
+        ForumTopic publicDowngraded = topicRepository.findAll().stream()
+                .filter(t -> t.getTitle().equals("Публичный гость rg_p2p")).findFirst().orElseThrow();
+        assertThat(publicDowngraded.getVisibility()).isNotEqualTo(TopicVisibility.PUBLIC);
+    }
+
+    @Test
+    void guestCreateFormOffersGuestAndClosedChoicesOnly() throws Exception {
+        createUser("rg_guest_p2b", UserRole.GUEST);
+        MockHttpSession session = login("rg_guest_p2b");
+
+        String form = mockMvc.perform(get("/forum/topic/create").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        // гость видит выбор «Открытый» (GUEST) и «Закрытый»
+        assertThat(form).contains("value=\"GUEST\"", "value=\"CLOSED\"");
+        // и не видит Публичный/Открытый-OPEN
+        assertThat(form).doesNotContain("value=\"PUBLIC\"")
+                .doesNotContain("value=\"OPEN\"");
+    }
+
+    @Test
+    void residentCreateFormStillShowsOpenPublicClosed() throws Exception {
+        createUser("rg_resident_p2c", UserRole.RESIDENT);
+        MockHttpSession session = login("rg_resident_p2c");
+
+        String form = mockMvc.perform(get("/forum/topic/create").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(form).contains("value=\"OPEN\"", "value=\"PUBLIC\"", "value=\"CLOSED\"");
     }
 
     @Test
@@ -302,7 +370,7 @@ class RolesAndGuestThreadsIntegrationTest {
 
         mockMvc.perform(get("/forum/topic/" + topicIdByTitle("Гостевой с маркером rg_mk1")).session(session))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("доступен гостям")));
+                .andExpect(content().string(containsString("Гостевой")));
     }
 
     @Test

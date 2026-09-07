@@ -12,7 +12,7 @@
                        class="text-decoration-none" th:text="${p.authorName}">Автор</a>
                 </strong>
                 <strong th:if="${p.anonymous}" th:text="${p.authorName}">Автор</strong>
-                <small class="text-muted" th:text="${#temporals.format(p.createdAt, 'dd.MM.yyyy HH:mm')}">дата</small>
+                <small class="text-muted"><time th:replace="~{fragments/time-format :: clock(${p.createdAt}, 'dd.MM.yyyy HH:mm')}">дата</time></small>
                 <span th:if="${p.anonymous}" x-data="{show: false}" class="d-inline">
                     <span th:if="${p.realAuthorName == null}" class="badge text-bg-dark" title="Анонимный комментарий">
                         <i class="bi bi-incognito"></i> Аноним

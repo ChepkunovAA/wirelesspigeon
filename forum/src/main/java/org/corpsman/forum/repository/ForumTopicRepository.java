@@ -5,6 +5,7 @@ import org.corpsman.forum.model.TopicVisibility;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -49,6 +50,33 @@ public interface ForumTopicRepository extends JpaRepository<ForumTopic, Long> {
                             @Param("hasTags") boolean hasTags,
                             @Param("tags") List<String> tags,
                             Pageable pageable);
+
+    /**
+     * Идентификаторы тредов, удовлетворяющих фильтрам поиска (без сортировки).
+     * Используется для сортировки по рейтингу/размеру вне БД.
+     */
+    @Query("SELECT DISTINCT t.id FROM ForumTopic t LEFT JOIN t.tags tag " +
+            "WHERE t.deleted = false " +
+            "AND (:hidePublic = false OR t.visibility <> 'PUBLIC' OR (:uid IS NOT NULL AND t.authorId = :uid)) " +
+            "AND (:guest = false OR t.visibility <> 'OPEN') "
+            + "AND (t.visibility <> 'CLOSED' OR (:uid IS NOT NULL AND t.authorId = :uid) "
+            + "OR EXISTS (SELECT w FROM TopicWhitelistEntry w WHERE w.topicId = t.id AND w.userId = :uid)) " +
+            "AND (:typeFilters IS NULL OR t.visibility IN :typeFilters) " +
+            "AND (:guestHide = false OR t.visibility <> 'GUEST') " +
+            "AND (:search = '' OR LOWER(t.title) LIKE LOWER(CONCAT('%', CAST(:search AS text), '%'))) " +
+            "AND (:hasTags = false OR tag.name IN :tags)")
+    List<Long> searchIds(@Param("search") String search,
+                         @Param("hidePublic") boolean hidePublic,
+                         @Param("guestHide") boolean guestHide,
+                         @Param("typeFilters") List<TopicVisibility> typeFilters,
+                         @Param("guest") boolean guest,
+                         @Param("uid") Long uid,
+                         @Param("hasTags") boolean hasTags,
+                         @Param("tags") List<String> tags);
+
+    @Override
+    @EntityGraph(attributePaths = "tags")
+    List<ForumTopic> findAllById(Iterable<Long> ids);
 
     @Modifying
     @Query("UPDATE ForumTopic t SET t.likes = t.likes + 1 WHERE t.id = :id")

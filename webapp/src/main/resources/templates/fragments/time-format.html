@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<body>
+<!-- Время в таймзоне браузера: ldt (LocalDateTime, wall-clock UTC) выводится
+     как UTC-фоллбэк, а data-utc (ISO-8601) позволяет time-format.js показать
+     локальное время пользователя. pattern задаёт серверный фоллбэк. -->
+<time th:fragment="clock(ldt, pattern)"
+      th:data-utc="${@timeUtil.isoUtc(ldt)}"
+      th:data-utc-mode="${#strings.contains(pattern, 'H') ? 'datetime' : 'date'}"
+      th:text="${#temporals.format(ldt, pattern)}">дата</time>
+</body>
+</html>

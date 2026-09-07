@@ -21,23 +21,24 @@
 
     <div class="card shadow-sm mb-4">
         <div class="card-body">
-                <div class="d-flex gap-2 flex-wrap mb-3">
-        <a th:href="@{/forum(search=${search})}"
+                <div class="d-flex gap-2 flex-wrap mb-3" th:if="${!anonymous}">
+        <a th:href="@{/forum(search=${search}, sort=${sort})}"
            class="badge text-decoration-none p-2"
            th:classappend="${type == 'ALL'} ? 'text-bg-primary' : 'text-bg-light border text-dark'">Все</a>
-        <a th:href="@{/forum(type='PUBLIC', search=${search})}"
+        <a th:href="@{/forum(type='PUBLIC', search=${search}, sort=${sort})}"
            class="badge text-decoration-none p-2"
            th:classappend="${type == 'PUBLIC'} ? 'text-bg-primary' : 'text-bg-light border text-dark'">Публичные</a>
-        <a th:href="@{/forum(type='OPEN', search=${search})}"
+        <a th:href="@{/forum(type='OPEN', search=${search}, sort=${sort})}"
            class="badge text-decoration-none p-2"
            th:classappend="${type == 'OPEN'} ? 'text-bg-primary' : 'text-bg-light border text-dark'">Открытые</a>
-        <a th:href="@{/forum(type='CLOSED', search=${search})}"
+        <a th:href="@{/forum(type='CLOSED', search=${search}, sort=${sort})}"
            class="badge text-decoration-none p-2"
            th:classappend="${type == 'CLOSED'} ? 'text-bg-primary' : 'text-bg-light border text-dark'">Закрытые</a>
     </div>
 
 <form th:action="@{/forum}" method="get" class="row g-2 align-items-center">
-                <div class="col-lg-8">
+                <input type="hidden" name="type" th:value="${type}"/>
+                <div class="col-lg-5">
                     <input type="text" name="search" class="form-control" placeholder="Поиск по названию..."
                            th:value="${search}"/>
                 </div>
@@ -48,7 +49,14 @@
                                 th:text="${t.name + ' (' + t.count + ')'}">тег</option>
                     </select>
                 </div>
-                <div class="col-lg-1 d-grid">
+                <div class="col-lg-2">
+                    <select name="sort" class="form-select" title="Сортировка" onchange="this.form.submit()">
+                        <option value="time" th:selected="${sort == 'time'}">По времени</option>
+                        <option value="rating" th:selected="${sort == 'rating'}">По рейтингу</option>
+                        <option value="size" th:selected="${sort == 'size'}">По размеру</option>
+                    </select>
+                </div>
+                <div class="col-lg-2 d-grid">
                     <button class="btn btn-primary"><i class="bi bi-search"></i></button>
                 </div>
             </form>
@@ -78,14 +86,12 @@
                         <span th:if="${topic.visibility == 'CLOSED'}" class="badge text-bg-warning" title="Виден только белому списку">
                             <i class="bi bi-lock"></i> Закрытый
                         </span>
-                        <span th:if="${topic.visibility == 'OPEN' or topic.visibility == 'GUEST'}" class="badge text-bg-info" title="Виден всем пользователям">
-                            <i class="bi bi-unlock"></i> Открытый
-                        </span>
                         <span th:if="${topic.visibility == 'GUEST'}" sec:authorize="hasAnyRole('RESIDENT','MASTER')"
                               class="badge text-bg-success" title="Гости могут писать и модерировать">
-                            <i class="bi bi-people-fill"></i> доступен гостям
+                            <i class="bi bi-people-fill"></i> Гостевой
                         </span>
-                        <span th:if="${topic.visibility == 'PUBLIC'}" class="badge text-bg-primary" title="Виден всем и на главной">
+                        <span th:if="${topic.visibility == 'PUBLIC'}" sec:authorize="isAuthenticated()"
+                              class="badge text-bg-primary" title="Виден всем и на главной">
                             <i class="bi bi-megaphone"></i> Публичный
                         </span>
                         <span th:if="${topic.frozen}" class="badge text-bg-secondary" title="Тред заморожен">
@@ -102,7 +108,7 @@
                            th:href="@{/profile/{id}(id=${topic.authorId})}"
                            class="text-decoration-none position-relative z-2" th:text="${topic.authorName}">Автор</a>
                         <span th:if="${topic.anonymous}" th:text="${topic.authorName}">Автор</span>
-                        &middot; <span th:text="${#temporals.format(topic.lastActivityAt, 'dd.MM.yyyy HH:mm')}">дата</span>
+                        &middot; <time th:replace="~{fragments/time-format :: clock(${topic.lastActivityAt}, 'dd.MM.yyyy HH:mm')}">дата</time>
                     </small>
                     <small th:if="${topic.author}" class="text-success fw-bold ms-2">
                         <i class="bi bi-check-circle"></i> Ваш тред
@@ -123,18 +129,18 @@
         <ul class="pagination justify-content-center">
             <li class="page-item" th:classappend="${page.number == 0} ? 'disabled'">
                 <a class="page-link"
-                   th:href="@{/forum(page=${page.number - 1}, search=${search}, tag=${selectedTag})}">&laquo;</a>
+                   th:href="@{/forum(page=${page.number - 1}, search=${search}, tag=${selectedTag}, type=${type}, sort=${sort})}">&laquo;</a>
             </li>
             <li class="page-item"
                 th:each="i : ${#numbers.sequence(0, page.totalPages - 1)}"
                 th:classappend="${i == page.number} ? 'active'">
                 <a class="page-link"
-                   th:href="@{/forum(page=${i}, search=${search}, tag=${selectedTag})}"
+                   th:href="@{/forum(page=${i}, search=${search}, tag=${selectedTag}, type=${type}, sort=${sort})}"
                    th:text="${i + 1}">1</a>
             </li>
             <li class="page-item" th:classappend="${page.number == page.totalPages - 1} ? 'disabled'">
                 <a class="page-link"
-                   th:href="@{/forum(page=${page.number + 1}, search=${search}, tag=${selectedTag})}">&raquo;</a>
+                   th:href="@{/forum(page=${page.number + 1}, search=${search}, tag=${selectedTag}, type=${type}, sort=${sort})}">&raquo;</a>
             </li>
         </ul>
     </nav>

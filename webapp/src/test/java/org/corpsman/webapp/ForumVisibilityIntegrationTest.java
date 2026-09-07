@@ -455,6 +455,277 @@ String flat = html.replaceAll("\\s+", " ");
     }
 
     @Test
+    void p3OwnerSeesEditButtonsOnOpAndContinuationCardsNotHeader() throws Exception {
+        User owner = createUser("fv_owner_16");
+        ForumTopic topic = createTopic(owner, "Инлайн-правка fv_p3_16", TopicVisibility.OPEN, null);
+        rootComment(topic.getId(), owner.getId(), 1);
+        ForumPost opPost = postRepository.findByTopicIdAndOpTrue(topic.getId()).orElseThrow();
+
+        MockHttpSession session = login("fv_owner_16");
+        mockMvc.perform(post("/forum/topic/" + topic.getId() + "/continuation").session(session).with(csrf())
+                        .param("content", "Продолжение для правки fv_p3_cont_16"))
+                .andExpect(status().is3xxRedirection());
+        ForumPost cont = postRepository.findByTopicIdOrderByCreatedAtAsc(topic.getId()).stream()
+                .filter(ForumPost::isContinuation).findFirst().orElseThrow();
+
+        String html = mockMvc.perform(get("/forum/topic/" + topic.getId()).session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        // кнопка редактирования OP-карточки: на карточке треда, не в шапке
+        assertThat(html).contains("/forum/topic/" + topic.getId() + "/edit");
+        assertThat(html).doesNotContain(">Редактировать</a>");
+        // кнопка на карточке продолжения
+        assertThat(html).contains("/forum/post/" + cont.getId() + "/edit");
+        // дерево комментариев не мешает: опорный пост продолжения — тот же id-пост
+        assertThat(opPost.getId()).isNotEqualTo(cont.getId());
+    }
+
+    @Test
+    void p3StrangerSeesNoEditButtonsButCanPostToPostEdit() throws Exception {
+        User owner = createUser("fv_owner_17");
+        User stranger = createUser("fv_stranger_17");
+        ForumTopic topic = createTopic(owner, "Чужой тред fv_p3_17", TopicVisibility.OPEN, null);
+        MockHttpSession ownerSession = login("fv_owner_17");
+        mockMvc.perform(post("/forum/topic/" + topic.getId() + "/continuation").session(ownerSession).with(csrf())
+                        .param("content", "Конт продолжение fv_p3_cont_17"))
+                .andExpect(status().is3xxRedirection());
+        ForumPost cont = postRepository.findByTopicIdOrderByCreatedAtAsc(topic.getId()).stream()
+                .filter(ForumPost::isContinuation).findFirst().orElseThrow();
+
+        MockHttpSession strangerSession = login("fv_stranger_17");
+        String html = mockMvc.perform(get("/forum/topic/" + topic.getId()).session(strangerSession))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(html).doesNotContain("/forum/topic/" + topic.getId() + "/edit");
+        assertThat(html).doesNotContain("/forum/post/" + cont.getId() + "/edit");
+
+        // чужой не может изменить ни тред, ни продолжение
+        mockMvc.perform(post("/forum/topic/" + topic.getId() + "/edit").session(strangerSession).with(csrf())
+                        .param("content", "чужое изменение"))
+                .andExpect(status().is4xxClientError());
+        mockMvc.perform(post("/forum/post/" + cont.getId() + "/edit").session(strangerSession).with(csrf())
+                        .param("content", "чужое изменение"))
+                .andExpect(status().is4xxClientError());
+    }
+
+    @Test
+    void p3OwnerEditsOpAndContinuationContentThroughPostEndpoints() throws Exception {
+        User owner = createUser("fv_owner_18");
+        ForumTopic topic = createTopic(owner, "Правка контента fv_p3_18", TopicVisibility.OPEN, null);
+        MockHttpSession ownerSession = login("fv_owner_18");
+        mockMvc.perform(post("/forum/topic/" + topic.getId() + "/continuation").session(ownerSession).with(csrf())
+                        .param("content", "старое продолжение fv_p3_18"))
+                .andExpect(status().is3xxRedirection());
+        ForumPost cont = postRepository.findByTopicIdOrderByCreatedAtAsc(topic.getId()).stream()
+                .filter(ForumPost::isContinuation).findFirst().orElseThrow();
+
+        // правка OP
+        mockMvc.perform(post("/forum/topic/" + topic.getId() + "/edit").session(ownerSession).with(csrf())
+                        .param("content", "обновлённый тред fv_p3_18"))
+                .andExpect(status().is3xxRedirection());
+        ForumTopic reloadedTopic = topicRepository.findById(topic.getId()).orElseThrow();
+        assertThat(reloadedTopic.getContent()).isEqualTo("обновлённый тред fv_p3_18");
+        // OP-стройка рендерится из forum_posts — содержимое первого поста должно быть синхронизировано
+        ForumPost opPost = postRepository.findByTopicIdAndOpTrue(topic.getId()).orElseThrow();
+        assertThat(opPost.getContent()).isEqualTo("обновлённый тред fv_p3_18");
+        assertThat(opPost.isEdited()).isTrue();
+
+        // правка продолжения через существующий post/edit
+        mockMvc.perform(post("/forum/post/" + cont.getId() + "/edit").session(ownerSession).with(csrf())
+                        .param("content", "обновлённое продолжение fv_p3_18"))
+                .andExpect(status().is3xxRedirection());
+        ForumPost reloadedCont = postRepository.findById(cont.getId()).orElseThrow();
+        assertThat(reloadedCont.getContent()).isEqualTo("обновлённое продолжение fv_p3_18");
+        assertThat(reloadedCont.isEdited()).isTrue();
+    }
+
+    @Test
+    void p4OwnerDeletesLastCleanContinuationFully() throws Exception {
+        User owner = createUser("fv_owner_19");
+        ForumTopic topic = createTopic(owner, "Полное удаление fv_p4_19", TopicVisibility.OPEN, null);
+        MockHttpSession session = login("fv_owner_19");
+        mockMvc.perform(post("/forum/topic/" + topic.getId() + "/continuation").session(session).with(csrf())
+                        .param("content", "Первое продолжение fv_p4_19"))
+                .andExpect(status().is3xxRedirection());
+        mockMvc.perform(post("/forum/topic/" + topic.getId() + "/continuation").session(session).with(csrf())
+                        .param("content", "Второе продолжение fv_p4_19"))
+                .andExpect(status().is3xxRedirection());
+        ForumPost last = postRepository.findByTopicIdOrderByCreatedAtAsc(topic.getId()).stream()
+                .filter(ForumPost::isContinuation)
+                .reduce((a, b) -> b).orElseThrow();
+
+        // последнее чистое продолжение удаляется полностью (строки нет)
+        mockMvc.perform(post("/forum/post/" + last.getId() + "/delete").session(session).with(csrf()))
+                .andExpect(status().is3xxRedirection());
+        assertThat(postRepository.findById(last.getId())).isEmpty();
+        ForumTopic reloaded = topicRepository.findById(topic.getId()).orElseThrow();
+        assertThat(reloaded.isDeleted()).isFalse();
+    }
+
+    @Test
+    void p4StragerCannotDeleteContinuation() throws Exception {
+        User owner = createUser("fv_owner_20");
+        User stranger = createUser("fv_stranger_20");
+        ForumTopic topic = createTopic(owner, "Запрет чужим fv_p4_20", TopicVisibility.OPEN, null);
+        MockHttpSession ownerSession = login("fv_owner_20");
+        mockMvc.perform(post("/forum/topic/" + topic.getId() + "/continuation").session(ownerSession).with(csrf())
+                        .param("content", "Продолжение fv_p4_20"))
+                .andExpect(status().is3xxRedirection());
+        ForumPost cont = postRepository.findByTopicIdOrderByCreatedAtAsc(topic.getId()).stream()
+                .filter(ForumPost::isContinuation).findFirst().orElseThrow();
+
+        MockHttpSession strangerSession = login("fv_stranger_20");
+        mockMvc.perform(post("/forum/post/" + cont.getId() + "/delete").session(strangerSession).with(csrf()))
+                .andExpect(status().is4xxClientError());
+        assertThat(postRepository.findById(cont.getId())).isPresent();
+    }
+
+    @Test
+    void p4OwnerDeletesContinuationWithSubtreeLeavesStub() throws Exception {
+        User owner = createUser("fv_owner_21");
+        ForumTopic topic = createTopic(owner, "Заглушка fv_p4_21", TopicVisibility.OPEN, null);
+        MockHttpSession session = login("fv_owner_21");
+        mockMvc.perform(post("/forum/topic/" + topic.getId() + "/continuation").session(session).with(csrf())
+                        .param("content", "Продолжение с веткой fv_p4_21"))
+                .andExpect(status().is3xxRedirection());
+        ForumPost cont = postRepository.findByTopicIdOrderByCreatedAtAsc(topic.getId()).stream()
+                .filter(ForumPost::isContinuation).findFirst().orElseThrow();
+
+        // ответ внутри ветки продолжения (parentPostId = продолжение)
+        ForumPost child = new ForumPost();
+        child.setTopicId(topic.getId());
+        child.setParentPostId(cont.getId());
+        child.setContent("Ответ в ветке fv_p4_21");
+        child.setAuthorId(owner.getId());
+        postRepository.save(child);
+
+        mockMvc.perform(post("/forum/post/" + cont.getId() + "/delete").session(session).with(csrf()))
+                .andExpect(status().is3xxRedirection());
+
+        // строка остаётся, ставится заглушка
+        ForumPost deleted = postRepository.findById(cont.getId()).orElseThrow();
+        assertThat(deleted.isDeleted()).isTrue();
+        assertThat(deleted.getContent()).isEqualTo("[Удалено]");
+        assertThat(deleted.isDeletedByOwner()).isTrue();
+        // ветка сохраняется
+        assertThat(postRepository.findById(child.getId())).isPresent();
+
+        // страница показывает заглушку
+        String html = mockMvc.perform(get("/forum/topic/" + topic.getId()).session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(html).contains("[Удалено]");
+    }
+
+    @Test
+    void p4OwnerDeletesContinuationWithFlatCommentBelowLeavesStub() throws Exception {
+        User owner = createUser("fv_owner_22");
+        ForumTopic topic = createTopic(owner, "Плоский ниже fv_p4_22", TopicVisibility.OPEN, null);
+        MockHttpSession session = login("fv_owner_22");
+        mockMvc.perform(post("/forum/topic/" + topic.getId() + "/continuation").session(session).with(csrf())
+                        .param("content", "Продолжение fv_p4_22"))
+                .andExpect(status().is3xxRedirection());
+        ForumPost cont = postRepository.findByTopicIdOrderByCreatedAtAsc(topic.getId()).stream()
+                .filter(ForumPost::isContinuation).findFirst().orElseThrow();
+
+        // корневой комментарий ниже продолжения (новый, плоский)
+        ForumPost below = new ForumPost();
+        below.setTopicId(topic.getId());
+        below.setContent("Плоский комментарий ниже fv_p4_22");
+        below.setAuthorId(owner.getId());
+        postRepository.save(below);
+
+        mockMvc.perform(post("/forum/post/" + cont.getId() + "/delete").session(session).with(csrf()))
+                .andExpect(status().is3xxRedirection());
+
+        ForumPost deleted = postRepository.findById(cont.getId()).orElseThrow();
+        assertThat(deleted.isDeleted()).isTrue();
+        assertThat(deleted.getContent()).isEqualTo("[Удалено]");
+        assertThat(deleted.isDeletedByOwner()).isTrue();
+        assertThat(postRepository.findById(below.getId())).isPresent();
+    }
+
+    @Test
+    void p4AdminDeletesForeignContinuationFully() throws Exception {
+        User owner = createUser("fv_owner_23");
+        User adminUser = createUser("fv_admin_23", UserRole.MASTER);
+        ForumTopic topic = createTopic(owner, "Админ удаляет fv_p4_23", TopicVisibility.OPEN, null);
+        MockHttpSession ownerSession = login("fv_owner_23");
+        mockMvc.perform(post("/forum/topic/" + topic.getId() + "/continuation").session(ownerSession).with(csrf())
+                        .param("content", "Продолжение fv_p4_23"))
+                .andExpect(status().is3xxRedirection());
+        ForumPost cont = postRepository.findByTopicIdOrderByCreatedAtAsc(topic.getId()).stream()
+                .filter(ForumPost::isContinuation).findFirst().orElseThrow();
+
+        MockHttpSession adminSession = login("fv_admin_23");
+        mockMvc.perform(post("/forum/post/" + cont.getId() + "/delete").session(adminSession).with(csrf()))
+                .andExpect(status().is3xxRedirection());
+        assertThat(postRepository.findById(cont.getId())).isEmpty();
+    }
+
+    @Test
+    void p6SortByRatingAndSize() throws Exception {
+        User owner = createUser("fv_owner_24");
+        // тред A — 2 поста, рейтинг высокий (лайки)
+        ForumTopic a = createTopic(owner, "Сортировка A fv_p6_24", TopicVisibility.PUBLIC, null);
+        continuation(owner, a, "продолжение A");
+        a.setLikes(10);
+        topicRepository.save(a);
+        // тред B — 1 пост, рейтинг ниже (4 лайка)
+        ForumTopic b = createTopic(owner, "Сортировка B fv_p6_24", TopicVisibility.PUBLIC, null);
+        b.setLikes(4);
+        topicRepository.save(b);
+        // тред C — 3 поста, рейтинг 0 (размер большой)
+        ForumTopic c = createTopic(owner, "Сортировка C fv_p6_24", TopicVisibility.PUBLIC, null);
+        continuation(owner, c, "продолжение C1");
+        continuation(owner, c, "продолжение C2");
+
+        MockHttpSession session = login("fv_owner_24");
+        // по рейтингу: A (10/2=5) > B (4/1=4) > C (0/3=0)
+        String byRating = mockMvc.perform(get("/forum?sort=rating").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(byRating.indexOf("Сортировка A")).isLessThan(byRating.indexOf("Сортировка B"));
+        assertThat(byRating.indexOf("Сортировка B")).isLessThan(byRating.indexOf("Сортировка C"));
+
+        // по размеру: C (3) > A (2) > B (1)
+        String bySize = mockMvc.perform(get("/forum?sort=size").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(bySize.indexOf("Сортировка C")).isLessThan(bySize.indexOf("Сортировка A"));
+        assertThat(bySize.indexOf("Сортировка A")).isLessThan(bySize.indexOf("Сортировка B"));
+
+        // дропдаун сортировки присутствует
+        assertThat(byRating).contains("name=\"sort\"");
+    }
+
+    @Test
+    void p6SortPersistsThroughPaginationAndSearchForm() throws Exception {
+        User owner = createUser("fv_owner_25");
+        createTopic(owner, "Сортировка форма fv_p6_25", TopicVisibility.PUBLIC, null);
+        MockHttpSession session = login("fv_owner_25");
+        String page = mockMvc.perform(get("/forum?sort=rating").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        String flat = page.replaceAll("\\s+", " ");
+        // виджет сортировки выбран и hidden-поле переносит выбор в пагинацию/табы
+        assertThat(flat).contains("value=\"rating\" selected=\"selected\"");
+        assertThat(flat).contains("name=\"type\" value=\"ALL\"");
+        assertThat(flat).contains("sort=rating");
+    }
+
+    private void continuation(User owner, ForumTopic topic, String content) {
+        ForumPost cont = new ForumPost();
+        cont.setTopicId(topic.getId());
+        cont.setContent(content);
+        cont.setAuthorId(owner.getId());
+        cont.setContinuation(true);
+        postRepository.save(cont);
+    }
+
+    @Test
     void readOnlyTopicAllowsOnlyOwnerToWrite() throws Exception {
         User owner = createUser("fv_owner_15");
         createUser("fv_friend_15");

@@ -3,8 +3,10 @@ package org.corpsman.webapp;
 import org.corpsman.auth.model.User;
 import org.corpsman.auth.model.UserRole;
 import org.corpsman.auth.repository.UserRepository;
+import org.corpsman.forum.model.ForumPost;
 import org.corpsman.forum.model.ForumTopic;
 import org.corpsman.forum.model.TopicVisibility;
+import org.corpsman.forum.repository.ForumPostRepository;
 import org.corpsman.forum.repository.ForumTopicRepository;
 import org.corpsman.forum.repository.TopicLikeRepository;
 import org.corpsman.forum.model.TopicLike;
@@ -50,6 +52,9 @@ class SettingsIntegrationTest {
 
     @Autowired
     private TopicLikeRepository topicLikeRepository;
+
+    @Autowired
+    private ForumPostRepository postRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -226,12 +231,22 @@ class SettingsIntegrationTest {
     }
 
     @Test
-    void forumListShowsTopicRating() throws Exception {
+    void forumListShowsTopicRatingAggregatedAcrossPosts() throws Exception {
         User author = createUser("set_author_7");
         ForumTopic topic = createPublicTopic(author, "Тред с реакциями set_rate_7");
-        topic.setLikes(77);
-        topic.setDislikes(13);
+        // лайки OP хранятся на треде
+        topic.setLikes(50);
+        topic.setDislikes(10);
         topicRepository.save(topic);
+        ForumPost continuation = new ForumPost();
+        continuation.setTopicId(topic.getId());
+        continuation.setAuthorId(author.getId());
+        continuation.setContent("Продолжение");
+        continuation.setAnonymous(false);
+        continuation.setLikes(27);
+        continuation.setDislikes(3);
+        continuation.setContinuation(true);
+        postRepository.save(continuation);
         MockHttpSession session = login("set_author_7");
 
         String page = mockMvc.perform(get("/forum").session(session))

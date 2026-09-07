@@ -83,8 +83,11 @@ public class ForumController {
                             @RequestParam(required = false) String search,
                             @RequestParam(required = false) String tag,
                             @RequestParam(defaultValue = "ALL") String type,
+                            @RequestParam(defaultValue = "time") String sort,
                             Model model) {
-        Pageable pageable = PageRequest.of(page, TOPICS_PAGE_SIZE, Sort.by(Sort.Direction.DESC, "lastActivityAt"));
+        Pageable pageable = sort != null && ("rating".equalsIgnoreCase(sort) || "size".equalsIgnoreCase(sort))
+                ? PageRequest.of(page, TOPICS_PAGE_SIZE)
+                : PageRequest.of(page, TOPICS_PAGE_SIZE, Sort.by(Sort.Direction.DESC, "lastActivityAt"));
         List<String> tags = tag == null || tag.isBlank() ? null : List.of(tag);
         boolean hidePublic = SecurityUtils.currentUserId() != null
                 && !settingsService.getByUserId(SecurityUtils.currentUserId()).isShowPublicPosts();
@@ -99,11 +102,12 @@ public class ForumController {
         // Аноним видит только публичные треды
         String effectiveType = anonymous ? "PUBLIC" : type.toUpperCase();
         model.addAttribute("page", forumService.getTopics(pageable, search, tags, hidePublic,
-                guestRole, hideGuestThreads, effectiveType, SecurityUtils.currentUserId()));
+                guestRole, hideGuestThreads, effectiveType, SecurityUtils.currentUserId(), sort));
         model.addAttribute("search", search);
         model.addAttribute("type", effectiveType);
         model.addAttribute("anonymous", anonymous);
         model.addAttribute("selectedTag", tag);
+        model.addAttribute("sort", sort == null ? "time" : sort);
         model.addAttribute("tags", forumService.getPopularTags());
         return "forum/list";
     }
@@ -129,12 +133,18 @@ public class ForumController {
         String defaultVis = userSettings.getDefaultVisibility();
         boolean guestCreator = viewer != null && viewer.getRole() == UserRole.GUEST;
         if (guestCreator) {
+            // Гость создаёт либо «Открытый» (GUEST, виден всем), либо «Закрытый»
+            // (только белый список). Селект формы — GUEST/CLOSED; по умолчанию GUEST.
             defaultVis = "GUEST";
         }
         if ("GUEST".equals(defaultVis)) {
-            // «Открытый» + чекбокс «доступен гостям»
-            topicForm.setVisibility("OPEN");
-            topicForm.setGuestAccess(true);
+            // «Открытый» + (для резидента) чекбокс «доступен гостям» → GUEST
+            if (guestCreator) {
+                topicForm.setVisibility("GUEST");
+            } else {
+                topicForm.setVisibility("OPEN");
+                topicForm.setGuestAccess(true);
+            }
         } else {
             topicForm.setVisibility(defaultVis);
         }

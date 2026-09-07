@@ -211,6 +211,8 @@ class ForumServiceTest {
         latest.setAuthorId(11L);
         latest.setAnonymous(false);
         when(postRepository.findLatestPostEachByTopicIds(List.of(1L))).thenReturn(List.of(latest));
+        when(postRepository.sumLikesDislikesByTopicIds(List.of(1L)))
+                .thenReturn(List.<Object[]>of(new Object[]{1L, 10L, 4L}));
 
         Page<TopicSummaryDto> result = forumService.getTopics(PageRequest.of(0, 20), "фильм", null, false, false, false, "ALL", 10L);
 
@@ -222,6 +224,27 @@ class ForumServiceTest {
         assertThat(dto.getTags()).containsExactly("важное");
         assertThat(dto.isAuthor()).isTrue();
         assertThat(dto.getFirstPostPreview()).isEqualTo("Последнее сообщение в треде «Обсуждение фильма» с подписями");
+        assertThat(dto.getLikes()).isEqualTo(10);
+        assertThat(dto.getDislikes()).isEqualTo(4);
+    }
+
+    @Test
+    void getTopicsFallsBackToOpRatingWhenNoPostsAggregated() {
+        ForumTopic visible = topic(1L, 10L, true, false);
+        visible.setTags(Set.of());
+        when(topicRepository.search(any(), anyBoolean(), anyBoolean(), any(), anyBoolean(), any(), anyBoolean(), anyList(), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(visible), PageRequest.of(0, 20), 1));
+        when(postRepository.countByTopicIdIn(List.of(1L))).thenReturn(List.<Object[]>of(new Object[]{1L, 0L}));
+        when(userRepository.findByIdIn(anyList())).thenReturn(List.of(user(10L, "luke", UserRole.RESIDENT)));
+        when(userRepository.findById(10L)).thenReturn(Optional.of(user(10L, "luke", UserRole.RESIDENT)));
+        when(postRepository.findLatestPostEachByTopicIds(List.of(1L))).thenReturn(List.of());
+        when(postRepository.sumLikesDislikesByTopicIds(List.of(1L))).thenReturn(List.of());
+
+        Page<TopicSummaryDto> result = forumService.getTopics(PageRequest.of(0, 20), null, null, false, false, false, "ALL", 10L);
+
+        TopicSummaryDto dto = result.getContent().get(0);
+        assertThat(dto.getLikes()).isZero();
+        assertThat(dto.getDislikes()).isZero();
     }
 
     @Test

@@ -22,6 +22,10 @@ spring:
 
 app:
   upload-dir: ${APP_UPLOAD_DIR:uploads}
+  # Хранение времени: все LocalDateTime приложения — wall-clock UTC.
+  # Отображение в шаблоне — UTC-фоллбэк (#temporals.format), фактическое
+  # локальное время пользователя вычисляет time-format.js в браузере.
+  time-zone: UTC
 
 server:
   port: 8080

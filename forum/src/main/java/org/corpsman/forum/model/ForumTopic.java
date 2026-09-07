@@ -8,6 +8,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
@@ -65,6 +66,19 @@ public class ForumTopic extends BaseEntity {
 
     @Column(name = "last_activity_at", nullable = false)
     private LocalDateTime lastActivityAt;
+
+    /**
+     * При создании последняя активность равна моменту создания треда:
+     * {@code lastActivityAt == createdAt} (без микро-сдвига, возникавшего,
+     * когда сервис задавал {@code lastActivityAt} до срабатывания
+     * {@code @PrePersist} базовой сущности).
+     */
+    @PrePersist
+    @Override
+    protected void onCreate() {
+        super.onCreate();
+        lastActivityAt = getCreatedAt();
+    }
 
     @ManyToMany
     @JoinTable(name = "topic_tags",

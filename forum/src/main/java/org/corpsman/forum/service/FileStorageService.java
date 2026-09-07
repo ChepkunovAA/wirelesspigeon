@@ -68,4 +68,21 @@ public class FileStorageService {
         }
         return path;
     }
+
+    /**
+     * Удаляет файл с диска (если существует).
+     *
+     * @param storedName имя файла на диске
+     */
+    public void delete(String storedName) {
+        Path path = root.resolve(storedName).normalize();
+        if (!path.startsWith(root)) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException e) {
+            log.error("Не удалось удалить файл {}", storedName, e);
+        }
+    }
 }

@@ -111,4 +111,17 @@ public interface ForumPostRepository extends JpaRepository<ForumPost, Long> {
      */
     @Query("SELECT COALESCE(SUM(p.dislikes), 0) FROM ForumPost p WHERE p.authorId = :userId AND p.deleted = false")
     long sumDislikesByAuthor(@Param("userId") Long userId);
+
+    /**
+     * Суммарные лайки и дизлайки постов-продолжений каждого треда.
+     * Лайки OP хранятся на треде (forum_topics), здесь — только продолжения.
+     *
+     * @param topicIds идентификаторы тредов
+     * @return массив [topicId, totalLikes, totalDislikes]
+     */
+    @Query("SELECT p.topicId, COALESCE(SUM(p.likes), 0), COALESCE(SUM(p.dislikes), 0) "
+            + "FROM ForumPost p "
+            + "WHERE p.deleted = false AND p.continuation = true "
+            + "AND p.topicId IN :topicIds GROUP BY p.topicId")
+    List<Object[]> sumLikesDislikesByTopicIds(@Param("topicIds") List<Long> topicIds);
 }

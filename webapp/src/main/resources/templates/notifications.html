@@ -39,8 +39,9 @@
             <div class="d-flex justify-content-between align-items-start gap-2">
                 <div class="flex-grow-1">
                     <span th:text="${n.text}">Текст уведомления</span>
-                    <small class="text-muted d-block mt-1"
-                           th:text="${#temporals.format(n.createdAt, 'dd.MM.yyyy HH:mm')}">дата</small>
+                    <small class="text-muted d-block mt-1">
+                        <time th:replace="~{fragments/time-format :: clock(${n.createdAt}, 'dd.MM.yyyy HH:mm')}">дата</time>
+                    </small>
                 </div>
                 <i class="bi bi-chevron-right text-muted" th:if="${n.url != null}"></i>
             </div>

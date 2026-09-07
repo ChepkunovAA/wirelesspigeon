@@ -49,7 +49,7 @@
                 <tr th:each="token : ${tokens}" th:unless="${#lists.isEmpty(tokens)}">
                     <td th:text="${token.id}">1</td>
                     <td class="font-monospace text-muted" th:text="${#strings.abbreviate(token.codeHash, 16)}">hash...</td>
-                    <td th:text="${#temporals.format(token.expiresAt, 'dd.MM.yyyy HH:mm')}">01.01.2026 00:00</td>
+                    <td><time th:replace="~{fragments/time-format :: clock(${token.expiresAt}, 'dd.MM.yyyy HH:mm')}">01.01.2026 00:00</time></td>
                     <td>
                         <span th:if="${token.used}" class="badge text-bg-secondary">Использован</span>
                         <span th:unless="${token.used and token.expiresAt.isBefore(#temporals.createNow())}"
@@ -58,7 +58,7 @@
                               class="badge text-bg-success">Активен</span>
                     </td>
                     <td th:text="${token.createdByUsername ?: '—'}">admin</td>
-                    <td th:text="${#temporals.format(token.createdAt, 'dd.MM.yyyy HH:mm')}">01.01.2026 00:00</td>
+                    <td><time th:replace="~{fragments/time-format :: clock(${token.createdAt}, 'dd.MM.yyyy HH:mm')}">01.01.2026 00:00</time></td>
                 </tr>
                 <tr th:if="${#lists.isEmpty(tokens)}">
                     <td colspan="6" class="text-center text-muted py-4">

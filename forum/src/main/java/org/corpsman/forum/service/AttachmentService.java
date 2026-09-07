@@ -92,6 +92,25 @@ public class AttachmentService {
                 .toList();
     }
 
+    /**
+     * Полностью удаляет вложения поста (без потомков).
+     *
+     * @param postId идентификатор поста
+     */
+    @Transactional
+    public void deleteAttachmentsForPost(Long postId) {
+        List<ForumAttachment> attachments = attachmentRepository.findByPostIdOrderByIdAsc(postId);
+        for (ForumAttachment a : attachments) {
+            try {
+                storage.delete(a.getStoredName());
+            } catch (Exception e) {
+                log.warn("Не удалось удалить файл {} на диске", a.getStoredName(), e);
+            }
+        }
+        attachmentRepository.deleteByPostId(postId);
+        log.info("Удалены вложения поста {}", postId);
+    }
+
     private void saveAll(List<MultipartFile> files, Long postId, Long topicId) {
         if (files == null || files.isEmpty()) {
             return;

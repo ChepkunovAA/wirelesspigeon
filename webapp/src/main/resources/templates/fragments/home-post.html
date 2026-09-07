@@ -8,8 +8,9 @@
             <span class="badge text-bg-light border" th:if="${post.anonymous}">Анонимно</span>
             <span th:if="${!post.anonymous}"
                   th:text="${post.authorName}">Автор</span>
-            <span class="ms-2" th:if="${post.createdAt}"
-                  th:text="${#temporals.format(post.createdAt, 'dd.MM.yyyy')}"></span>
+            <span class="ms-2" th:if="${post.createdAt}">
+                <time th:replace="~{fragments/time-format :: clock(${post.createdAt}, 'dd.MM.yyyy')}"></time>
+            </span>
         </p>
         <p class="mb-0 text-body-secondary" th:if="${post.firstPostPreview}"
            th:text="${#strings.abbreviate(post.firstPostPreview, 500)}"></p>

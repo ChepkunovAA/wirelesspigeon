@@ -62,7 +62,7 @@
                               th:text="${film.censorship.displayName}">Эротика</span>
                         <span th:unless="${film.censorship != null}" class="text-muted">—</span>
                     </td>
-                    <td th:text="${#temporals.format(film.watchedAt, 'dd.MM.yyyy')}">01.01.2026</td>
+                    <td><time th:replace="~{fragments/time-format :: clock(${film.watchedAt}, 'dd.MM.yyyy')}">01.01.2026</time></td>
                 </tr>
                 <tr th:if="${#lists.isEmpty(page.content)}">
                     <td colspan="5" class="text-center text-muted py-4">

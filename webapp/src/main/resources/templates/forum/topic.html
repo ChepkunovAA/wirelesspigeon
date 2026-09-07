@@ -36,7 +36,7 @@
                        class="text-decoration-none" th:text="${topic.firstPost.authorName}">Автор</a>
                     <span th:if="${topic.firstPost.anonymous}" th:text="${topic.firstPost.authorName}">Автор</span>
                 </small>
-                <small class="text-muted" th:text="${#temporals.format(topic.firstPost.createdAt, 'dd.MM.yyyy HH:mm')}">дата</small>
+                <small class="text-muted"><time th:replace="~{fragments/time-format :: clock(${topic.firstPost.createdAt}, 'dd.MM.yyyy HH:mm')}">дата</time></small>
                 <span th:if="${topic.firstPost.anonymous}" x-data="{show: false}" class="d-inline">
                     <span th:if="${topic.firstPost.realAuthorName == null}" class="badge text-bg-dark">
                         <i class="bi bi-incognito"></i> Аноним
@@ -58,10 +58,9 @@
             </div>
         </div>
         <div class="d-flex gap-2 flex-shrink-0">
-            <span class="badge text-bg-info" th:if="${visibility == 'OPEN' or visibility == 'GUEST'}" title="Виден всем пользователям"><i class="bi bi-unlock"></i> Открытый</span>
             <span class="badge text-bg-success" th:if="${visibility == 'GUEST'}"
-                  sec:authorize="hasAnyRole('RESIDENT','MASTER')" title="Гости могут писать и модерировать"><i class="bi bi-people-fill"></i> доступен гостям</span>
-            <span class="badge text-bg-primary" th:if="${visibility == 'PUBLIC'}" title="Виден всем и на главной"><i class="bi bi-megaphone"></i> Публичный</span>
+                  sec:authorize="hasAnyRole('RESIDENT','MASTER')" title="Гости могут писать и модерировать"><i class="bi bi-people-fill"></i> Гостевой</span>
+            <span class="badge text-bg-primary" th:if="${visibility == 'PUBLIC'}" sec:authorize="isAuthenticated()" title="Виден всем и на главной"><i class="bi bi-megaphone"></i> Публичный</span>
             <span class="badge text-bg-secondary" th:if="${topic.readOnly}" title="Писать может только владелец треда"><i class="bi bi-book"></i> Только для чтения</span>
             <span class="badge text-bg-warning" th:if="${visibility == 'CLOSED'}" title="Виден только белому списку"><i class="bi bi-lock"></i> Закрытый</span>
             <button th:if="${topic.canModerate and visibility == 'CLOSED'}" type="button"
@@ -80,8 +79,6 @@
                     data-bs-toggle="collapse" data-bs-target="#continuationForm">
                 <i class="bi bi-plus-lg"></i> Добавить
             </button>
-            <a th:if="${topic.author}" th:href="@{/forum/topic/{id}/edit(id=${topic.id})}"
-               class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil"></i> Редактировать</a>
             <form th:if="${topic.canModerate}" th:action="@{/forum/topic/{id}/moderation/delete(id=${topic.id})}"
                   method="post">
                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
@@ -107,7 +104,7 @@
         <div th:if="${topic.firstPost.attachments != null and !topic.firstPost.attachments.isEmpty()}" class="card-body pt-0">
             <div th:replace="~{forum/attachments :: attachments(${topic.firstPost.attachments}, '/forum/attachment')}"></div>
         </div>
-        <div class="card-footer bg-transparent">
+        <div class="card-footer bg-transparent d-flex align-items-center gap-2">
             <span x-data="react()"
                   th:attr="data-liked=${topic.firstPost.likedByCurrentUser},
                            data-likes=${topic.firstPost.likes},
@@ -135,6 +132,10 @@
                     <span x-text="dislikes">0</span>
                 </button>
             </span>
+            <a th:if="${topic.firstPost.author}" th:href="@{/forum/topic/{id}/edit(id=${topic.id})}"
+               class="btn btn-outline-secondary btn-sm" title="Редактировать тред">
+                <i class="bi bi-pencil"></i>
+            </a>
         </div>
     </div>
 
@@ -309,7 +310,7 @@
                 <div th:if="${post.attachments != null and !post.attachments.isEmpty()}" class="card-body pt-0">
                     <div th:replace="~{forum/attachments :: attachments(${post.attachments}, '/forum/attachment')}"></div>
                 </div>
-                <div class="card-footer bg-transparent">
+                <div class="card-footer bg-transparent d-flex align-items-center gap-2">
                     <span x-data="react()"
                           th:attr="data-liked=${post.likedByCurrentUser},
                                    data-likes=${post.likes},
@@ -335,6 +336,19 @@
                             <span x-text="dislikes">0</span>
                         </button>
                     </span>
+                    <a th:if="${post.authorId != null and post.authorId == currentUserId}"
+                       th:href="@{/forum/post/{id}/edit(id=${post.id})}"
+                       class="btn btn-outline-secondary btn-sm" title="Редактировать продолжение">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                    <form th:if="${topic.canModerate and !post.deleted}"
+                          th:action="@{/forum/post/{id}/delete(id=${post.id})}" method="post" class="d-inline">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Удалить продолжение"
+                                onclick="return confirm('Удалить продолжение?')">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
                 </div>
             </div>
 

@@ -147,6 +147,8 @@ public class PostService {
 
     /**
      * Удаляет комментарий (автор, модератор треда или админ). Ветка ответов также удаляется.
+     * Пост-продолжение удаляется полностью, если у него нет ответов и ниже нет других
+     * плоских комментариев или продолжений; иначе остаётся заглушка.
      *
      * @param postId  идентификатор поста
      * @param userId  текущий пользователь
@@ -163,9 +165,20 @@ public class PostService {
         boolean byAdmin = isAdmin && !post.getAuthorId().equals(userId);
         boolean byOwner = !byAdmin && topic.getAuthorId() != null
                 && topic.getAuthorId().equals(userId) && !post.getAuthorId().equals(userId);
+        if (post.isContinuation()) {
+            if (canDeleteContinuationFully(post)) {
+                deleteContinuationFully(post.getId(), post.getTopicId());
+            } else {
+                // автором продолжения всегда является владелец треда; заглушка
+                // помечается как удалённая владельцем либо администратором
+                markDeletedDeep(postId, post.getTopicId(), isAdmin, !isAdmin);
+            }
+            touchTopic(post.getTopicId());
+            log.info("Пост-продолжение (ID: {}) удалён пользователем {} (админ: {})", postId, userId, isAdmin);
+            return;
+        }
         markDeletedDeep(postId, post.getTopicId(), byAdmin, byOwner);
-        topicRepository.findById(post.getTopicId()).ifPresent(
-                tp -> { tp.setLastActivityAt(java.time.LocalDateTime.now()); topicRepository.save(tp); });
+        touchTopic(post.getTopicId());
         log.info("Комментарий (ID: {}) удалён пользователем {} (админ: {})", postId, userId, byAdmin);
     }
 
@@ -326,6 +339,47 @@ public class PostService {
     private ForumTopic findTopic(Long topicId) {
         return topicRepository.findById(topicId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.TOPIC_NOT_FOUND));
+    }
+
+    /**
+     * Можно ли удалить пост-продолжение полностью (без заглушки)?
+     * Да, если у него нет ответов/веток и ниже нет других плоских
+     * комментариев или продолжений (т.е. это последний плоский пост).
+     *
+     * @param continuation пост-продолжение (continuation = true)
+     * @return true, если пост можно удалить полностью
+     */
+    private boolean canDeleteContinuationFully(ForumPost continuation) {
+        Long topicId = continuation.getTopicId();
+        List<ForumPost> posts = postRepository.findByTopicIdOrderByCreatedAtAsc(topicId);
+        boolean hasChildren = posts.stream().anyMatch(p -> continuation.getId().equals(p.getParentPostId()));
+        if (hasChildren) {
+            return false;
+        }
+        ForumPost lastRoot = posts.stream()
+                .filter(p -> p.getParentPostId() == null && !p.isOp())
+                .max(java.util.Comparator
+                        .comparing(ForumPost::getCreatedAt)
+                        .thenComparing(ForumPost::getId))
+                .orElse(null);
+        return lastRoot != null && lastRoot.getId().equals(continuation.getId());
+    }
+
+    /**
+     * Полностью удаляет пост-продолжение вместе с вложениями.
+     * Лайки/дизлайки удаляются каскадом на уровне БД (ON DELETE CASCADE).
+     *
+     * @param postId идентификатор поста-продолжения
+     */
+    private void deleteContinuationFully(Long postId, Long topicId) {
+        attachmentService.deleteAttachmentsForPost(postId);
+        postRepository.deleteById(postId);
+        log.info("Пост-продолжение (ID: {}) треда {} удалён полностью", postId, topicId);
+    }
+
+    private void touchTopic(Long topicId) {
+        topicRepository.findById(topicId).ifPresent(
+                tp -> { tp.setLastActivityAt(LocalDateTime.now()); topicRepository.save(tp); });
     }
 
     /**

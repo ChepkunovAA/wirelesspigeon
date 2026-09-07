@@ -105,6 +105,161 @@
 - Домен/HTTPS — только в ветке `feature/https`; локальный запуск на
   `develop` — HTTP:8080 без Caddy.
 
+## Релиз 2.4.0 (в работе)
+Ветка `release/2.4.0` (от `develop` @ `d6140a6`, релиз 2.3.0). Версия всех
+модулей: `2.4.0`. План и статус — `tmp/plans/plan-release-2.4.0.md`.
+
+### П.3 (готово): inline-редактирование OP и продолжений
+Редактирование основного поста (OP) треда и постов-продолжений по месту — без
+перехода через отдельные страницы администрирования:
+- Кнопки-карандаши появились на самих карточках: на **OP-карточке** (в
+  `card-footer`, автору треда) и на **карточках продолжений** (в
+  `card-footer`, автору продолжения). Кнопка из **шапки треда** («Редактировать»
+  рядом с «Добавить») убрана — дублировала и уводила внимание от контента.
+- `topic.html`: ссылка OP → `GET/POST /forum/topic/{id}/edit` (форма
+  `edit-topic.html`); ссылка продолжения → `GET/POST /forum/post/{id}/edit`
+  (форма `edit-post.html`). Оба endpoint уже существовали
+  (`ForumController.showEditTopicForm`/`editTopic`, `showEditPostForm`/`editPost`).
+- **Багфикс `ForumService.editTopic`:** правка меняла только `forum_topics.content`,
+  а страница треда рендерит OP из строки `forum_posts` (`toPostDto(opPost)`),
+  поэтому изменение не отображалось. Теперь `editTopic` синхронизирует и
+  первый пост: `forum_posts.content = forum_topics.content`, `is_edited = true`.
+- `ForumPostDto.author`/`TopicDetailDto.author` (текущий юзер == автор) —
+  существовали, использованы для условий показа кнопок.
+
+Тесты: `ForumVisibilityIntegrationTest` +3 (у автора кнопки на OP и продолжении,
+в шапке «Редактировать» отсутствует; у постороннего кнопок нет и POST-правка
+чужого OP/продолжения → 4xx; автор правит OP и продолжение — контент в БД и на
+странице, `isEdited`). Итог: **160** тестов зелёные. E2E: автор видит кнопки,
+правка OP (синхронизация `forum_topics`↔`forum_posts`) и продолжения проходят.
+
+### П.4 (готово): удаление постов-продолжений
+
+Владелец треда или администратор получает кнопку «Удалить» (корзина) на
+карточках постов-продолжений в `topic.html`; запрос идёт на существующий
+endpoint `POST /forum/post/{id}/delete` (тот же, что у комментариев). Логика
+удаления аналогична комментариям:
+- **Полное удаление** (строка стирается из `forum_posts`): у продолжения нет
+  ни ответов/веток (`parent_post_id`), ни других плоских комментариев или
+  продолжений ниже — то есть это последний плоский пост треда по
+  `createdAt`/`id`. Рекурсивный `markDeletedDeep` не нужен, поэтому фактические
+  FK `ON DELETE CASCADE` на `post_likes`/`post_dislikes`/`parent_post_id`
+  срабатывают на уровне БД; вложения поста удаляются вручную
+  (`AttachmentService.deleteAttachmentsForPost` + `FileStorageService.delete`).
+- **Заглушка** (`markDeletedDeep`, `[Удалено]`): если есть ответы/ветки или
+  плоские комментарии/продолжения ниже. Поскольку автор продолжения всегда
+  владелец треда, заглушка помечается `deletedByOwner=true` (удаление
+  владельцем) либо `deletedByAdmin=true` (удаление админом) — иначе карточка с
+  заглушкой не рендерилась бы (`subtreeSize=0`, все флаги false).
+- `PostService.canDeleteContinuationFully()` — проверка условий полного удаления
+  (нет детей и пост — последний корневой). Чужой пользователь (не автор, не
+  владелец, не админ) → `403` (существующая проверка `deletePost`).
+
+Изменения: `PostService.deletePost` (ветка продолжений + флаги заглушки),
+`AttachmentService.deleteAttachmentsForPost`, `FileStorageService.delete`,
+`ForumAttachmentRepository.deleteByPostId`, `topic.html` (кнопка удаления на
+continuation-карточках для `topic.canModerate`). Тесты:
+`ForumVisibilityIntegrationTest` +5 (полное удаление последнего чистого
+продолжения; чужой не может — 4xx и строка жива; заглушка при ветке, заглушка
+при плоском комментарии ниже + флаги владельца; админ удаляет чужое
+продолжение полностью). Итог: **165** тестов зелёные. E2E: владелец видит
+кнопки удаления, последнее чистое продолжение стирается, при комментарии ниже
+остаётся заглушка `[Удалено]`, гость получает 4xx.
+
+### П.5 (готово): превью — сумма лайков/дизлайков по всем постам треда
+
+Карточка треда в списке (`/forum`) показывает превью последнего поста
+(существовало) и теперь — **суммарный рейтинг всех постов треда**: лайки/дизлайки
+OP (хранятся на треде `forum_topics.likes/dislikes`) + лайки/дизлайки всех
+постов-продолжений (`forum_posts`). Раньше в карточке был только рейтинг OP.
+- `ForumPostRepository.sumLikesDislikesByTopicIds()` — агрегатный запрос
+  `SUM(likes), SUM(dislikes)` по продолжениям (неудалённым) каждого треда.
+- `ForumService.loadLikesDislikesByTopics()` — map topicId → [likes, dislikes];
+  `toSummaryDto()` суммирует рейтинг OP (с треда) с рейтингом продолжений.
+- `TopicSummaryDto.likes/dislikes` — без изменений сигнатуры, новая семантика.
+
+Тесты: `ForumServiceTest` +2 (агрегат в карточке; пустой агрегат → 0),
+`SettingsIntegrationTest.forumListShowsTopicRatingAggregatedAcrossPosts`
+(OP 50/10 на треде + продолжение 27/3 → карточка 77/13). Итог: **157** тестов
+зелёные. E2E: тред + продолжение, лайки от второго юзера → в списке 2/0.
+
+### П.2 (готово): гости создают Закрытые треды
+
+Расширение возможностей гостей: раньше гость мог создавать только «Открытый»
+(GUEST), теперь ещё и «Закрытый» (CLOSED), но по-прежнему **не может** создавать
+«Публичный» (PUBLIC).
+- `ForumService.createTopic()`: guard для гостя уже разрешал `GUEST` и `CLOSED`
+  (прочие сводил к `GUEST`) — поведение подтверждено, без изменений.
+- `create.html`: для роли Гость показывается отдельный селект **«Тип доступа»** с
+  опциями `Открытый (GUEST)` / `Закрытый (CLOSED)` (+ белый список), без
+  `OPEN`/`PUBLIC`. Для резидентов выбор не изменён (`OPEN`/`PUBLIC`/`CLOSED`).
+- `ForumController.showCreateForm()`: гостю значение по умолчанию — `GUEST`
+  (не «OPEN+guestAccess»), чтобы селект сразу указывал на «Открытый». Автор
+  закрытого треда всегда видит свой тред (существовавшая логика
+  `canViewClosed`).
+
+Тесты: `RolesAndGuestThreadsIntegrationTest` +3 (гость создаёт CLOSED и открывает
+свой закрытый тред, не создаёт PUBLIC; форма гостя показывает GUEST/CLOSED без
+OPEN/PUBLIC; форма резидента не изменена — OPEN/PUBLIC/CLOSED). Итог: **157**
+тестов зелёные. E2E: гостю доступны GUEST/CLOSED без PUBLIC/OPEN, создание
+закрытого треда гостем и его открытие автором.
+
+### П.1 (готово): переработка системы маркеров
+- **Badge «Открытый» убран** из `forum/list.html` и `forum/topic.html` (ранее
+  показывался для `visibility` ровно `OPEN` *и* `GUEST` через
+  `bi-unlock`). Теперь треды с `OPEN` не несут маркера вообще; у `GUEST`
+  остаётся маркер «доступен гостям» (для RESIDENT/MASTER). Enum `TopicVisibility`
+  не тронут — `OPEN` по-прежнему существует и фильтруется.
+- **Табы списка** (`Все`/`Публичные`/`Открытые`/`Закрытые`) в `list.html`
+  обёрнуты в `th:if="${!anonymous}"` — **аноним их не видит** и видит только
+  публичный список без фильтров; для авторизованных (Guest/Resident+) табы не
+  изменены (включая «Открытые»). `ForumService.getTopics()` / `search()` /
+  `isVisible()` — без изменений.
+- `create.html` не меняется: селект по-прежнему предлагает `OPEN` и т.д.
+
+Тесты: `MarkerAndTabsIntegrationTest` (3): у анонима нет табов и нет маркера
+«Открытый»; резидент видит все табы, но не маркер; на странице тредов OPEN и
+GUEST маркера «Открытый» нет, у GUEST остаётся «доступен гостям». Итог:
+**154** теста зелёные. E2E: аноним без табов и без `bi-unlock`, резидент с
+табами и без маркера.
+
+### П.7 (готово): времени — в таймзоне браузера + фиксы таймштампов
+Постановка: «время комментария не соответствует реальному времени». Три
+причины выявлены при исследовании:
+- **Часовой пояс.** Контейнер приложения и Postgres жили в `UTC`, у
+  пользователя — МСК (UTC+3): все времена отображались на 3 часа раньше.
+- **Кодовый баг.** `ForumService.createTopic`/`editTopic` выставляли
+  `lastActivityAt` до `save()`, а `@PrePersist` (`BaseEntity.onCreate`) — позже:
+  у **всех** тредов `last_activity_at` был на ~1мс раньше `created_at`.
+- **Мусор e2e.** В треде 34 числились посты 100/101 со временем раньше треда
+  (созданы в другом треде автором 3) — не баг кода.
+
+Решение (согласовано с пользователем): **время в таймзоне браузера**:
+- Конвенция хранения: все `LocalDateTime` приложения — **wall-clock UTC**
+  (детерминировано `app.time-zone: UTC` в `application.yml`);
+  `TimeZoneConfig`javadoc актуализирован.
+- `config/TimeUtil` (Spring-имя `timeUtil`): `isoUtc(ldt)` → ISO-8601 с `Z`.
+- Фрагмент `fragments/time-format.html` (`clock(ldt, pattern)`) рендерит
+  `<time data-utc="…Z">` с UTC-фоллбэком (`#temporals.format`); режим
+  `data-utc-mode="date"` — при паттерне без «H».
+- `static/js/time-format.js` (подключён в `fragments/nav.html`) переводит
+  каждый `<time data-utc>` в таймзону браузера. Все 13 точек вывода времени
+  (forum `list`/`post`/`topic`, `home-post`, `keys`, `admin/tokens`,
+  `users/members`, `cinema/archive`, `notifications`, `profile-user`) переведены
+  на фрагмент; сравнения `#temporals.createNow()` не тронуты.
+- Фикс микро-сдвига: `ForumTopic.onCreate()` (`@PrePersist`) — `lastActivityAt
+  = createdAt`; из `ForumService.createTopic` убран лишний `setLastActivityAt`.
+- Очистка е2е-мусора: удалены посты 100/101; `last_activity_at` треда 34
+  приведён к времени его OP-поста.
+
+Тесты: `TimeUtilTest` (3), `TimeZoneRenderingIntegrationTest` (5:
+`data-utc` в `<time>` на странице треда, в списке форума, подключение скрипта
+на главной, публичная раздача `time-format.js`, отсутствие сырых
+`#temporals.format` в шаблонах). Итог: **151** тест зелёный. E2E: значения в
+`<time data-utc>` + скрипт на анонимном списке и авторизованной странице треда;
+конвертация проверена раннером `node` в таймзоне `Europe/Moscow`
+(`00:28Z` → `03:28`).
+
 ## Релиз 2.3.0 (в работе)
 
 Ветка `release/2.3.0` (от `develop` @ `b33fda0`, 2.2.1). Слияние в
@@ -132,6 +287,18 @@
 - `ViewerContext` — поле `adminMode` удалено как неиспользуемое.
 
 Запись/реакции в закрытом треде и раньше требовали whitelist/авторство — не менялось.
+
+### П.6 (готово): сортировка тредов
+Добавлена сортировка списка тредов `/forum` тремя режимами:
+- **По времени** (по умолчанию) — `ORDER BY lastActivityAt DESC`
+- **По рейтингу** — средний рейтинг `(likes - dislikes) / число постов`, тайбрейк по `lastActivityAt DESC, id DESC`
+- **По размеру** — общее число постов (OP + продолжения + комментарии), тайбрейк по `lastActivityAt DESC, id DESC`
+В UI: выпадающий список в форме поиска (сохраняет выбор при пагинации и табах).
+Реализация: для `rating`/`size` — выборка ID через `ForumTopicRepository.searchIds` + in-memory сортировка + ручная пагинация; для `time` — обычный `search` с ORDER BY в БД.
+Добавлен `@EntityGraph(attributePaths = "tags")` на `findAllById` для предотвращения LazyInitializationException.
+`@Transactional(readOnly = true)` на `ForumService.getTopics` для сохранения сессии при рендеринге тегов.
+Интеграционные тесты: `p6SortByRatingAndSize`, `p6SortPersistsThroughPaginationAndSearchForm`.
+E2E тесты: `p6_topic_created`, `p6_time_default_first`, `p6_size_first`, `p6_rating_first`, `p6_liked`, `p6_sort_selector`.
 
 ### П.3 (готово): отображаемое время = системное время
 Все времена хранятся и выводятся как `LocalDateTime` в локальном времени JVM

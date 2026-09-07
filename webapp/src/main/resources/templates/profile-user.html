@@ -66,7 +66,7 @@
                 </dd>
 
                 <dt class="col-sm-4">Дата регистрации</dt>
-                <dd class="col-sm-8" th:text="${#temporals.format(profile.createdAt, 'dd.MM.yyyy')}">01.01.2026</dd>
+                <dd class="col-sm-8"><time th:replace="~{fragments/time-format :: clock(${profile.createdAt}, 'dd.MM.yyyy')}">01.01.2026</time></dd>
             </dl>
         </div>
     </div>

@@ -48,6 +48,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -235,6 +236,27 @@ public class ForumService {
     public Page<TopicSummaryDto> getTopics(Pageable pageable, String search, List<String> tags,
                                                boolean hidePublic, boolean guestRole, boolean hideGuestThreads,
                                                String typeFilter, Long userId) {
+        return getTopics(pageable, search, tags, hidePublic, guestRole, hideGuestThreads, typeFilter, userId, "time");
+    }
+
+    /**
+     * Возвращает страницу тредов с учётом фильтров и сортировки.
+     *
+     * @param pageable        постраничность
+     * @param search          поиск по названию
+     * @param tags            фильтр по тегам
+     * @param hidePublic      скрыть публичные треды (кроме собственных)
+     * @param guestRole       текущий пользователь — гость
+     * @param hideGuestThreads скрыть гостевые треды
+     * @param typeFilter      фильтр по видимости
+     * @param userId          текущий пользователь
+     * @param sort            сортировка: time | rating | size
+     * @return страница тредов
+     */
+    @Transactional(readOnly = true)
+    public Page<TopicSummaryDto> getTopics(Pageable pageable, String search, List<String> tags,
+                                               boolean hidePublic, boolean guestRole, boolean hideGuestThreads,
+                                               String typeFilter, Long userId, String sort) {
         String normalizedSearch = StringUtils.hasText(search) ? search.trim() : "";
         boolean hasTags = tags != null && !tags.isEmpty();
         List<String> normalizedTags = hasTags
@@ -252,6 +274,11 @@ public class ForumService {
                     case "CLOSED" -> List.of(TopicVisibility.CLOSED);
                     default -> null;
                 };
+        String effectiveSort = sort == null ? "time" : sort.toLowerCase();
+        if ("rating".equals(effectiveSort) || "size".equals(effectiveSort)) {
+            return getTopicsSorted(pageable, normalizedSearch, normalizedTags, hasTags, hidePublic, guestRole,
+                    hideGuestThreads, typeFilters, userId, effectiveSort);
+        }
         Page<ForumTopic> page = topicRepository.search(normalizedSearch, hidePublic, hideGuestThreads,
                 typeFilters, guestRole, userId, hasTags, normalizedTags, pageable);
 
@@ -261,6 +288,7 @@ public class ForumService {
                 .filter(Objects::nonNull)
                 .toList());
         Map<Long, String> latestPreviews = loadLatestPostPreviews(page.getContent());
+        Map<Long, long[]> likesDislikes = loadLikesDislikesByTopics(page.getContent());
         boolean isAdmin = userId != null && isAdmin(userId);
 
         java.util.Map<Long, Boolean> interactMap = new java.util.HashMap<>();
@@ -275,12 +303,99 @@ public class ForumService {
         }
         List<TopicSummaryDto> dtos = page.getContent().stream()
                 .map(topic -> {
-                    TopicSummaryDto dto = toSummaryDto(topic, counts, usernames, latestPreviews, userId, isAdmin);
+                    TopicSummaryDto dto = toSummaryDto(topic, counts, usernames, latestPreviews, likesDislikes,
+                            userId, isAdmin);
                     dto.setCanInteract(interactMap.getOrDefault(topic.getId(), true));
                     return dto;
                 })
                 .toList();
         return new PageImpl<>(dtos, pageable, page.getTotalElements());
+    }
+
+    /**
+     * Сортирует треды в памяти по среднему рейтингу ((likes-dislikes)/postCount)
+     * либо по размеру (общее число постов). Постраничность применяется после сортировки.
+     */
+    private Page<TopicSummaryDto> getTopicsSorted(Pageable pageable, String search, List<String> tags,
+                                                     boolean hasTags, boolean hidePublic, boolean guestRole,
+                                                     boolean hideGuestThreads, List<TopicVisibility> typeFilters,
+                                                     Long userId, String sort) {
+        List<Long> ids = topicRepository.searchIds(search, hidePublic, hideGuestThreads, typeFilters,
+                guestRole, userId, hasTags, tags);
+        if (ids.isEmpty()) {
+            return new PageImpl<>(List.of(), pageable, 0);
+        }
+        List<ForumTopic> topics = topicRepository.findAllById(ids);
+        Map<Long, Long> counts = countPostsByTopics(topics);
+        Map<Long, long[]> likesDislikes = loadLikesDislikesByTopics(topics);
+        boolean isAdmin = userId != null && isAdmin(userId);
+        Map<Long, String> usernames = loadUsernames(topics.stream()
+                .map(ForumTopic::getAuthorId)
+                .filter(Objects::nonNull)
+                .toList());
+        Map<Long, String> latestPreviews = loadLatestPostPreviews(topics);
+
+        List<ForumTopic> sorted = topics.stream()
+                .sorted(bySortKey(sort, counts, likesDislikes))
+                .toList();
+
+        int offset = (int) pageable.getOffset();
+        int pageSize = pageable.getPageSize();
+        int to = Math.min(offset + pageSize, sorted.size());
+        List<ForumTopic> slice = offset >= sorted.size() ? List.of() : sorted.subList(offset, to);
+
+        java.util.Map<Long, Boolean> interactMap = interactMap(userId, topics);
+        List<TopicSummaryDto> dtos = slice.stream()
+                .map(topic -> {
+                    TopicSummaryDto dto = toSummaryDto(topic, counts, usernames, latestPreviews, likesDislikes, userId, isAdmin);
+                    dto.setCanInteract(interactMap.getOrDefault(topic.getId(), true));
+                    return dto;
+                })
+                .toList();
+        return new PageImpl<>(dtos, pageable, sorted.size());
+    }
+
+    private java.util.Map<Long, Boolean> interactMap(Long userId, List<ForumTopic> topics) {
+        java.util.Map<Long, Boolean> interactMap = new java.util.HashMap<>();
+        for (ForumTopic t : topics) {
+            boolean owner = userId != null && t.getAuthorId() != null && t.getAuthorId().equals(userId);
+            if (t.getVisibility() == TopicVisibility.CLOSED && !owner) {
+                interactMap.put(t.getId(), userId != null
+                        && whitelistRepository.existsByTopicIdAndUserId(t.getId(), userId));
+            } else {
+                interactMap.put(t.getId(), true);
+            }
+        }
+        return interactMap;
+    }
+
+private java.util.Comparator<ForumTopic> bySortKey(String sort, Map<Long, Long> counts,
+                                                        Map<Long, long[]> likesDislikes) {
+        if ("size".equals(sort)) {
+            return java.util.Comparator
+                    .comparingLong((ForumTopic t) -> counts.getOrDefault(t.getId(), 0L)).reversed()
+                    .thenComparing(ForumTopic::getLastActivityAt, java.util.Comparator.reverseOrder())
+                    .thenComparing(ForumTopic::getId, java.util.Comparator.reverseOrder());
+        }
+        // rating: (likes - dislikes) / postCount, tie-break: total rating (likes-dislikes), then time
+        return java.util.Comparator
+                .comparingDouble((ForumTopic t) -> ratingKey(t, counts, likesDislikes)).reversed()
+                .thenComparing(Comparator.comparingLong((ForumTopic t) -> totalRatingKey(t, likesDislikes)).reversed())
+                .thenComparing(ForumTopic::getLastActivityAt, java.util.Comparator.reverseOrder())
+                .thenComparing(ForumTopic::getId, java.util.Comparator.reverseOrder());
+    }
+
+    private double ratingKey(ForumTopic topic, Map<Long, Long> counts, Map<Long, long[]> likesDislikes) {
+        double postCount = Math.max(1, (double) counts.getOrDefault(topic.getId(), 0L));
+        long likes = topic.getLikes() + likesDislikes.getOrDefault(topic.getId(), new long[]{0, 0})[0];
+        long dislikes = topic.getDislikes() + likesDislikes.getOrDefault(topic.getId(), new long[]{0, 0})[1];
+        return (likes - dislikes) / postCount;
+    }
+
+    private long totalRatingKey(ForumTopic topic, Map<Long, long[]> likesDislikes) {
+        long likes = topic.getLikes() + likesDislikes.getOrDefault(topic.getId(), new long[]{0, 0})[0];
+        long dislikes = topic.getDislikes() + likesDislikes.getOrDefault(topic.getId(), new long[]{0, 0})[1];
+        return likes - dislikes;
     }
 
     /**
@@ -296,6 +411,22 @@ public class ForumService {
         List<Long> ids = topics.stream().map(ForumTopic::getId).toList();
         return postRepository.findLatestPostEachByTopicIds(ids).stream()
                 .collect(Collectors.toMap(ForumPost::getTopicId, p -> preview(p.getContent())));
+    }
+
+    /**
+     * Загружает суммарные лайки/дизлайки всех постов (OP + продолжения) треда.
+     *
+     * @param topics треды текущей страницы
+     * @return map topicId -> [likes, dislikes]
+     */
+    private Map<Long, long[]> loadLikesDislikesByTopics(List<ForumTopic> topics) {
+        if (topics.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> ids = topics.stream().map(ForumTopic::getId).toList();
+        return postRepository.sumLikesDislikesByTopicIds(ids).stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> new long[]{
+                        ((Number) row[1]).longValue(), ((Number) row[2]).longValue()}));
     }
 
     /**
@@ -448,7 +579,6 @@ public class ForumService {
         }
         topic.setVisibility(resolved);
         topic.setReadOnly(request.isReadOnly());
-        topic.setLastActivityAt(LocalDateTime.now());
         topic.setTags(resolveTags(request.getTags()));
         ForumTopic saved = topicRepository.save(topic);
 
@@ -485,9 +615,18 @@ public class ForumService {
         if (!topic.getAuthorId().equals(userId)) {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED);
         }
-        topic.setContent(newContent.trim());
+        String trimmed = newContent.trim();
+        topic.setContent(trimmed);
         topic.setLastActivityAt(LocalDateTime.now());
         topicRepository.save(topic);
+        // Первый пост группы в forum_posts дублирует содержание треда — синхронизируем,
+        // иначе правка OP не отображается (страница рендерит пост из forum_posts).
+        var opPost = postRepository.findByTopicIdAndOpTrue(topicId).orElse(null);
+        if (opPost != null) {
+            opPost.setContent(trimmed);
+            opPost.setEdited(true);
+            postRepository.save(opPost);
+        }
         log.info("Изменено содержание треда {} (ID: {})", topic.getTitle(), topicId);
     }
 
@@ -739,6 +878,7 @@ public class ForumService {
 
     private TopicSummaryDto toSummaryDto(ForumTopic topic, Map<Long, Long> counts,
                                          Map<Long, String> usernames, Map<Long, String> latestPreviews,
+                                         Map<Long, long[]> likesDislikes,
                                          Long userId, boolean isAdmin) {
         TopicSummaryDto dto = new TopicSummaryDto();
         dto.setId(topic.getId());
@@ -751,8 +891,12 @@ public class ForumService {
         dto.setCreatedAt(topic.getCreatedAt());
         dto.setLastActivityAt(topic.getLastActivityAt());
         dto.setPostsCount(counts.getOrDefault(topic.getId(), 0L));
-        dto.setLikes(topic.getLikes());
-        dto.setDislikes(topic.getDislikes());
+        // Суммарный рейтинг треда: лайки OP (на треде) + лайки всех продолжений
+        long[] aggregated = likesDislikes.getOrDefault(topic.getId(), new long[]{0L, 0L});
+        dto.setLikes(Math.toIntExact(Math.min(Integer.MAX_VALUE,
+                (long) topic.getLikes() + aggregated[0])));
+        dto.setDislikes(Math.toIntExact(Math.min(Integer.MAX_VALUE,
+                (long) topic.getDislikes() + aggregated[1])));
         dto.setFrozen(topic.isFrozen());
         dto.setDeleted(topic.isDeleted());
         dto.setVisibility(topic.getVisibility() == null ? TopicVisibility.OPEN.name() : topic.getVisibility().name());

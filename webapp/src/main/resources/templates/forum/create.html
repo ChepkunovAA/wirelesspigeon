@@ -50,6 +50,16 @@
             </div>
 
             <div th:attr="x-data=|{vis: '${topic.visibility}'}|">
+                <div class="mb-3" th:if="${guestCreator}">
+                    <label for="visibility" class="form-label">Тип доступа</label>
+                    <select id="visibility" name="visibility" class="form-select"
+                            th:field="*{visibility}" x-model="vis">
+                        <option value="GUEST">Открытый — виден всем пользователям</option>
+                        <option value="CLOSED">Закрытый — только вы и белый список</option>
+                    </select>
+                    <div class="form-text">Для закрытого треда отметьте белый список ниже</div>
+                </div>
+
                 <div class="mb-3" th:unless="${guestCreator}">
                     <label for="visibility" class="form-label">Видимость</label>
                     <select id="visibility" name="visibility" class="form-select"
