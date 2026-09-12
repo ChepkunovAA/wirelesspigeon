@@ -43,7 +43,7 @@
                            th:value="${search}"/>
                 </div>
                 <div class="col-lg-3">
-                    <select name="tag" class="form-select">
+                    <select name="tag" class="form-select" onchange="this.form.submit()">
                         <option value="">Все теги</option>
                         <option th:each="t : ${tags}" th:value="${t.name}" th:selected="${t.name == selectedTag}"
                                 th:text="${t.name + ' (' + t.count + ')'}">тег</option>

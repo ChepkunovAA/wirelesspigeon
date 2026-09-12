@@ -103,6 +103,11 @@ public class MainController {
         try {
             model.addAttribute("profile", ratingService.getPublicProfile(id, currentId));
             User profileOwner = userRepository.findById(id).orElse(null);
+            // Информация о пригласившем пользователе (для администраторов)
+            if (profileOwner != null && profileOwner.getInvitedBy() != null) {
+                userRepository.findById(profileOwner.getInvitedBy())
+                        .ifPresent(inviter -> model.addAttribute("inviter", inviter));
+            }
             boolean viewerGuest = SecurityUtils.currentUser() != null
                     && SecurityUtils.currentUser().getRole() == org.corpsman.auth.model.UserRole.GUEST;
             boolean profileGuest = profileOwner != null

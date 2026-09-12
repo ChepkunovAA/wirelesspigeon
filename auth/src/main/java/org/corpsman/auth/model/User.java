@@ -35,4 +35,10 @@ public class User extends BaseEntity {
 
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
+
+    /**
+     * Идентификатор пользователя, пригласившего этого пользователя (через ключ).
+     */
+    @Column(name = "invited_by")
+    private Long invitedBy;
 }

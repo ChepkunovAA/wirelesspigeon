@@ -13,6 +13,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import static org.mockito.ArgumentMatchers.anyLong;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -69,7 +71,7 @@ class AuthServiceTest {
         assertThat(captor.getValue().getPasswordHash()).isEqualTo("encrypted");
         assertThat(captor.getValue().getRole()).isEqualTo(UserRole.RESIDENT);
         assertThat(captor.getValue().isActive()).isTrue();
-        verify(tokenService).markTokenUsed(token);
+        verify(tokenService).markTokenUsed(token, 1L);
         verify(eventPublisher).publishEvent(any(UserRegisteredEvent.class));
     }
 
@@ -84,7 +86,7 @@ class AuthServiceTest {
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.USERNAME_TAKEN);
         verify(userRepository, org.mockito.Mockito.never()).save(any(User.class));
-        verify(tokenService, org.mockito.Mockito.never()).markTokenUsed(token);
+        verify(tokenService, org.mockito.Mockito.never()).markTokenUsed(any(InviteToken.class), anyLong());
     }
 
     @Test

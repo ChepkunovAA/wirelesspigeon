@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.25.xsd">
+
+    <changeSet id="23" author="architect">
+        <addColumn tableName="invite_tokens">
+            <column name="used_by" type="BIGINT"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="23.1" author="architect">
+        <addColumn tableName="users">
+            <column name="invited_by" type="BIGINT"/>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

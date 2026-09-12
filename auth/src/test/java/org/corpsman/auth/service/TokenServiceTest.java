@@ -123,9 +123,10 @@ class TokenServiceTest {
         InviteToken token = token(LocalDateTime.now().plusDays(1), false, "hash");
         when(tokenRepository.save(any(InviteToken.class))).thenReturn(token);
 
-        tokenService.markTokenUsed(token);
+        tokenService.markTokenUsed(token, 1L);
 
         assertThat(token.isUsed()).isTrue();
+        assertThat(token.getUsedBy()).isEqualTo(1L);
         verify(tokenRepository).save(token);
     }
 

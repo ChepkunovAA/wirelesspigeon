@@ -90,6 +90,34 @@ public class MembersController {
         return "redirect:/users";
     }
 
+    /**
+     * Повышает резидента до мастера. Доступно только мастеру.
+     */
+    @PostMapping("/{id}/promote-master")
+    public String promoteToMaster(@PathVariable Long id, RedirectAttributes ra) {
+        try {
+            memberService.promoteToMaster(id);
+            ra.addFlashAttribute("success", "Пользователь повышен до мастера");
+        } catch (BusinessException e) {
+            ra.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/users";
+    }
+
+    /**
+     * Понижает резидента до гостя. Доступно только мастеру.
+     */
+    @PostMapping("/{id}/demote-guest")
+    public String demoteToGuest(@PathVariable Long id, RedirectAttributes ra) {
+        try {
+            memberService.demoteToGuest(id);
+            ra.addFlashAttribute("success", "Пользователь понижен до гостя");
+        } catch (BusinessException e) {
+            ra.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/users";
+    }
+
     @PostMapping("/{id}/reset-password")
     public String resetPassword(@PathVariable Long id, RedirectAttributes ra) {
         try {

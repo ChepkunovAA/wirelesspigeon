@@ -66,6 +66,44 @@ public class MemberService {
     }
 
     /**
+     * Повышает резидента до мастера.
+     *
+     * @param userId идентификатор пользователя
+     * @throws BusinessException если пользователь не найден или не резидент
+     */
+    @Transactional
+    public void promoteToMaster(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        if (user.getRole() != UserRole.RESIDENT) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED,
+                    "Повысить до мастера можно только резидента");
+        }
+        user.setRole(UserRole.MASTER);
+        userRepository.save(user);
+        log.info("Резидент {} повышен до мастера", userId);
+    }
+
+    /**
+     * Понижает резидента до гостя.
+     *
+     * @param userId идентификатор пользователя
+     * @throws BusinessException если пользователь не найден или не резидент
+     */
+    @Transactional
+    public void demoteToGuest(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        if (user.getRole() != UserRole.RESIDENT) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED,
+                    "Понизить до гостя можно только резидента");
+        }
+        user.setRole(UserRole.GUEST);
+        userRepository.save(user);
+        log.info("Резидент {} понижен до гостя", userId);
+    }
+
+    /**
      * Банит пользователя (удаляет с сайта).
      * <p>
      * Пользователь деактивируется и больше не отображается на сайте,

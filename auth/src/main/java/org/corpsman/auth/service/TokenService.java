@@ -16,9 +16,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -94,12 +96,14 @@ public class TokenService {
     /**
      * Помечает ключ как использованный.
      *
-     * @param token ключ регистрации
+     * @param token  ключ регистрации
+     * @param usedBy идентификатор пользователя, использовавшего ключ
      */
-    public void markTokenUsed(InviteToken token) {
+    public void markTokenUsed(InviteToken token, Long usedBy) {
         token.setUsed(true);
+        token.setUsedBy(usedBy);
         tokenRepository.save(token);
-        log.debug("Ключ регистрации id={} отмечен как использованный", token.getId());
+        log.debug("Ключ регистрации id={} отмечен как использованный пользователем={}", token.getId(), usedBy);
     }
 
     /**
@@ -110,6 +114,82 @@ public class TokenService {
     @Transactional(readOnly = true)
     public List<InviteTokenDto> getAllTokens() {
         return getTokensFor(UserRole.MASTER, null);
+    }
+
+    /**
+     * Фильтрует ключи по списку администраторов и статусу.
+     *
+     * @param creators список ников администраторов (пустой = все)
+     * @param status   статус: active/used/expired (null = все)
+     * @return список DTO ключей
+     */
+    @Transactional(readOnly = true)
+    public List<InviteTokenDto> getTokensFiltered(List<String> creators, String status) {
+        List<InviteToken> tokens = tokenRepository.findAllByOrderByCreatedAtDesc();
+
+        // Фильтр по создателю
+        if (creators != null && !creators.isEmpty()) {
+            List<Long> creatorIds = userRepository.findByUsernameIn(creators).stream()
+                    .map(User::getId).toList();
+            if (creatorIds.isEmpty()) {
+                return List.of();
+            }
+            tokens = tokens.stream()
+                    .filter(t -> creatorIds.contains(t.getCreatedBy()))
+                    .toList();
+        }
+
+        // Фильтр по статусу
+        if (status != null && !status.isBlank()) {
+            LocalDateTime now = LocalDateTime.now();
+            tokens = switch (status.toLowerCase()) {
+                case "active" -> tokens.stream()
+                        .filter(t -> !t.isUsed() && t.getExpiresAt().isAfter(now))
+                        .toList();
+                case "used" -> tokens.stream()
+                        .filter(InviteToken::isUsed)
+                        .toList();
+                case "expired" -> tokens.stream()
+                        .filter(t -> !t.isUsed() && t.getExpiresAt().isBefore(now))
+                        .toList();
+                default -> tokens;
+            };
+        }
+
+        List<Long> creatorIds = tokens.stream().map(InviteToken::getCreatedBy).filter(Objects::nonNull).distinct().toList();
+        List<Long> usedByIds = tokens.stream().map(InviteToken::getUsedBy).filter(Objects::nonNull).distinct().toList();
+        List<Long> allIds = new ArrayList<>(creatorIds);
+        allIds.addAll(usedByIds);
+        allIds = allIds.stream().distinct().toList();
+        Map<Long, String> names = allIds.isEmpty() ? Map.of()
+                : userRepository.findByIdIn(allIds).stream()
+                        .collect(Collectors.toMap(User::getId, User::getUsername));
+        return tokens.stream().map(tok -> toDto(tok, names)).toList();
+    }
+
+    /**
+     * Поиск ключей по нику создавшего администратора (только для MASTER).
+     *
+     * @param creatorUsername ник администратора
+     * @return список DTO ключей
+     */
+    @Transactional(readOnly = true)
+    public List<InviteTokenDto> getTokensForCreator(String creatorUsername) {
+        User creator = userRepository.findByUsername(creatorUsername)
+                .orElse(null);
+        if (creator == null) {
+            return List.of();
+        }
+        List<InviteToken> tokens = tokenRepository.findAllByCreatedByOrderByCreatedAtDesc(creator.getId());
+        List<Long> creatorIds = tokens.stream().map(InviteToken::getCreatedBy).filter(Objects::nonNull).distinct().toList();
+        List<Long> usedByIds = tokens.stream().map(InviteToken::getUsedBy).filter(Objects::nonNull).distinct().toList();
+        List<Long> allIds = new ArrayList<>(creatorIds);
+        allIds.addAll(usedByIds);
+        allIds = allIds.stream().distinct().toList();
+        Map<Long, String> names = allIds.isEmpty() ? Map.of()
+                : userRepository.findByIdIn(allIds).stream()
+                        .collect(Collectors.toMap(User::getId, User::getUsername));
+        return tokens.stream().map(tok -> toDto(tok, names)).toList();
     }
 
     /**
@@ -126,13 +206,36 @@ public class TokenService {
                         .filter(InviteToken::isGuestKey).toList()
                 : tokenRepository.findAllByOrderByCreatedAtDesc();
         List<Long> creatorIds = tokens.stream().map(InviteToken::getCreatedBy).filter(Objects::nonNull).distinct().toList();
-        Map<Long, String> names = creatorIds.isEmpty() ? Map.of()
-                : userRepository.findByIdIn(creatorIds).stream()
+        List<Long> usedByIds = tokens.stream().map(InviteToken::getUsedBy).filter(Objects::nonNull).distinct().toList();
+        List<Long> allIds = new ArrayList<>(creatorIds);
+        allIds.addAll(usedByIds);
+        allIds = allIds.stream().distinct().toList();
+        Map<Long, String> names = allIds.isEmpty() ? Map.of()
+                : userRepository.findByIdIn(allIds).stream()
                         .collect(Collectors.toMap(User::getId, User::getUsername));
         return tokens.stream().map(tok -> toDto(tok, names)).toList();
     }
 
 
+
+    /**
+     * Возвращает список уникальных ников администраторов, создавших ключи.
+     *
+     * @return список ников
+     */
+    @Transactional(readOnly = true)
+    public List<String> getAllCreators() {
+        return tokenRepository.findAll().stream()
+                .map(InviteToken::getCreatedBy)
+                .filter(Objects::nonNull)
+                .distinct()
+                .map(userRepository::findById)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .map(User::getUsername)
+                .sorted()
+                .toList();
+    }
 
     private InviteTokenDto toDto(InviteToken token, Map<Long, String> usernamesById) {
         InviteTokenDto dto = new InviteTokenDto();
@@ -145,6 +248,10 @@ public class TokenService {
         dto.setCreatedAt(token.getCreatedAt());
         if (token.getCreatedBy() != null) {
             dto.setCreatedByUsername(usernamesById.get(token.getCreatedBy()));
+        }
+        if (token.getUsedBy() != null) {
+            dto.setUsedBy(token.getUsedBy());
+            dto.setUsedByUsername(usernamesById.get(token.getUsedBy()));
         }
         return dto;
     }

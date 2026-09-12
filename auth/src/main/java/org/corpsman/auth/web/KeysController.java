@@ -17,11 +17,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import java.util.List;
 
 /**
- * Контроллер страницы «Ключи» для RESIDENT и MASTER.
- * <p>
- * RESIDENT видит только созданные им гостевые ключи,
- * MASTER — все ключи клуба.
- */
+     * Контроллер страницы «Ключи» для RESIDENT и MASTER.
+     * <p>
+     * RESIDENT видит только созданные им гостевые ключи,
+     * MASTER — все ключи клуба с возможностью фильтрации по создателю.
+     */
 @Controller
 @RequestMapping("/keys")
 @RequiredArgsConstructor
@@ -31,19 +31,32 @@ public class KeysController {
     private final TokenService tokenService;
 
     /**
-     * Отображает страницу ключей с учётом роли.
+     * Отображает страницу ключей с учётом роли и фильтров.
      *
-     * @param model модель представления
+     * @param creator мультивыбор ников администраторов (только для MASTER)
+     * @param status  фильтр по статусу: active/used/expired (только для MASTER)
+     * @param model   модель представления
      * @return имя представления
      */
     @GetMapping
-    public String keys(Model model) {
+    public String keys(@RequestParam(required = false) List<String> creator,
+                       @RequestParam(required = false) String status,
+                       Model model) {
         CorpsmanUserDetails user = SecurityUtils.currentUser();
         boolean master = user != null && user.getRole() == UserRole.MASTER;
-        List<InviteTokenDto> tokens =
-                tokenService.getTokensFor(user == null ? null : user.getRole(), user == null ? null : user.getId());
+        List<InviteTokenDto> tokens;
+        if (master) {
+            tokens = tokenService.getTokensFiltered(creator, status);
+        } else {
+            tokens = tokenService.getTokensFor(user == null ? null : user.getRole(), user == null ? null : user.getId());
+        }
         model.addAttribute("tokens", tokens);
         model.addAttribute("isMaster", master);
+        model.addAttribute("creatorFilter", creator);
+        model.addAttribute("status", status);
+        if (master) {
+            model.addAttribute("creators", tokenService.getAllCreators());
+        }
         return "keys";
     }
 
@@ -61,8 +74,13 @@ public class KeysController {
         boolean resident = user != null && user.getRole() == UserRole.RESIDENT;
         boolean effectiveGuest = resident || guestKey;
         String rawToken = tokenService.generateToken(SecurityUtils.currentUserId(), effectiveGuest);
-        List<InviteTokenDto> tokens = tokenService.getTokensFor(
-                user == null ? null : user.getRole(), user == null ? null : user.getId());
+        List<InviteTokenDto> tokens;
+        if (user != null && user.getRole() == UserRole.MASTER) {
+            tokens = tokenService.getTokensFor(UserRole.MASTER, null);
+        } else {
+            tokens = tokenService.getTokensFor(
+                    user == null ? null : user.getRole(), user == null ? null : user.getId());
+        }
         model.addAttribute("rawToken", rawToken);
         model.addAttribute("rawIsGuest", effectiveGuest);
         model.addAttribute("tokens", tokens);

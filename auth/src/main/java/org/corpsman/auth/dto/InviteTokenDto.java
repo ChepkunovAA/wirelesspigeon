@@ -28,4 +28,8 @@ public class InviteTokenDto {
     private String createdByUsername;
 
     private LocalDateTime createdAt;
+
+    private Long usedBy;
+
+    private String usedByUsername;
 }

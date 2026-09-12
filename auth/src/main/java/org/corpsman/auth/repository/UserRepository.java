@@ -41,6 +41,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByUsername(String username);
 
     /**
+     * Находит пользователей по списку ников.
+     *
+     * @param usernames список ников
+     * @return список пользователей
+     */
+    List<User> findByUsernameIn(List<String> usernames);
+
+    /**
      * Находит всех пользователей по признаку активности.
      *
      * @param active признак активности

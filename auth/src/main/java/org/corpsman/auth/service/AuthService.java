@@ -58,9 +58,10 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(password));
         user.setRole(token.isGuestKey() ? UserRole.GUEST : UserRole.RESIDENT);
         user.setActive(true);
+        user.setInvitedBy(token.getCreatedBy());
         userRepository.save(user);
 
-        tokenService.markTokenUsed(token);
+        tokenService.markTokenUsed(token, user.getId());
         log.info("Зарегистрирован новый пользователь: {}", username);
 
         eventPublisher.publishEvent(new UserRegisteredEvent(user.getId(), username, LocalDateTime.now()));

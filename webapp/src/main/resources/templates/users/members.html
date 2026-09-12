@@ -74,9 +74,38 @@
                             <i class="bi bi-slash-circle"></i> Забанить
                         </button>
                     </form>
+                    <form th:if="${member.role.name() == 'RESIDENT'} and ${member.id != currentUserId}"
+                          th:action="@{/users/{id}/promote-master(id=${member.id})}" method="post" class="d-inline ms-1"
+                          onsubmit="return confirm('Повысить RESIDENT до MASTER?');">
+                        <button type="submit" class="btn btn-outline-primary btn-sm" title="Повысить до MASTER">
+                            <i class="bi bi-arrow-up-circle"></i>
+                        </button>
+                    </form>
+                    <form th:if="${member.role.name() == 'RESIDENT'} and ${member.id != currentUserId}"
+                          th:action="@{/users/{id}/demote-guest(id=${member.id})}" method="post" class="d-inline ms-1"
+                          onsubmit="return confirm('Понизить RESIDENT до GUEST?');">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm" title="Понизить до GUEST">
+                            <i class="bi bi-arrow-down-circle"></i>
+                        </button>
+                    </form>
+                    <form th:if="${member.role.name() == 'GUEST'} and ${member.id != currentUserId}"
+                          th:action="@{/users/{id}/promote(id=${member.id})}" method="post" class="d-inline ms-1"
+                          onsubmit="return confirm('Повысить GUEST до RESIDENT?');">
+                        <button type="submit" class="btn btn-outline-primary btn-sm" title="Повысить до RESIDENT">
+                            <i class="bi bi-arrow-up-circle"></i>
+                        </button>
+                    </form>
                     <form th:if="${member.role.name() != 'MASTER'} and ${member.id != currentUserId}"
                           th:action="@{/users/{id}/reset-password(id=${member.id})}" method="post" class="d-inline ms-1"
                           onsubmit="return confirm('Сгенерировать новый пароль для пользователя?');">
+                        <button type="submit" class="btn btn-outline-warning btn-sm"
+                                title="Сбросить пароль (сгенерируется случайный)">
+                            <i class="bi bi-key"></i>
+                        </button>
+                    </form>
+                    <form th:if="${member.role.name() == 'MASTER'} and ${member.id != currentUserId}"
+                          th:action="@{/users/{id}/reset-password(id=${member.id})}" method="post" class="d-inline ms-1"
+                          onsubmit="return confirm('Сбросить пароль MASTER?');">
                         <button type="submit" class="btn btn-outline-warning btn-sm"
                                 title="Сбросить пароль (сгенерируется случайный)">
                             <i class="bi bi-key"></i>

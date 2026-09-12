@@ -104,39 +104,41 @@
         <div th:if="${topic.firstPost.attachments != null and !topic.firstPost.attachments.isEmpty()}" class="card-body pt-0">
             <div th:replace="~{forum/attachments :: attachments(${topic.firstPost.attachments}, '/forum/attachment')}"></div>
         </div>
-        <div class="card-footer bg-transparent d-flex align-items-center gap-2">
+<div class="card-footer bg-transparent d-flex align-items-center gap-2">
             <span x-data="react()"
                   th:attr="data-liked=${topic.firstPost.likedByCurrentUser},
-                           data-likes=${topic.firstPost.likes},
-                           data-disliked=${topic.firstPost.dislikedByCurrentUser},
-                           data-dislikes=${topic.firstPost.dislikes},
-                           data-own=${topic.firstPost.author},
-                           data-like-url=@{/forum/topic/{id}/like(id=${topic.id})},
-                           data-unlike-url=@{/forum/topic/{id}/unlike(id=${topic.id})},
-                           data-dislike-url=@{/forum/topic/{id}/dislike(id=${topic.id})},
-                           data-undislike-url=@{/forum/topic/{id}/undislike(id=${topic.id})}">
-                <button type="button" class="btn btn-sm"
-                        :class="liked ? 'btn-primary' : 'btn-outline-primary'"
-                        :disabled="own"
-                        @click="toggleLike()"
-                        title="Нравится">
-                    <i class="bi" :class="liked ? 'bi-hand-thumbs-up-fill' : 'bi-hand-thumbs-up'"></i>
-                    <span x-text="likes">0</span>
-                </button>
-                <button type="button" class="btn btn-sm"
-                        :class="disliked ? 'btn-danger' : 'btn-outline-danger'"
-                        :disabled="own"
-                        @click="toggleDislike()"
-                        title="Не нравится">
-                    <i class="bi" :class="disliked ? 'bi-hand-thumbs-down-fill' : 'bi-hand-thumbs-down'"></i>
-                    <span x-text="dislikes">0</span>
-                </button>
-            </span>
-            <a th:if="${topic.firstPost.author}" th:href="@{/forum/topic/{id}/edit(id=${topic.id})}"
-               class="btn btn-outline-secondary btn-sm" title="Редактировать тред">
-                <i class="bi bi-pencil"></i>
-            </a>
-        </div>
+                            data-likes=${topic.firstPost.likes},
+                            data-disliked=${topic.firstPost.dislikedByCurrentUser},
+                            data-dislikes=${topic.firstPost.dislikes},
+                            data-own=${topic.firstPost.author},
+                            data-like-url=@{/forum/topic/{id}/like(id=${topic.id})},
+                            data-unlike-url=@{/forum/topic/{id}/unlike(id=${topic.id})},
+                            data-dislike-url=@{/forum/topic/{id}/dislike(id=${topic.id})},
+                            data-undislike-url=@{/forum/topic/{id}/undislike(id=${topic.id})}">
+                 <button type="button" class="btn btn-sm"
+                         :class="liked ? 'btn-primary' : 'btn-outline-primary'"
+                         :disabled="own"
+                         @click="toggleLike()"
+                         title="Нравится">
+                     <i class="bi" :class="liked ? 'bi-hand-thumbs-up-fill' : 'bi-hand-thumbs-up'"></i>
+                     <span x-text="likes">0</span>
+                 </button>
+                 <button type="button" class="btn btn-sm"
+                         :class="disliked ? 'btn-danger' : 'btn-outline-danger'"
+                         :disabled="own"
+                         @click="toggleDislike()"
+                         title="Не нравится">
+                     <i class="bi" :class="disliked ? 'bi-hand-thumbs-down-fill' : 'bi-hand-thumbs-down'"></i>
+                     <span x-text="dislikes">0</span>
+                 </button>
+             </span>
+             <div class="ms-auto d-flex gap-1">
+                 <a th:if="${topic.firstPost.author}" th:href="@{/forum/topic/{id}/edit(id=${topic.id})}"
+                    class="btn btn-outline-secondary btn-sm" title="Редактировать тред">
+                     <i class="bi bi-pencil"></i>
+                 </a>
+             </div>
+         </div>
     </div>
 
     <button th:if="${topic.canModerate}" type="button"
@@ -310,46 +312,48 @@
                 <div th:if="${post.attachments != null and !post.attachments.isEmpty()}" class="card-body pt-0">
                     <div th:replace="~{forum/attachments :: attachments(${post.attachments}, '/forum/attachment')}"></div>
                 </div>
-                <div class="card-footer bg-transparent d-flex align-items-center gap-2">
+<div class="card-footer bg-transparent d-flex align-items-center gap-2">
                     <span x-data="react()"
                           th:attr="data-liked=${post.likedByCurrentUser},
-                                   data-likes=${post.likes},
-                                   data-disliked=${post.dislikedByCurrentUser},
-                                   data-dislikes=${post.dislikes},
-                                   data-own=${post.authorId != null and post.authorId == currentUserId},
-                                   data-like-url=@{/forum/post/{id}/like(id=${post.id})},
-                                   data-unlike-url=@{/forum/post/{id}/unlike(id=${post.id})},
-                                   data-dislike-url=@{/forum/post/{id}/dislike(id=${post.id})},
-                                   data-undislike-url=@{/forum/post/{id}/undislike(id=${post.id})}">
-                        <button type="button" class="btn btn-sm"
-                                :class="liked ? 'btn-primary' : 'btn-outline-primary'"
-                                :disabled="own"
-                                @click="toggleLike()" title="Нравится">
-                            <i class="bi" :class="liked ? 'bi-hand-thumbs-up-fill' : 'bi-hand-thumbs-up'"></i>
-                            <span x-text="likes">0</span>
-                        </button>
-                        <button type="button" class="btn btn-sm"
-                                :class="disliked ? 'btn-danger' : 'btn-outline-danger'"
-                                :disabled="own"
-                                @click="toggleDislike()" title="Не нравится">
-                            <i class="bi" :class="disliked ? 'bi-hand-thumbs-down-fill' : 'bi-hand-thumbs-down'"></i>
-                            <span x-text="dislikes">0</span>
-                        </button>
-                    </span>
-                    <a th:if="${post.authorId != null and post.authorId == currentUserId}"
-                       th:href="@{/forum/post/{id}/edit(id=${post.id})}"
-                       class="btn btn-outline-secondary btn-sm" title="Редактировать продолжение">
-                        <i class="bi bi-pencil"></i>
-                    </a>
-                    <form th:if="${topic.canModerate and !post.deleted}"
-                          th:action="@{/forum/post/{id}/delete(id=${post.id})}" method="post" class="d-inline">
-                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
-                        <button type="submit" class="btn btn-outline-danger btn-sm" title="Удалить продолжение"
-                                onclick="return confirm('Удалить продолжение?')">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </form>
-                </div>
+                                    data-likes=${post.likes},
+                                    data-disliked=${post.dislikedByCurrentUser},
+                                    data-dislikes=${post.dislikes},
+                                    data-own=${post.authorId != null and post.authorId == currentUserId},
+                                    data-like-url=@{/forum/post/{id}/like(id=${post.id})},
+                                    data-unlike-url=@{/forum/post/{id}/unlike(id=${post.id})},
+                                    data-dislike-url=@{/forum/post/{id}/dislike(id=${post.id})},
+                                    data-undislike-url=@{/forum/post/{id}/undislike(id=${post.id})}">
+                         <button type="button" class="btn btn-sm"
+                                 :class="liked ? 'btn-primary' : 'btn-outline-primary'"
+                                 :disabled="own"
+                                 @click="toggleLike()" title="Нравится">
+                             <i class="bi" :class="liked ? 'bi-hand-thumbs-up-fill' : 'bi-hand-thumbs-up'"></i>
+                             <span x-text="likes">0</span>
+                         </button>
+                         <button type="button" class="btn btn-sm"
+                                 :class="disliked ? 'btn-danger' : 'btn-outline-danger'"
+                                 :disabled="own"
+                                 @click="toggleDislike()" title="Не нравится">
+                             <i class="bi" :class="disliked ? 'bi-hand-thumbs-down-fill' : 'bi-hand-thumbs-down'"></i>
+                             <span x-text="dislikes">0</span>
+                         </button>
+                     </span>
+                     <div class="ms-auto d-flex gap-1">
+                         <a th:if="${post.authorId != null and post.authorId == currentUserId}"
+                            th:href="@{/forum/post/{id}/edit(id=${post.id})}"
+                            class="btn btn-outline-secondary btn-sm" title="Редактировать продолжение">
+                             <i class="bi bi-pencil"></i>
+                         </a>
+                         <form th:if="${topic.canModerate and !post.deleted}"
+                               th:action="@{/forum/post/{id}/delete(id=${post.id})}" method="post" class="d-inline">
+                             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                             <button type="submit" class="btn btn-outline-danger btn-sm" title="Удалить продолжение"
+                                     onclick="return confirm('Удалить продолжение?')">
+                                 <i class="bi bi-trash"></i>
+                             </button>
+                         </form>
+                     </div>
+                 </div>
             </div>
 
             <!-- Поддерево продолжения: пустое до выхода следующего продолжения -->

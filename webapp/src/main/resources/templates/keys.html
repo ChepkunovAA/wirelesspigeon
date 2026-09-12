@@ -25,6 +25,47 @@
         </form>
     </div>
 
+    <div th:if="${isMaster}" class="card shadow-sm mb-3">
+        <div class="card-body">
+            <form th:action="@{/keys}" method="get" class="row g-2">
+                <div class="col-md-5">
+                    <div class="dropdown w-100" x-data="{ q: '' }">
+                        <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start" type="button"
+                                data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false">
+                            <span th:if="${creatorFilter == null or #lists.isEmpty(creatorFilter)}">Все администраторы</span>
+                            <span th:unless="${creatorFilter == null or #lists.isEmpty(creatorFilter)}" th:text="${#lists.size(creatorFilter)} + ' выбрано'">N выбрано</span>
+                        </button>
+                        <div class="dropdown-menu p-3 w-100" style="max-height: 280px; overflow: auto;">
+                            <input type="text" x-model="q" class="form-control form-control-sm mb-2"
+                                   placeholder="Поиск по нику..." autocomplete="off" aria-label="Поиск по нику">
+                            <label class="dropdown-item-text form-check"
+                                 th:each="c : ${creators}"
+                                 th:attr="data-c=${c}"
+                                 x-show="!q || $el.getAttribute('data-c').toLowerCase().includes(q.toLowerCase())">
+                                <input type="checkbox" name="creator" th:value="${c}"
+                                       class="form-check-input me-1"
+                                       th:checked="${creatorFilter != null and #lists.contains(creatorFilter, c)}"
+                                       onchange="this.closest('form').submit()">
+                                <span th:text="${c}">admin</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <select name="status" class="form-select" title="Фильтр по статусу" onchange="this.form.submit()">
+                        <option value="">Все статусы</option>
+                        <option value="active" th:selected="${status == 'active'}">Активен</option>
+                        <option value="used" th:selected="${status == 'used'}">Использован</option>
+                        <option value="expired" th:selected="${status == 'expired'}">Истёк</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <a th:href="@{/keys}" class="btn btn-outline-secondary w-100">Сбросить</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div th:if="${rawToken}" class="alert alert-success" role="alert">
         <h6 class="alert-heading"><i class="bi bi-clipboard-check"></i> Новый ключ создан</h6>
         <p class="mb-1">Скопируйте ключ и передайте его новому участнику (будет показан один раз):</p>
@@ -45,6 +86,7 @@
                     <th>Хэш ключа</th>
                     <th>Действует до</th>
                     <th>Статус</th>
+                    <th>Кто использовал</th>
                     <th>Создан администратором</th>
                     <th>Создан</th>
                 </tr>
@@ -64,7 +106,18 @@
                         <span th:if="${!token.used and !token.expiresAt.isBefore(#temporals.createNow())}"
                               class="badge text-bg-success">Активен</span>
                     </td>
-                    <td th:text="${token.createdByUsername ?: '—'}">admin</td>
+                    <td>
+                        <span th:if="${token.usedByUsername != null}">
+                            <a th:href="@{/profile/{id}(id=${token.usedBy})}" class="text-decoration-none" th:text="${token.usedByUsername}">username</a>
+                        </span>
+                        <span th:unless="${token.usedByUsername != null}" class="text-muted">—</span>
+                    </td>
+                    <td>
+                        <span th:if="${token.createdByUsername != null}">
+                            <a th:href="@{/profile/{id}(id=${token.createdBy})}" class="text-decoration-none" th:text="${token.createdByUsername}">admin</a>
+                        </span>
+                        <span th:unless="${token.createdByUsername != null}" class="text-muted">—</span>
+                    </td>
                     <td><time th:replace="~{fragments/time-format :: clock(${token.createdAt}, 'dd.MM.yyyy HH:mm')}">01.01.2026 00:00</time></td>
                 </tr>
                 <tr th:if="${#lists.isEmpty(tokens)}">
