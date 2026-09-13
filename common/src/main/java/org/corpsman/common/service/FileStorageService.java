@@ -1,4 +1,4 @@
-package org.corpsman.forum.service;
+package org.corpsman.common.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.corpsman.common.exception.BusinessException;

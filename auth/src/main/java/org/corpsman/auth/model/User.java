@@ -41,4 +41,10 @@ public class User extends BaseEntity {
      */
     @Column(name = "invited_by")
     private Long invitedBy;
+
+    /**
+     * Путь к аватарке пользователя (относительно каталога загрузок).
+     */
+    @Column(name = "avatar_path")
+    private String avatarPath;
 }

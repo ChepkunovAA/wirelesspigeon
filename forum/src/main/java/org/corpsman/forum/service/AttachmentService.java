@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.corpsman.common.exception.BusinessException;
 import org.corpsman.common.exception.ErrorCode;
+import org.corpsman.common.service.FileStorageService;
 import org.corpsman.forum.dto.ForumAttachmentDto;
 import org.corpsman.forum.model.ForumAttachment;
 import org.corpsman.forum.repository.ForumAttachmentRepository;

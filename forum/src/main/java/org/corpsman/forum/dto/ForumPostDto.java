@@ -38,6 +38,7 @@ private Long id;
     private boolean latestContinuation;
     private Long authorId;
     private String realAuthorName;
+    private String avatarPath;
     private List<ForumAttachmentDto> attachments = new ArrayList<>();
     private List<ForumPostDto> replies = new ArrayList<>();
 

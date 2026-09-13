@@ -21,6 +21,7 @@ public class CorpsmanUserDetails implements UserDetails {
     private final String passwordHash;
     private final UserRole role;
     private final boolean active;
+    private final String avatarPath;
 
     public CorpsmanUserDetails(User user) {
         this.id = user.getId();
@@ -28,6 +29,7 @@ public class CorpsmanUserDetails implements UserDetails {
         this.passwordHash = user.getPasswordHash();
         this.role = user.getRole();
         this.active = user.isActive();
+        this.avatarPath = user.getAvatarPath();
     }
 
     @Override

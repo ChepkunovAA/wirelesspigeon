@@ -15,7 +15,7 @@ import org.corpsman.forum.dto.LikeResponse;
 import org.corpsman.forum.dto.TopicCreateRequest;
 import org.corpsman.forum.dto.TopicDetailDto;
 import org.corpsman.forum.service.AttachmentService;
-import org.corpsman.forum.service.FileStorageService;
+import org.corpsman.common.service.FileStorageService;
 import org.corpsman.auth.repository.UserRepository;
 import org.corpsman.auth.service.SettingsService;
 import org.corpsman.auth.model.UserRole;

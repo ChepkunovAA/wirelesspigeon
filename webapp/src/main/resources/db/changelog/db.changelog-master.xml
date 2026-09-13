@@ -28,4 +28,5 @@
     <include file="v1.0/21-notifications-subscriptions.xml" relativeToChangelogFile="true"/>
     <include file="v1.0/22-deleted-by-owner.xml" relativeToChangelogFile="true"/>
     <include file="v1.0/23-invite-token-used-by.xml" relativeToChangelogFile="true"/>
+    <include file="v1.0/24-avatar-path.xml" relativeToChangelogFile="true"/>
 </databaseChangeLog>

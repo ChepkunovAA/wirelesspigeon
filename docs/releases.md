@@ -105,7 +105,63 @@
 - Домен/HTTPS — только в ветке `feature/https`; локальный запуск на
   `develop` — HTTP:8080 без Caddy.
 
+## Релиз 2.5.0 (в работе)
+
+Ветка `release/2.5.0` (от `develop`). Слияние в `develop`/`master` — руками
+пользователя. Версия всех модулей: `2.5.0`. План — `doc/plan`.
+
+Пункты постановки:
+
+1. **П.1 (готово): переработка ключей.** `invite_tokens.used_by` + `users.invited_by`
+   (liquibase 23); ник зарегистрировавшегося по ключу виден на странице ключей;
+   фильтр по выдавшим (мультиселект с поиском Alpine.js) и по статусу
+   (active/used/expired), авто-сабмит; ники кликабельны → `/profile/{id}`;
+   на странице профиля MASTER видит «Пригласил».
+2. **П.2 (готово): промо/демо ролей.** `POST /users/{id}/promote-master`,
+   `POST /users/{id}/demote-guest` в `MembersController`; кнопки в
+   `members.html` и `profile-user.html`. Подписи ролей — прямыми названиями
+   `MASTER`/`RESIDENT`/`GUEST` (директива пользователя).
+3. **П.3 (готово): сброс пароля MASTER.** UI кнопки «Сбросить пароль» для
+   MASTER (раньше были только для RESIDENT); endpoint существовал
+   (`POST /users/{id}/reset-password`).
+4. **П.4 (готово): пагинация постов.** Существовала (`POSTS_PAGE_SIZE = 20`);
+   кнопки редактирования/удаления OP и продолжений выровнены вправо
+   (`ms-auto`) в `topic.html`.
+
+## Релиз 2.5.1 (в работе)
+
+Ветка `release/2.5.1` (от `develop`). Версия всех модулей: `2.5.1`.
+
+Пункты постановки (аватарки):
+
+1. **Загрузка аватарки** — `POST /settings/avatar` (MultipartFile), удаление —
+   `POST /settings/avatar/delete`; `avatar_path` на `users` (liquibase 24).
+   Валидация: jpeg/png/gif/webp, до 2 МБ.
+2. **Хранение/раздача** — `FileStorageService` перенесён в `common` (был в
+   `forum`); раздача `/uploads/**` — новый `UploadController` в `webapp`
+   (без префикса `/forum`), доступ `permitAll`, `probeContentType` + кэш.
+3. **Отображение** — собственный профиль (`profile.html`), чужой профиль
+   (`profile-user.html`, атрибут `avatarPath`), в сообщениях форума: OP-карточка,
+   продолжения, комментарии (`post.html`, `topic.html`).
+4. **Анонимы** — вместо иконки темо-зависимое лого (тёмное в светлой теме,
+   светлое в тёмной) через существующие `logo-light`/`logo-dark`.
+5. `ForumPostDto.avatarPath`, `CorpsmanUserDetails.avatarPath`; `loadAvatars`
+   в `ForumService` (без N+1).
+6. **Свежесть данных вскоре после загрузки:** `CorpsmanUserDetails` иммутабелен
+   и копирует аватар при логине; страницы настроек и своего профиля читают
+   `avatarPath` из БД (атрибут `avatarPath`), а не из SecurityContext.
+7. **Багфикс: анонимные посты не утекают с реальным аватаром.** В
+   `toPostDto` и `buildFirstPostDto` аватар обнуляется для анонимных постов
+   (`dto.setAvatarPath(null)`), чтобы реальный автор не был раскрыт.
+
+Тесты: `SettingsIntegrationTest` +4 (загрузка, чужой профиль, рендер форума
+с аватаркой и лого анонимов, удаление). Итог: **171** тест зелёные. E2E:
+логин, загрузка PNG через `POST /settings/avatar`, раздача `GET /uploads/…`
+(200 image/png), аватарка на профиле/настройках/в треде, удаление — пройдено.
+Анонимный комментарий пользователя с аватаркой рендерит лого, а не его аватарку.
+
 ## Релиз 2.4.0 (в работе)
+
 Ветка `release/2.4.0` (от `develop` @ `d6140a6`, релиз 2.3.0). Версия всех
 модулей: `2.4.0`. План и статус — `tmp/plans/plan-release-2.4.0.md`.
 

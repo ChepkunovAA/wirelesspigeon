@@ -2,7 +2,9 @@ package org.corpsman.auth.web;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.corpsman.auth.model.User;
 import org.corpsman.auth.model.UserRole;
+import org.corpsman.auth.repository.UserRepository;
 import org.corpsman.auth.security.CorpsmanUserDetails;
 import org.corpsman.auth.security.SecurityUtils;
 import org.corpsman.auth.service.SettingsService;
@@ -13,7 +15,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+import java.util.List;
 
 /**
  * Контроллер страницы настроек пользователя.
@@ -25,6 +30,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 public class SettingsController {
 
     private final SettingsService settingsService;
+    private final UserRepository userRepository;
 
     /**
      * Отображает страницу настроек.
@@ -35,6 +41,8 @@ public class SettingsController {
     @GetMapping
     public String settings(Model model) {
         model.addAttribute("settings", settingsService.getByUserId(SecurityUtils.currentUserId()));
+        User user = userRepository.findById(SecurityUtils.currentUserId()).orElse(null);
+        model.addAttribute("avatarPath", user != null ? user.getAvatarPath() : null);
         return "settings";
     }
 
@@ -85,6 +93,42 @@ public class SettingsController {
         try {
             settingsService.changePassword(SecurityUtils.currentUserId(), oldPassword, newPassword);
             ra.addFlashAttribute("success", "Пароль изменён");
+        } catch (BusinessException e) {
+            ra.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/settings";
+    }
+
+    /**
+     * Загружает аватарку пользователя.
+     *
+     * @param file загружаемый файл
+     * @param ra    flash-атрибуты для сообщений
+     * @return редирект на страницу настроек
+     */
+    @PostMapping("/avatar")
+    public String uploadAvatar(@RequestParam("file") MultipartFile file,
+                               RedirectAttributes ra) {
+        try {
+            String path = settingsService.uploadAvatar(SecurityUtils.currentUserId(), file);
+            ra.addFlashAttribute("success", "Аватарка обновлена");
+        } catch (BusinessException e) {
+            ra.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/settings";
+    }
+
+    /**
+     * Удаляет аватарку пользователя.
+     *
+     * @param ra flash-атрибуты для сообщений
+     * @return редирект на страницу настроек
+     */
+    @PostMapping("/avatar/delete")
+    public String deleteAvatar(RedirectAttributes ra) {
+        try {
+            settingsService.deleteAvatar(SecurityUtils.currentUserId());
+            ra.addFlashAttribute("success", "Аватарка удалена");
         } catch (BusinessException e) {
             ra.addFlashAttribute("error", e.getMessage());
         }

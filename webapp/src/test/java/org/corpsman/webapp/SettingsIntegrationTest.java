@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -28,6 +29,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
@@ -311,5 +313,94 @@ class SettingsIntegrationTest {
         mockMvc.perform(post("/users/" + target.getId() + "/reset-password").session(session).with(csrf())
                         .param("newPassword", "freshpass1"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void uploadAvatarPersistsAndAppearsInSettingsAndProfile() throws Exception {
+        User u = createUser("set_avatar_1");
+        MockHttpSession session = login("set_avatar_1");
+
+        MockMultipartFile file = new MockMultipartFile("file", "a.png", "image/png",
+                new byte[]{(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'});
+        mockMvc.perform(multipart("/settings/avatar").file(file).session(session).with(csrf()))
+                .andExpect(status().is3xxRedirection());
+
+        User persisted = userRepository.findById(u.getId()).orElseThrow();
+        assertThat(persisted.getAvatarPath()).isNotNull();
+
+        String settings = mockMvc.perform(get("/settings").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(settings).contains("/uploads/" + persisted.getAvatarPath());
+
+        String profile = mockMvc.perform(get("/profile").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(profile).contains("/uploads/" + persisted.getAvatarPath());
+    }
+
+    @Test
+    void foreignProfileShowsAvatar() throws Exception {
+        User owner = createUser("set_avatar_2");
+        owner.setAvatarPath("avatar-test-2.png");
+        userRepository.save(owner);
+        createUser("set_avatar_viewer_2");
+        MockHttpSession session = login("set_avatar_viewer_2");
+
+        String page = mockMvc.perform(get("/profile/" + owner.getId()).session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(page).contains("/uploads/avatar-test-2.png");
+    }
+
+    @Test
+    void forumPostRendersAvatarAndAnonymousLogo() throws Exception {
+        User author = createUser("set_avatar_3");
+        author.setAvatarPath("avatar-test-3.png");
+        userRepository.save(author);
+        User anon = createUser("set_avatar_4");
+        anon.setAvatarPath("avatar-anon-test.png");
+        userRepository.save(anon);
+        ForumTopic topic = createPublicTopic(author, "Тред аватарок set_avatar_3");
+        ForumPost post = new ForumPost();
+        post.setTopicId(topic.getId());
+        post.setAuthorId(author.getId());
+        post.setContent("Пост с аватаркой");
+        post.setAnonymous(false);
+        post.setOp(true);
+        postRepository.save(post);
+        ForumPost anonPost = new ForumPost();
+        anonPost.setTopicId(topic.getId());
+        anonPost.setAuthorId(anon.getId());
+        anonPost.setContent("Анонимный пост");
+        anonPost.setAnonymous(true);
+        postRepository.save(anonPost);
+        MockHttpSession session = login("set_avatar_3");
+
+        String page = mockMvc.perform(get("/forum/topic/" + topic.getId()).session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(page)
+                .contains("uploads/avatar-test-3.png")
+                .doesNotContain("uploads/avatar-anon-test.png")
+                .contains("logo-light")
+                .contains("logo-dark");
+    }
+
+    @Test
+    void deleteAvatarClearsPathAndServing() throws Exception {
+        User u = createUser("set_avatar_5");
+        u.setAvatarPath("avatar-test-5.png");
+        userRepository.save(u);
+        MockHttpSession session = login("set_avatar_5");
+
+        mockMvc.perform(post("/settings/avatar/delete").session(session).with(csrf()))
+                .andExpect(status().is3xxRedirection());
+
+        assertThat(userRepository.findById(u.getId()).orElseThrow().getAvatarPath()).isNull();
+
+        String settings = mockMvc.perform(get("/settings").session(session))
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(settings).doesNotContain("uploads/avatar-test-5.png");
     }
 }

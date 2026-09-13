@@ -477,6 +477,7 @@ private java.util.Comparator<ForumTopic> bySortKey(String sort, Map<Long, Long> 
             authorIds.add(ban.getBannedBy());
         });
         Map<Long, String> usernames = loadUsernames(new ArrayList<>(authorIds));
+        Map<Long, String> avatars = loadAvatars(new ArrayList<>(authorIds));
         List<ForumPost> collectFrom = new ArrayList<>(rootPage.getContent());
         if (opPost != null) {
             collectFrom.add(opPost);
@@ -495,7 +496,7 @@ private java.util.Comparator<ForumTopic> bySortKey(String sort, Map<Long, Long> 
         List<ForumPostDto> postDtos = rootPage.getContent().stream()
                 .map(root -> {
                     ForumPostDto dto = toPostDto(root, byParent, byId, subtreeSizes(byParent),
-                            usernames, likedPostIds, dislikedPostIds, attachmentsByPost,
+                            usernames, avatars, likedPostIds, dislikedPostIds, attachmentsByPost,
                             userId, isAdmin, canModerate, 0);
                     dto.setLatestContinuation(root.isContinuation()
                             && root.getId().equals(lastContinuationId));
@@ -525,10 +526,10 @@ private java.util.Comparator<ForumTopic> bySortKey(String sort, Map<Long, Long> 
         ForumPostDto firstPost;
         if (opPost != null) {
             firstPost = toPostDto(opPost, byParent, byId, subtreeSizes(byParent),
-                    usernames, likedPostIds, dislikedPostIds, attachmentsByPost,
+                    usernames, avatars, likedPostIds, dislikedPostIds, attachmentsByPost,
                     userId, isAdmin, canModerate, 0);
         } else {
-            firstPost = buildFirstPostDto(topic, usernames, userId, isAdmin);
+            firstPost = buildFirstPostDto(topic, usernames, avatars, userId, isAdmin);
         }
         firstPost.setAttachments(attachmentService.forTopic(topicId));
         firstPost.setLikes(topic.getLikes());
@@ -910,13 +911,15 @@ private java.util.Comparator<ForumTopic> bySortKey(String sort, Map<Long, Long> 
         return dto;
     }
 
-    private ForumPostDto buildFirstPostDto(ForumTopic topic, Map<Long, String> usernames, Long userId, boolean isAdmin) {
-        ForumPostDto dto = new ForumPostDto();
-        dto.setId(topic.getId());
-        dto.setParentPostId(null);
-        dto.setContent(topic.getContent());
-        dto.setAuthorName(topic.isAnonymous() ? ANONYMOUS : usernames.getOrDefault(topic.getAuthorId(), ANONYMOUS));
-        dto.setAnonymous(topic.isAnonymous());
+private ForumPostDto buildFirstPostDto(ForumTopic topic, Map<Long, String> usernames,
+                                       Map<Long, String> avatars, Long userId, boolean isAdmin) {
+    ForumPostDto dto = new ForumPostDto();
+    dto.setId(topic.getId());
+    dto.setParentPostId(null);
+    dto.setContent(topic.getContent());
+    dto.setAuthorName(topic.isAnonymous() ? ANONYMOUS : usernames.getOrDefault(topic.getAuthorId(), ANONYMOUS));
+    dto.setAvatarPath(topic.isAnonymous() || topic.getAuthorId() == null ? null : avatars.get(topic.getAuthorId()));
+    dto.setAnonymous(topic.isAnonymous());
         dto.setDeleted(topic.isDeleted());
         dto.setCreatedAt(topic.getCreatedAt());
         dto.setEdited(false);
@@ -933,7 +936,8 @@ private java.util.Comparator<ForumTopic> bySortKey(String sort, Map<Long, Long> 
 
     private ForumPostDto toPostDto(ForumPost post, Map<Long, List<ForumPost>> byParent,
                                    Map<Long, ForumPost> byId, Map<Long, Long> subtreeSizes,
-                                   Map<Long, String> usernames, Set<Long> likedPostIds,
+                                   Map<Long, String> usernames, Map<Long, String> avatars,
+                                   Set<Long> likedPostIds,
                                    Set<Long> dislikedPostIds,
                                    Map<Long, List<org.corpsman.forum.dto.ForumAttachmentDto>> attachmentsByPost,
                                    Long userId, boolean isAdmin, boolean canModerate, int depth) {
@@ -954,6 +958,7 @@ private java.util.Comparator<ForumTopic> bySortKey(String sort, Map<Long, Long> 
         dto.setEdited(post.isEdited());
         dto.setAuthorId(post.getAuthorId());
         dto.setAuthorName(post.isAnonymous() ? ANONYMOUS : usernames.getOrDefault(post.getAuthorId(), ANONYMOUS));
+        dto.setAvatarPath(post.isAnonymous() || post.getAuthorId() == null ? null : avatars.get(post.getAuthorId()));
         dto.setAuthor(post.getAuthorId() != null && post.getAuthorId().equals(userId));
         dto.setLikedByCurrentUser(likedPostIds.contains(post.getId()));
         dto.setDislikedByCurrentUser(dislikedPostIds.contains(post.getId()));
@@ -974,7 +979,7 @@ private java.util.Comparator<ForumTopic> bySortKey(String sort, Map<Long, Long> 
         if (depth < MAX_TREE_DEPTH) {
             List<ForumPost> replies = byParent.getOrDefault(post.getId(), List.of());
             dto.setReplies(replies.stream()
-                    .map(reply -> toPostDto(reply, byParent, byId, subtreeSizes, usernames, likedPostIds,
+                    .map(reply -> toPostDto(reply, byParent, byId, subtreeSizes, usernames, avatars, likedPostIds,
                             dislikedPostIds, attachmentsByPost, userId, isAdmin, canModerate, depth + 1))
                     .toList());
         }
@@ -1037,6 +1042,15 @@ private java.util.Comparator<ForumTopic> bySortKey(String sort, Map<Long, Long> 
         }
         return userRepository.findByIdIn(userIds.stream().distinct().toList()).stream()
                 .collect(Collectors.toMap(User::getId, User::getUsername));
+    }
+
+    private Map<Long, String> loadAvatars(List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Map.of();
+        }
+        return userRepository.findByIdIn(userIds.stream().distinct().toList()).stream()
+                .filter(user -> user.getAvatarPath() != null)
+                .collect(Collectors.toMap(User::getId, User::getAvatarPath));
     }
 
     private Set<Long> loadLikedPostIds(List<Long> postIds, Long userId) {

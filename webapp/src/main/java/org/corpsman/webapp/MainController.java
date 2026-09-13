@@ -73,7 +73,9 @@ public class MainController {
     public String profile(Model model) {
         CorpsmanUserDetails user = SecurityUtils.currentUser();
         if (user != null) {
+            User freshUser = userRepository.findById(user.getId()).orElse(null);
             model.addAttribute("user", user);
+            model.addAttribute("avatarPath", freshUser != null ? freshUser.getAvatarPath() : null);
             boolean ownGuest = user.getRole() == org.corpsman.auth.model.UserRole.GUEST;
             model.addAttribute("ownCinemaHidden", ownGuest);
             if (!ownGuest) {
@@ -103,6 +105,7 @@ public class MainController {
         try {
             model.addAttribute("profile", ratingService.getPublicProfile(id, currentId));
             User profileOwner = userRepository.findById(id).orElse(null);
+            model.addAttribute("avatarPath", profileOwner != null ? profileOwner.getAvatarPath() : null);
             // Информация о пригласившем пользователе (для администраторов)
             if (profileOwner != null && profileOwner.getInvitedBy() != null) {
                 userRepository.findById(profileOwner.getInvitedBy())

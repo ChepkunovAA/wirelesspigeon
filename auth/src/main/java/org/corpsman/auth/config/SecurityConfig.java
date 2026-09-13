@@ -74,7 +74,7 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/login", "/register", "/error", "/static/**", "/css/**", "/js/**", "/images/**", "/assets/**", "/public/**", "/forum/public/**").permitAll()
+                        .requestMatchers("/", "/login", "/register", "/error", "/static/**", "/css/**", "/js/**", "/images/**", "/assets/**", "/uploads/**", "/public/**", "/forum/public/**").permitAll()
                         .requestMatchers("/admin/**").hasRole("MASTER")
                         .requestMatchers("/keys/**").hasAnyRole("RESIDENT", "MASTER")
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/users/*/promote").hasRole("MASTER")
