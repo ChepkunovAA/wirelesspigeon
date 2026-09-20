@@ -61,22 +61,22 @@ class ForumVisibilityIntegrationTest {
 
     @Test
     void closedTopicHiddenFromStrangerVisibleToWhitelistedAndOwner() throws Exception {
-        User owner = createUser("fv_owner_1");
-        User stranger = createUser("fv_stranger_1");
-        User friend = createUser("fv_friend_1");
+        User owner = createUser("auto_fv_owner_1");
+        User stranger = createUser("auto_fv_stranger_1");
+        User friend = createUser("auto_fv_friend_1");
         ForumTopic topic = createTopic(owner, "Закрытый тред fv_c1", TopicVisibility.CLOSED, null);
         whitelistRepository.save(entry(topic.getId(), friend.getId()));
 
-        MockHttpSession strangerSession = login("fv_stranger_1");
+        MockHttpSession strangerSession = login("auto_fv_stranger_1");
         mockMvc.perform(get("/forum/topic/" + topic.getId()).session(strangerSession))
                 .andExpect(status().is4xxClientError());
 
-        MockHttpSession friendSession = login("fv_friend_1");
+        MockHttpSession friendSession = login("auto_fv_friend_1");
         mockMvc.perform(get("/forum/topic/" + topic.getId()).session(friendSession))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("fv_c1")));
 
-        MockHttpSession ownerSession = login("fv_owner_1");
+        MockHttpSession ownerSession = login("auto_fv_owner_1");
         mockMvc.perform(get("/forum/topic/" + topic.getId()).session(ownerSession))
                 .andExpect(status().isOk());
 
@@ -87,14 +87,14 @@ class ForumVisibilityIntegrationTest {
 
     @Test
     void adminDoesNotSeeClosedTopicUnlessWhitelistedOrOwner() throws Exception {
-        User owner = createUser("fv_6owner");
-        User admin = createUser("fv_6admin", UserRole.MASTER);
-        User whitelistedAdmin = createUser("fv_6wiadmin", UserRole.MASTER);
+        User owner = createUser("auto_fv_6owner");
+        User admin = createUser("auto_fv_6admin", UserRole.MASTER);
+        User whitelistedAdmin = createUser("auto_fv_6wiadmin", UserRole.MASTER);
         ForumTopic topic = createTopic(owner, "Закрытый тред fv_p6_1", TopicVisibility.CLOSED, null);
         whitelistRepository.save(entry(topic.getId(), whitelistedAdmin.getId()));
 
         // админ вне белого списка НЕ видит закрытый тред ни в списке, ни по прямой ссылке
-        MockHttpSession adminSession = login("fv_6admin");
+        MockHttpSession adminSession = login("auto_fv_6admin");
         mockMvc.perform(get("/forum/topic/" + topic.getId()).session(adminSession))
                 .andExpect(status().is4xxClientError());
         mockMvc.perform(get("/forum").session(adminSession))
@@ -102,35 +102,35 @@ class ForumVisibilityIntegrationTest {
                 .andExpect(content().string(not(containsString("fv_p6_1"))));
 
         // админ, добавленный в белый список, видит тред
-        MockHttpSession whitelistedSession = login("fv_6wiadmin");
+        MockHttpSession whitelistedSession = login("auto_fv_6wiadmin");
         mockMvc.perform(get("/forum/topic/" + topic.getId()).session(whitelistedSession))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("fv_p6_1")));
 
         // владелец-не-админ также видит
-        MockHttpSession ownerSession = login("fv_6owner");
+        MockHttpSession ownerSession = login("auto_fv_6owner");
         mockMvc.perform(get("/forum/topic/" + topic.getId()).session(ownerSession))
                 .andExpect(status().isOk());
     }
 
     @Test
     void createFormSavesVisibilityAndWhitelist() throws Exception {
-        createUser("fv_owner_2");
-        createUser("fv_friend_2");
-        MockHttpSession session = login("fv_owner_2");
+        createUser("auto_fv_owner_2");
+        createUser("auto_fv_friend_2");
+        MockHttpSession session = login("auto_fv_owner_2");
 
         mockMvc.perform(post("/forum/topic/create").session(session).with(csrf())
                         .param("title", "Тред с белым списком fv_t2")
                         .param("content", "Контент треда fv_t2")
                         .param("visibility", "CLOSED")
-                        .param("whitelistItems", "fv_friend_2"))
+                        .param("whitelistItems", "auto_fv_friend_2"))
                 .andExpect(status().is3xxRedirection());
 
         List<ForumTopic> topics = topicRepository.findAll();
         ForumTopic created = topics.stream()
                 .filter(t -> t.getTitle().contains("fv_t2")).findFirst().orElseThrow();
 
-        MockHttpSession formSession = login("fv_owner_2");
+        MockHttpSession formSession = login("auto_fv_owner_2");
         String formPage = mockMvc.perform(get("/forum/topic/create").session(formSession))
                 .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
         assertThat(formPage).contains("name=\"whitelistItems\"");
@@ -138,19 +138,19 @@ class ForumVisibilityIntegrationTest {
         assertThat(created.getVisibility()).isEqualTo(TopicVisibility.CLOSED);
         assertThat(whitelistRepository.findByTopicId(created.getId()))
                 .extracting(TopicWhitelistEntry::getUserId)
-                .containsExactly(userRepository.findByUsername("fv_friend_2").orElseThrow().getId());
+                .containsExactly(userRepository.findByUsername("auto_fv_friend_2").orElseThrow().getId());
     }
 
     @Test
     void continuationCompressesRootCommentsUnderOp() throws Exception {
-        User owner = createUser("fv_owner_3");
+        User owner = createUser("auto_fv_owner_3");
         ForumTopic topic = createTopic(owner, "Тред со сжатием fv_t3", TopicVisibility.OPEN, null);
         ForumPost op = postRepository.findByTopicIdAndOpTrue(topic.getId()).orElseThrow();
 
         ForumPost c1 = rootComment(topic.getId(), owner.getId(), 1);
         ForumPost c2 = rootComment(topic.getId(), owner.getId(), 2);
 
-        MockHttpSession session = login("fv_owner_3");
+        MockHttpSession session = login("auto_fv_owner_3");
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/continuation").session(session).with(csrf())
                         .param("content", "Пост-продолжение fv_cont_3"))
                 .andExpect(status().is3xxRedirection());
@@ -206,10 +206,10 @@ class ForumVisibilityIntegrationTest {
         assertThat(countMatches(html.replaceAll("\\s+", " "), "Раскрыть <span>2</span> <span>комментария</span>")).isEqualTo(2);
 
         // Без продолжений комментарии плоские: нет блока поддерева
-        User owner2 = createUser("fv_owner_3b");
+        User owner2 = createUser("auto_fv_owner_3b");
         ForumTopic plain = createTopic(owner2, "Тред без продолжений fv_t3b", TopicVisibility.OPEN, null);
         rootComment(plain.getId(), owner2.getId(), 9);
-        MockHttpSession s2 = login("fv_owner_3b");
+        MockHttpSession s2 = login("auto_fv_owner_3b");
         String plainPage = mockMvc.perform(get("/forum/topic/" + plain.getId()).session(s2))
                 .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8)
                 .replaceAll("\\s+", " ");
@@ -219,11 +219,11 @@ class ForumVisibilityIntegrationTest {
 
     @Test
     void onlyOwnerSeesAddContinuationButtonAndCanCallIt() throws Exception {
-        User owner = createUser("fv_owner_4");
-        User stranger = createUser("fv_stranger_4");
+        User owner = createUser("auto_fv_owner_4");
+        User stranger = createUser("auto_fv_stranger_4");
         ForumTopic topic = createTopic(owner, "Тред кнопки fv_t4", TopicVisibility.OPEN, null);
-        MockHttpSession ownerSession = login("fv_owner_4");
-        MockHttpSession strangerSession = login("fv_stranger_4");
+        MockHttpSession ownerSession = login("auto_fv_owner_4");
+        MockHttpSession strangerSession = login("auto_fv_stranger_4");
 
         // владелец публикует продолжение
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/continuation")
@@ -254,7 +254,7 @@ class ForumVisibilityIntegrationTest {
 
     @Test
     void homePostVisibilityFollowsRoleAndSettings() throws Exception {
-        User owner = createUser("fv_owner_5");
+        User owner = createUser("auto_fv_owner_5");
         createTopic(owner, "Публичный анонс fv_p5", TopicVisibility.PUBLIC, null);
         createTopic(owner, "Открытый обычный fv_o5", TopicVisibility.OPEN, null);
 
@@ -265,8 +265,8 @@ class ForumVisibilityIntegrationTest {
                 .andExpect(content().string(not(containsString("Открытый обычный fv_o5"))));
 
         // RESIDENT видит и публичные, и открытые треды (открытый побеждает в блоках)
-        createUser("fv_reader_5");
-        MockHttpSession session = login("fv_reader_5");
+        createUser("auto_fv_reader_5");
+        MockHttpSession session = login("auto_fv_reader_5");
         mockMvc.perform(get("/").session(session))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Открытый обычный fv_o5")));
@@ -338,26 +338,26 @@ class ForumVisibilityIntegrationTest {
 
     @Test
     void whitelistDropdownShowsOnlyActiveUsers() throws Exception {
-        User owner = createUser("fv_owner_12");
-        User activeFriend = createUser("fv_active_12");
-        User banned = createUser("fv_banned_12");
+        User owner = createUser("auto_fv_owner_12");
+        User activeFriend = createUser("auto_fv_active_12");
+        User banned = createUser("auto_fv_banned_12");
         banned.setActive(false);
         userRepository.save(banned);
-        MockHttpSession session = login("fv_owner_12");
+        MockHttpSession session = login("auto_fv_owner_12");
 
         String page = mockMvc.perform(get("/forum/topic/create").session(session))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
 
         assertThat(page).contains("value=\"" + activeFriend.getUsername() + "\"");
-        assertThat(page).doesNotContain("value=\"fv_banned_12\"");
+        assertThat(page).doesNotContain("value=\"auto_fv_banned_12\"");
     }
 
     @Test
     void whitelistSearchBoxPresentOnCreateAndTopicPages() throws Exception {
-        User owner = createUser("fv_ws_owner");
-        createUser("fv_ws_friend");
-        MockHttpSession session = login("fv_ws_owner");
+        User owner = createUser("auto_fv_ws_owner");
+        createUser("auto_fv_ws_friend");
+        MockHttpSession session = login("auto_fv_ws_owner");
 
         String createPage = mockMvc.perform(get("/forum/topic/create").session(session))
                 .andExpect(status().isOk())
@@ -374,11 +374,11 @@ class ForumVisibilityIntegrationTest {
 
     @Test
     void continuationRenderedInFirstPostStyleWithoutReplyUi() throws Exception {
-        User owner = createUser("fv_owner_13");
+        User owner = createUser("auto_fv_owner_13");
         ForumTopic topic = createTopic(owner, "Стиль продолжений fv_t13", TopicVisibility.OPEN, null);
         rootComment(topic.getId(), owner.getId(), 1);
 
-        MockHttpSession session = login("fv_owner_13");
+        MockHttpSession session = login("auto_fv_owner_13");
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/continuation").session(session).with(csrf())
                         .param("content", "Продолжение в стиле fv_cont_13"))
                 .andExpect(status().is3xxRedirection());
@@ -412,7 +412,7 @@ String flat = html.replaceAll("\\s+", " ");
 
     @Test
     void adminCannotEditButCanDeleteForeignContentWithStub() throws Exception {
-        User chief = createUser("fv_owner_14");
+        User chief = createUser("auto_fv_owner_14");
         ForumTopic topic = createTopic(chief, "Тред админ-прав fv_t14", TopicVisibility.OPEN, null);
         ForumPost op = postRepository.findByTopicIdAndOpTrue(topic.getId()).orElseThrow();
         // дочерний комментарий владельца под заглавным постом
@@ -422,8 +422,8 @@ String flat = html.replaceAll("\\s+", " ");
         child.setContent("Комментарий для удаления fv_del_14");
         child.setAuthorId(chief.getId());
         postRepository.save(child);
-        User adminUser = createUser("fv_admin_14", UserRole.MASTER);
-        MockHttpSession session = login("fv_admin_14");
+        User adminUser = createUser("auto_fv_admin_14", UserRole.MASTER);
+        MockHttpSession session = login("auto_fv_admin_14");
 
         // админ не может редактировать чужой тред и чужой комментарий
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/edit").session(session).with(csrf())
@@ -446,7 +446,7 @@ String flat = html.replaceAll("\\s+", " ");
         assertThat(page).contains("Удалено администратором");
 
         // владелец удаляет свой комментарий — обычная заглушка и флаг false
-        MockHttpSession ownerSession = login("fv_owner_14");
+        MockHttpSession ownerSession = login("auto_fv_owner_14");
         mockMvc.perform(post("/forum/post/" + child.getId() + "/delete").session(ownerSession).with(csrf()))
                 .andExpect(status().is3xxRedirection());
 
@@ -456,12 +456,12 @@ String flat = html.replaceAll("\\s+", " ");
 
     @Test
     void p3OwnerSeesEditButtonsOnOpAndContinuationCardsNotHeader() throws Exception {
-        User owner = createUser("fv_owner_16");
+        User owner = createUser("auto_fv_owner_16");
         ForumTopic topic = createTopic(owner, "Инлайн-правка fv_p3_16", TopicVisibility.OPEN, null);
         rootComment(topic.getId(), owner.getId(), 1);
         ForumPost opPost = postRepository.findByTopicIdAndOpTrue(topic.getId()).orElseThrow();
 
-        MockHttpSession session = login("fv_owner_16");
+        MockHttpSession session = login("auto_fv_owner_16");
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/continuation").session(session).with(csrf())
                         .param("content", "Продолжение для правки fv_p3_cont_16"))
                 .andExpect(status().is3xxRedirection());
@@ -483,17 +483,17 @@ String flat = html.replaceAll("\\s+", " ");
 
     @Test
     void p3StrangerSeesNoEditButtonsButCanPostToPostEdit() throws Exception {
-        User owner = createUser("fv_owner_17");
-        User stranger = createUser("fv_stranger_17");
+        User owner = createUser("auto_fv_owner_17");
+        User stranger = createUser("auto_fv_stranger_17");
         ForumTopic topic = createTopic(owner, "Чужой тред fv_p3_17", TopicVisibility.OPEN, null);
-        MockHttpSession ownerSession = login("fv_owner_17");
+        MockHttpSession ownerSession = login("auto_fv_owner_17");
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/continuation").session(ownerSession).with(csrf())
                         .param("content", "Конт продолжение fv_p3_cont_17"))
                 .andExpect(status().is3xxRedirection());
         ForumPost cont = postRepository.findByTopicIdOrderByCreatedAtAsc(topic.getId()).stream()
                 .filter(ForumPost::isContinuation).findFirst().orElseThrow();
 
-        MockHttpSession strangerSession = login("fv_stranger_17");
+        MockHttpSession strangerSession = login("auto_fv_stranger_17");
         String html = mockMvc.perform(get("/forum/topic/" + topic.getId()).session(strangerSession))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
@@ -512,9 +512,9 @@ String flat = html.replaceAll("\\s+", " ");
 
     @Test
     void p3OwnerEditsOpAndContinuationContentThroughPostEndpoints() throws Exception {
-        User owner = createUser("fv_owner_18");
+        User owner = createUser("auto_fv_owner_18");
         ForumTopic topic = createTopic(owner, "Правка контента fv_p3_18", TopicVisibility.OPEN, null);
-        MockHttpSession ownerSession = login("fv_owner_18");
+        MockHttpSession ownerSession = login("auto_fv_owner_18");
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/continuation").session(ownerSession).with(csrf())
                         .param("content", "старое продолжение fv_p3_18"))
                 .andExpect(status().is3xxRedirection());
@@ -543,9 +543,9 @@ String flat = html.replaceAll("\\s+", " ");
 
     @Test
     void p4OwnerDeletesLastCleanContinuationFully() throws Exception {
-        User owner = createUser("fv_owner_19");
+        User owner = createUser("auto_fv_owner_19");
         ForumTopic topic = createTopic(owner, "Полное удаление fv_p4_19", TopicVisibility.OPEN, null);
-        MockHttpSession session = login("fv_owner_19");
+        MockHttpSession session = login("auto_fv_owner_19");
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/continuation").session(session).with(csrf())
                         .param("content", "Первое продолжение fv_p4_19"))
                 .andExpect(status().is3xxRedirection());
@@ -566,17 +566,17 @@ String flat = html.replaceAll("\\s+", " ");
 
     @Test
     void p4StragerCannotDeleteContinuation() throws Exception {
-        User owner = createUser("fv_owner_20");
-        User stranger = createUser("fv_stranger_20");
+        User owner = createUser("auto_fv_owner_20");
+        User stranger = createUser("auto_fv_stranger_20");
         ForumTopic topic = createTopic(owner, "Запрет чужим fv_p4_20", TopicVisibility.OPEN, null);
-        MockHttpSession ownerSession = login("fv_owner_20");
+        MockHttpSession ownerSession = login("auto_fv_owner_20");
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/continuation").session(ownerSession).with(csrf())
                         .param("content", "Продолжение fv_p4_20"))
                 .andExpect(status().is3xxRedirection());
         ForumPost cont = postRepository.findByTopicIdOrderByCreatedAtAsc(topic.getId()).stream()
                 .filter(ForumPost::isContinuation).findFirst().orElseThrow();
 
-        MockHttpSession strangerSession = login("fv_stranger_20");
+        MockHttpSession strangerSession = login("auto_fv_stranger_20");
         mockMvc.perform(post("/forum/post/" + cont.getId() + "/delete").session(strangerSession).with(csrf()))
                 .andExpect(status().is4xxClientError());
         assertThat(postRepository.findById(cont.getId())).isPresent();
@@ -584,9 +584,9 @@ String flat = html.replaceAll("\\s+", " ");
 
     @Test
     void p4OwnerDeletesContinuationWithSubtreeLeavesStub() throws Exception {
-        User owner = createUser("fv_owner_21");
+        User owner = createUser("auto_fv_owner_21");
         ForumTopic topic = createTopic(owner, "Заглушка fv_p4_21", TopicVisibility.OPEN, null);
-        MockHttpSession session = login("fv_owner_21");
+        MockHttpSession session = login("auto_fv_owner_21");
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/continuation").session(session).with(csrf())
                         .param("content", "Продолжение с веткой fv_p4_21"))
                 .andExpect(status().is3xxRedirection());
@@ -621,9 +621,9 @@ String flat = html.replaceAll("\\s+", " ");
 
     @Test
     void p4OwnerDeletesContinuationWithFlatCommentBelowLeavesStub() throws Exception {
-        User owner = createUser("fv_owner_22");
+        User owner = createUser("auto_fv_owner_22");
         ForumTopic topic = createTopic(owner, "Плоский ниже fv_p4_22", TopicVisibility.OPEN, null);
-        MockHttpSession session = login("fv_owner_22");
+        MockHttpSession session = login("auto_fv_owner_22");
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/continuation").session(session).with(csrf())
                         .param("content", "Продолжение fv_p4_22"))
                 .andExpect(status().is3xxRedirection());
@@ -649,17 +649,17 @@ String flat = html.replaceAll("\\s+", " ");
 
     @Test
     void p4AdminDeletesForeignContinuationFully() throws Exception {
-        User owner = createUser("fv_owner_23");
-        User adminUser = createUser("fv_admin_23", UserRole.MASTER);
+        User owner = createUser("auto_fv_owner_23");
+        User adminUser = createUser("auto_fv_admin_23", UserRole.MASTER);
         ForumTopic topic = createTopic(owner, "Админ удаляет fv_p4_23", TopicVisibility.OPEN, null);
-        MockHttpSession ownerSession = login("fv_owner_23");
+        MockHttpSession ownerSession = login("auto_fv_owner_23");
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/continuation").session(ownerSession).with(csrf())
                         .param("content", "Продолжение fv_p4_23"))
                 .andExpect(status().is3xxRedirection());
         ForumPost cont = postRepository.findByTopicIdOrderByCreatedAtAsc(topic.getId()).stream()
                 .filter(ForumPost::isContinuation).findFirst().orElseThrow();
 
-        MockHttpSession adminSession = login("fv_admin_23");
+        MockHttpSession adminSession = login("auto_fv_admin_23");
         mockMvc.perform(post("/forum/post/" + cont.getId() + "/delete").session(adminSession).with(csrf()))
                 .andExpect(status().is3xxRedirection());
         assertThat(postRepository.findById(cont.getId())).isEmpty();
@@ -667,7 +667,7 @@ String flat = html.replaceAll("\\s+", " ");
 
     @Test
     void p6SortByRatingAndSize() throws Exception {
-        User owner = createUser("fv_owner_24");
+        User owner = createUser("auto_fv_owner_24");
         // тред A — 2 поста, рейтинг высокий (лайки)
         ForumTopic a = createTopic(owner, "Сортировка A fv_p6_24", TopicVisibility.PUBLIC, null);
         continuation(owner, a, "продолжение A");
@@ -682,7 +682,7 @@ String flat = html.replaceAll("\\s+", " ");
         continuation(owner, c, "продолжение C1");
         continuation(owner, c, "продолжение C2");
 
-        MockHttpSession session = login("fv_owner_24");
+        MockHttpSession session = login("auto_fv_owner_24");
         // по рейтингу: A (10/2=5) > B (4/1=4) > C (0/3=0)
         String byRating = mockMvc.perform(get("/forum?sort=rating").session(session))
                 .andExpect(status().isOk())
@@ -703,9 +703,9 @@ String flat = html.replaceAll("\\s+", " ");
 
     @Test
     void p6SortPersistsThroughPaginationAndSearchForm() throws Exception {
-        User owner = createUser("fv_owner_25");
+        User owner = createUser("auto_fv_owner_25");
         createTopic(owner, "Сортировка форма fv_p6_25", TopicVisibility.PUBLIC, null);
-        MockHttpSession session = login("fv_owner_25");
+        MockHttpSession session = login("auto_fv_owner_25");
         String page = mockMvc.perform(get("/forum?sort=rating").session(session))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
@@ -727,10 +727,10 @@ String flat = html.replaceAll("\\s+", " ");
 
     @Test
     void readOnlyTopicAllowsOnlyOwnerToWrite() throws Exception {
-        User owner = createUser("fv_owner_15");
-        createUser("fv_friend_15");
-        createUser("fv_stranger_15");
-        MockHttpSession session = login("fv_owner_15");
+        User owner = createUser("auto_fv_owner_15");
+        createUser("auto_fv_friend_15");
+        createUser("auto_fv_stranger_15");
+        MockHttpSession session = login("auto_fv_owner_15");
 
         mockMvc.perform(post("/forum/topic/create").session(session).with(csrf())
                         .param("title", "Рид-онли тред fv_t15")
@@ -742,7 +742,7 @@ String flat = html.replaceAll("\\s+", " ");
                 .filter(t -> t.getTitle().contains("fv_t15")).findFirst().orElseThrow().getId();
 
         // чужой пользователь не может писать
-        MockHttpSession stranger = login("fv_stranger_15");
+        MockHttpSession stranger = login("auto_fv_stranger_15");
         mockMvc.perform(get("/forum/topic/" + topicId).session(stranger))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Только для чтения")))
@@ -753,7 +753,7 @@ String flat = html.replaceAll("\\s+", " ");
                 .andExpect(status().is4xxClientError());
 
         // владелец может писать
-        MockHttpSession ownerSession = login("fv_owner_15");
+        MockHttpSession ownerSession = login("auto_fv_owner_15");
         mockMvc.perform(post("/forum/topic/" + topicId + "/comment").session(ownerSession).with(csrf())
                         .param("content", "слово владельца"))
                 .andExpect(status().is3xxRedirection());

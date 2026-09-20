@@ -66,8 +66,8 @@ class RolesAndGuestThreadsIntegrationTest {
 
     @Test
     void notificationRowIsClickableAndRedirectsAfterRead() throws Exception {
-        User resident = createUser("rg_notif_1", UserRole.RESIDENT);
-        MockHttpSession session = login("rg_notif_1");
+        User resident = createUser("auto_rg_notif_1", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rg_notif_1");
         notificationService.notify(resident.getId(), "TOPIC_COMMENT", "Новый комментарий", "/forum/topic/1");
 
         String page = mockMvc.perform(get("/notifications").session(session))
@@ -86,11 +86,11 @@ class RolesAndGuestThreadsIntegrationTest {
 
     @Test
     void guestSeesPublicAndGuestTopicsButNotOpen() throws Exception {
-        User resident = createUser("rg_resident_1", UserRole.RESIDENT);
+        User resident = createUser("auto_rg_resident_1", UserRole.RESIDENT);
         createTopic(resident, "Публичный rg_p1", TopicVisibility.PUBLIC);
         createTopic(resident, "Гостевой rg_g1", TopicVisibility.GUEST);
         createTopic(resident, "Открытый rg_o1", TopicVisibility.OPEN);
-        MockHttpSession session = login("rg_resident_1");
+        MockHttpSession session = login("auto_rg_resident_1");
 
         // резидент видит все три
         String residentPage = mockMvc.perform(get("/forum").session(session))
@@ -99,8 +99,8 @@ class RolesAndGuestThreadsIntegrationTest {
         assertThat(residentPage).contains("rg_p1", "rg_g1", "rg_o1");
 
         // гость не видит открытый
-        createUser("rg_guest_1", UserRole.GUEST);
-        MockHttpSession guestSession = login("rg_guest_1");
+        createUser("auto_rg_guest_1", UserRole.GUEST);
+        MockHttpSession guestSession = login("auto_rg_guest_1");
         String guestPage = mockMvc.perform(get("/forum").session(guestSession))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
@@ -119,12 +119,12 @@ class RolesAndGuestThreadsIntegrationTest {
 
     @Test
     void guestWritesOnlyInGuestThreads() throws Exception {
-        User resident = createUser("rg_resident_2", UserRole.RESIDENT);
+        User resident = createUser("auto_rg_resident_2", UserRole.RESIDENT);
         createTopic(resident, "Гостевой rg_g2", TopicVisibility.GUEST);
         createTopic(resident, "Открытый rg_o2", TopicVisibility.OPEN);
         createTopic(resident, "Публичный rg_p2", TopicVisibility.PUBLIC);
-        createUser("rg_guest_2", UserRole.GUEST);
-        MockHttpSession session = login("rg_guest_2");
+        createUser("auto_rg_guest_2", UserRole.GUEST);
+        MockHttpSession session = login("auto_rg_guest_2");
 
         // гостевой — можно
         mockMvc.perform(post("/forum/topic/{id}/comment",
@@ -145,8 +145,8 @@ class RolesAndGuestThreadsIntegrationTest {
 
     @Test
     void guestCanCreateClosedAndGuestThreadsButNotPublic() throws Exception {
-        createUser("rg_guest_p2a", UserRole.GUEST);
-        MockHttpSession session = login("rg_guest_p2a");
+        createUser("auto_rg_guest_p2a", UserRole.GUEST);
+        MockHttpSession session = login("auto_rg_guest_p2a");
 
         // гость создаёт «Закрытый» тред
         mockMvc.perform(post("/forum/topic/create").session(session).with(csrf())
@@ -185,8 +185,8 @@ class RolesAndGuestThreadsIntegrationTest {
 
     @Test
     void guestCreateFormOffersGuestAndClosedChoicesOnly() throws Exception {
-        createUser("rg_guest_p2b", UserRole.GUEST);
-        MockHttpSession session = login("rg_guest_p2b");
+        createUser("auto_rg_guest_p2b", UserRole.GUEST);
+        MockHttpSession session = login("auto_rg_guest_p2b");
 
         String form = mockMvc.perform(get("/forum/topic/create").session(session))
                 .andExpect(status().isOk())
@@ -201,8 +201,8 @@ class RolesAndGuestThreadsIntegrationTest {
 
     @Test
     void residentCreateFormStillShowsOpenPublicClosed() throws Exception {
-        createUser("rg_resident_p2c", UserRole.RESIDENT);
-        MockHttpSession session = login("rg_resident_p2c");
+        createUser("auto_rg_resident_p2c", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rg_resident_p2c");
 
         String form = mockMvc.perform(get("/forum/topic/create").session(session))
                 .andExpect(status().isOk())
@@ -213,8 +213,8 @@ class RolesAndGuestThreadsIntegrationTest {
 
     @Test
     void guestCreatesOnlyGuestThreads() throws Exception {
-        createUser("rg_guest_3", UserRole.GUEST);
-        MockHttpSession session = login("rg_guest_3");
+        createUser("auto_rg_guest_3", UserRole.GUEST);
+        MockHttpSession session = login("auto_rg_guest_3");
 
         mockMvc.perform(post("/forum/topic/create").session(session).with(csrf())
                         .param("title", "Гостевой тред rg_t3")
@@ -226,7 +226,7 @@ class RolesAndGuestThreadsIntegrationTest {
                 .filter(t -> t.getTitle().equals("Гостевой тред rg_t3")).findFirst().orElseThrow();
         assertThat(created.getVisibility()).isEqualTo(TopicVisibility.GUEST);
 
-        MockHttpSession session2 = login("rg_guest_3");
+        MockHttpSession session2 = login("auto_rg_guest_3");
         // гость, создавший гостевой тред, не видит маркер «доступен гостям» на странице треда
         mockMvc.perform(get("/forum/topic/" + created.getId()).session(session2))
                 .andExpect(status().isOk())
@@ -236,8 +236,8 @@ class RolesAndGuestThreadsIntegrationTest {
 
     @Test
     void residentGuestAccessCheckboxResolvesToGuestVisibility() throws Exception {
-        createUser("rg_resident_ga1", UserRole.RESIDENT);
-        MockHttpSession session = login("rg_resident_ga1");
+        createUser("auto_rg_resident_ga1", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rg_resident_ga1");
 
         mockMvc.perform(post("/forum/topic/create").session(session).with(csrf())
                         .param("title", "Открытый с гостями rg_ga1")
@@ -263,8 +263,8 @@ class RolesAndGuestThreadsIntegrationTest {
 
     @Test
     void guestAccessCheckboxPresentOnlyForResidentAndMasters() throws Exception {
-        createUser("rg_resident_ga3", UserRole.RESIDENT);
-        MockHttpSession resSession = login("rg_resident_ga3");
+        createUser("auto_rg_resident_ga3", UserRole.RESIDENT);
+        MockHttpSession resSession = login("auto_rg_resident_ga3");
         mockMvc.perform(get("/forum/topic/create").session(resSession))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("guestAccess")))
@@ -272,8 +272,8 @@ class RolesAndGuestThreadsIntegrationTest {
                 // x-data должен быть объектным литералом {vis: '...'}, иначе Alpine не покажет чекбокс
                 .andExpect(content().string(containsString("x-data=\"{vis: &#39;")));
 
-        createUser("rg_guest_ga4", UserRole.GUEST);
-        MockHttpSession guestSession = login("rg_guest_ga4");
+        createUser("auto_rg_guest_ga4", UserRole.GUEST);
+        MockHttpSession guestSession = login("auto_rg_guest_ga4");
         mockMvc.perform(get("/forum/topic/create").session(guestSession))
                 .andExpect(status().isOk())
                 .andExpect(content().string(not(containsString("guestAccess"))));
@@ -281,8 +281,8 @@ class RolesAndGuestThreadsIntegrationTest {
 
     @Test
     void guestDefaultVisibilityPrefillsCheckboxInCreateForm() throws Exception {
-        createUser("rg_resident_ga5", UserRole.RESIDENT);
-        MockHttpSession session = login("rg_resident_ga5");
+        createUser("auto_rg_resident_ga5", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rg_resident_ga5");
 
         mockMvc.perform(post("/settings/prefs").session(session).with(csrf())
                         .param("defaultVisibility", "GUEST"))
@@ -297,10 +297,10 @@ class RolesAndGuestThreadsIntegrationTest {
 
     @Test
     void guestCannotFreezeResidentGuestThread() throws Exception {
-        User resident = createUser("rg_resident_4", UserRole.RESIDENT);
+        User resident = createUser("auto_rg_resident_4", UserRole.RESIDENT);
         createTopic(resident, "Гостевой на модерацию rg_g4", TopicVisibility.GUEST);
-        createUser("rg_guest_4", UserRole.GUEST);
-        MockHttpSession session = login("rg_guest_4");
+        createUser("auto_rg_guest_4", UserRole.GUEST);
+        MockHttpSession session = login("auto_rg_guest_4");
         Long tid = topicIdByTitle("Гостевой на модерацию rg_g4");
 
         // гость может модерировать только свои треды
@@ -313,10 +313,10 @@ class RolesAndGuestThreadsIntegrationTest {
 
     @Test
     void masterCanModerateAnyTopic() throws Exception {
-        User resident = createUser("rg_resident_4b", UserRole.RESIDENT);
+        User resident = createUser("auto_rg_resident_4b", UserRole.RESIDENT);
         createTopic(resident, "Чужой тред для мастера rg_g4b", TopicVisibility.OPEN);
-        User master = createUser("rg_master_4b", UserRole.MASTER);
-        MockHttpSession session = login("rg_master_4b");
+        User master = createUser("auto_rg_master_4b", UserRole.MASTER);
+        MockHttpSession session = login("auto_rg_master_4b");
         Long tid = topicIdByTitle("Чужой тред для мастера rg_g4b");
 
         mockMvc.perform(post("/forum/topic/" + tid + "/moderation/freeze")
@@ -328,8 +328,8 @@ class RolesAndGuestThreadsIntegrationTest {
 
     @Test
     void readOnlyDefaultSettingPrefillsCreateForm() throws Exception {
-        createUser("rg_user_4c", UserRole.RESIDENT);
-        MockHttpSession session = login("rg_user_4c");
+        createUser("auto_rg_user_4c", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rg_user_4c");
 
         mockMvc.perform(post("/settings/prefs").session(session).with(csrf())
                         .param("defaultReadOnly", "true"))
@@ -343,7 +343,7 @@ class RolesAndGuestThreadsIntegrationTest {
 
     @Test
     void anonymousOpensPublicTopicWithoutError() throws Exception {
-        User resident = createUser("rg_resident_anon", UserRole.RESIDENT);
+        User resident = createUser("auto_rg_resident_anon", UserRole.RESIDENT);
         createTopic(resident, "Публичный для анонима rg_anon1", TopicVisibility.PUBLIC);
         Long tid = topicIdByTitle("Публичный для анонима rg_anon1");
 
@@ -364,9 +364,9 @@ class RolesAndGuestThreadsIntegrationTest {
 
     @Test
     void residentSeesGuestMarkerOnGuestThread() throws Exception {
-        User resident = createUser("rg_resident_mk1", UserRole.RESIDENT);
+        User resident = createUser("auto_rg_resident_mk1", UserRole.RESIDENT);
         createTopic(resident, "Гостевой с маркером rg_mk1", TopicVisibility.GUEST);
-        MockHttpSession session = login("rg_resident_mk1");
+        MockHttpSession session = login("auto_rg_resident_mk1");
 
         mockMvc.perform(get("/forum/topic/" + topicIdByTitle("Гостевой с маркером rg_mk1")).session(session))
                 .andExpect(status().isOk())
@@ -375,8 +375,8 @@ class RolesAndGuestThreadsIntegrationTest {
 
     @Test
     void cinemaAndFilmDataHiddenFromGuest() throws Exception {
-        createUser("rg_guest_5", UserRole.GUEST);
-        MockHttpSession session = login("rg_guest_5");
+        createUser("auto_rg_guest_5", UserRole.GUEST);
+        MockHttpSession session = login("auto_rg_guest_5");
 
         mockMvc.perform(get("/cinema").session(session))
                 .andExpect(status().isForbidden());
@@ -394,9 +394,9 @@ class RolesAndGuestThreadsIntegrationTest {
 
     @Test
     void masterPromotesGuestToResidentUnlockingCinema() throws Exception {
-        User master = createUser("rg_master_6", UserRole.MASTER);
-        User guest = createUser("rg_guest_6", UserRole.GUEST);
-        MockHttpSession session = login("rg_master_6");
+        User master = createUser("auto_rg_master_6", UserRole.MASTER);
+        User guest = createUser("auto_rg_guest_6", UserRole.GUEST);
+        MockHttpSession session = login("auto_rg_master_6");
 
         mockMvc.perform(post("/users/" + guest.getId() + "/promote").session(session).with(csrf()))
                 .andExpect(status().is3xxRedirection());
@@ -405,14 +405,14 @@ class RolesAndGuestThreadsIntegrationTest {
                 .isEqualTo(UserRole.RESIDENT);
 
         // повышенный резидент получает доступ к кинотеатру
-        mockMvc.perform(get("/cinema").session(login("rg_guest_6")))
+        mockMvc.perform(get("/cinema").session(login("auto_rg_guest_6")))
                 .andExpect(status().isOk());
     }
 
     @Test
     void keysPageScopedByRole() throws Exception {
-        createUser("rg_resident_7", UserRole.RESIDENT);
-        MockHttpSession resSession = login("rg_resident_7");
+        createUser("auto_rg_resident_7", UserRole.RESIDENT);
+        MockHttpSession resSession = login("auto_rg_resident_7");
 
         // резидент создаёт гостевой ключ
         MvcResult gen = mockMvc.perform(post("/keys/generate").session(resSession).with(csrf()))
@@ -428,27 +428,27 @@ class RolesAndGuestThreadsIntegrationTest {
         // регистрируем гостя этим ключом
         mockMvc.perform(post("/register").with(csrf())
                         .param("token", rawToken)
-                        .param("username", "rg_newguest_7")
+                        .param("username", "auto_rg_newguest_7")
                         .param("password", PASSWORD))
                 .andExpect(status().is3xxRedirection());
 
-        User newbie = userRepository.findByUsername("rg_newguest_7").orElseThrow();
+        User newbie = userRepository.findByUsername("auto_rg_newguest_7").orElseThrow();
         assertThat(newbie.getRole()).isEqualTo(UserRole.GUEST);
 
         // гость не имеет доступа к странице ключей
-        MockHttpSession guestSession = login("rg_newguest_7");
+        MockHttpSession guestSession = login("auto_rg_newguest_7");
         mockMvc.perform(get("/keys").session(guestSession))
                 .andExpect(status().isForbidden());
 
         // мастер видит все ключи, резидент — только свои
-        User master = createUser("rg_master_7", UserRole.MASTER);
-        MockHttpSession masterSession = login("rg_master_7");
+        User master = createUser("auto_rg_master_7", UserRole.MASTER);
+        MockHttpSession masterSession = login("auto_rg_master_7");
         mockMvc.perform(post("/keys/generate").session(masterSession).with(csrf())) // мастерский (не гостевой)
                 .andExpect(status().isOk());
 
         String masterKeys = mockMvc.perform(get("/keys").session(masterSession))
                 .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
-        assertThat(masterKeys).contains("rg_resident_7"); // создатель гостевого ключа виден мастеру
+        assertThat(masterKeys).contains("auto_rg_resident_7"); // создатель гостевого ключа виден мастеру
 
         String residentKeys = mockMvc.perform(get("/keys").session(resSession))
                 .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8)
@@ -498,10 +498,10 @@ class RolesAndGuestThreadsIntegrationTest {
 
     @Test
     void guestsCannotModerateOtherGuestsThreads() throws Exception {
-        User guestOwner = createUser("rg_guest_owner_16", UserRole.GUEST);
+        User guestOwner = createUser("auto_rg_guest_owner_16", UserRole.GUEST);
         createTopic(guestOwner, "Гостевой тред другого гостя rg_g16", TopicVisibility.GUEST);
-        createUser("rg_guest_16", UserRole.GUEST);
-        MockHttpSession session = login("rg_guest_16");
+        createUser("auto_rg_guest_16", UserRole.GUEST);
+        MockHttpSession session = login("auto_rg_guest_16");
         Long tid = topicIdByTitle("Гостевой тред другого гостя rg_g16");
 
         mockMvc.perform(post("/forum/topic/" + tid + "/moderation/freeze")
@@ -513,17 +513,17 @@ class RolesAndGuestThreadsIntegrationTest {
 
     @Test
     void cinemaSectionHiddenOnGuestProfiles() throws Exception {
-        User resident = createUser("rg_resident_17", UserRole.RESIDENT);
-        User guest = createUser("rg_guest_17", UserRole.GUEST);
+        User resident = createUser("auto_rg_resident_17", UserRole.RESIDENT);
+        User guest = createUser("auto_rg_guest_17", UserRole.GUEST);
 
-        MockHttpSession resSession = login("rg_resident_17");
+        MockHttpSession resSession = login("auto_rg_resident_17");
         mockMvc.perform(get("/profile/" + guest.getId()).session(resSession))
                 .andExpect(status().isOk())
                 .andExpect(content().string(not(containsString("Кинотеатр"))))
                 .andExpect(content().string(not(containsString("Средняя оценка вами его фильмов"))))
                 .andExpect(content().string(not(containsString("Средняя оценка им ваших фильмов"))));
 
-        MockHttpSession guestSession = login("rg_guest_17");
+        MockHttpSession guestSession = login("auto_rg_guest_17");
         mockMvc.perform(get("/profile/" + resident.getId()).session(guestSession))
                 .andExpect(status().isOk())
                 .andExpect(content().string(not(containsString("Кинотеатр"))));

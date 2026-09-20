@@ -134,7 +134,7 @@ class TokenServiceTest {
     void getAllTokensResolvesCreatorUsernamesInBatch() {
         User admin = new User();
         admin.setId(7L);
-        admin.setUsername("chief");
+        admin.setUsername("auto_chief");
         InviteToken byAdmin = token(LocalDateTime.now().plusDays(1), false, "hash-1");
         byAdmin.setCreatedBy(7L);
         InviteToken orphan = token(LocalDateTime.now().plusDays(1), false, "hash-2");
@@ -145,7 +145,7 @@ class TokenServiceTest {
         List<InviteTokenDto> result = tokenService.getAllTokens();
 
         assertThat(result).hasSize(2);
-        assertThat(result.get(0).getCreatedByUsername()).isEqualTo("chief");
+        assertThat(result.get(0).getCreatedByUsername()).isEqualTo("auto_chief");
         assertThat(result.get(0).getCreatedBy()).isEqualTo(7L);
         assertThat(result.get(0).getCodeHash()).isEqualTo("hash-1");
         assertThat(result.get(1).getCreatedByUsername()).isNull();

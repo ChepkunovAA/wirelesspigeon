@@ -53,7 +53,7 @@ class AuthServiceTest {
     void registerCreatesUserAndMarksTokenUsed() {
         InviteToken token = validToken();
         when(tokenService.validateToken("raw-token")).thenReturn(token);
-        when(userRepository.existsByUsername("alice")).thenReturn(false);
+        when(userRepository.existsByUsername("auto_alice")).thenReturn(false);
         when(passwordEncoder.encode("password123")).thenReturn("encrypted");
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
             User user = invocation.getArgument(0);
@@ -61,13 +61,13 @@ class AuthServiceTest {
             return user;
         });
 
-        User result = authService.register("raw-token", "alice", "password123");
+        User result = authService.register("raw-token", "auto_alice", "password123");
 
         assertThat(result.getId()).isEqualTo(1L);
         verify(userRepository).save(any(User.class));
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(captor.capture());
-        assertThat(captor.getValue().getUsername()).isEqualTo("alice");
+        assertThat(captor.getValue().getUsername()).isEqualTo("auto_alice");
         assertThat(captor.getValue().getPasswordHash()).isEqualTo("encrypted");
         assertThat(captor.getValue().getRole()).isEqualTo(UserRole.RESIDENT);
         assertThat(captor.getValue().isActive()).isTrue();
@@ -79,9 +79,9 @@ class AuthServiceTest {
     void registerThrowsUsernameTakenWhenUsernameExists() {
         InviteToken token = validToken();
         when(tokenService.validateToken("raw-token")).thenReturn(token);
-        when(userRepository.existsByUsername("alice")).thenReturn(true);
+        when(userRepository.existsByUsername("auto_alice")).thenReturn(true);
 
-        assertThatThrownBy(() -> authService.register("raw-token", "alice", "password123"))
+        assertThatThrownBy(() -> authService.register("raw-token", "auto_alice", "password123"))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.USERNAME_TAKEN);
@@ -94,7 +94,7 @@ class AuthServiceTest {
         when(tokenService.validateToken("bad-token"))
                 .thenThrow(new BusinessException(ErrorCode.INVALID_TOKEN));
 
-        assertThatThrownBy(() -> authService.register("bad-token", "alice", "password123"))
+        assertThatThrownBy(() -> authService.register("bad-token", "auto_alice", "password123"))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.INVALID_TOKEN);
@@ -111,7 +111,7 @@ class AuthServiceTest {
 
     @Test
     void registerThrowsOnShortPassword() {
-        assertThatThrownBy(() -> authService.register("raw-token", "alice", "shor"))
+        assertThatThrownBy(() -> authService.register("raw-token", "auto_alice", "shor"))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.INVALID_INPUT);

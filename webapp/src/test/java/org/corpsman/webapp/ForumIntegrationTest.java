@@ -97,8 +97,8 @@ class ForumIntegrationTest {
 
     @Test
     void createTopicRedirectsToTopicAndRenders() throws Exception {
-        createUser("for_alice_1");
-        MockHttpSession session = login("for_alice_1");
+        createUser("auto_for_alice_1");
+        MockHttpSession session = login("auto_for_alice_1");
 
         mockMvc.perform(post("/forum/topic/create").session(session).with(csrf())
                         .param("title", "Куда пойти на выходных")
@@ -117,8 +117,8 @@ class ForumIntegrationTest {
 
     @Test
     void topicPageShowsScrollToBottomButton() throws Exception {
-        createUser("for_scroll_1");
-        MockHttpSession session = login("for_scroll_1");
+        createUser("auto_for_scroll_1");
+        MockHttpSession session = login("auto_for_scroll_1");
 
         mockMvc.perform(post("/forum/topic/create").session(session).with(csrf())
                         .param("title", "Тред с кнопкой прокрутки")
@@ -135,9 +135,9 @@ class ForumIntegrationTest {
 
     @Test
     void topicListShowsCreatedThread() throws Exception {
-        User alice = createUser("for_alice_2");
+        User alice = createUser("auto_for_alice_2");
         ForumTopic topic = addTopic(alice, "Читальный клуб", false);
-        MockHttpSession session = login("for_alice_2");
+        MockHttpSession session = login("auto_for_alice_2");
 
         mockMvc.perform(get("/forum").session(session))
                 .andExpect(status().isOk())
@@ -147,7 +147,7 @@ class ForumIntegrationTest {
 
     @Test
     void topicCardPreviewShowsLatestPostNotComment() throws Exception {
-        User alice = createUser("for_preview_2");
+        User alice = createUser("auto_for_preview_2");
         ForumTopic topic = addTopic(alice, "Карточка с превью", false);
 
         ForumPost op = new ForumPost();
@@ -163,7 +163,7 @@ class ForumIntegrationTest {
         ForumPost comment = addPost(topic, alice, "Свежий комментарий после стартового поста");
         assertThat(comment.getId()).isGreaterThan(op.getId());
 
-        MockHttpSession session = login("for_preview_2");
+        MockHttpSession session = login("auto_for_preview_2");
         String page = mockMvc.perform(get("/forum").session(session))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
@@ -175,10 +175,10 @@ class ForumIntegrationTest {
 
     @Test
     void addCommentAndReplyBuildTree() throws Exception {
-        User alice = createUser("for_alice_3");
-        User bob = createUser("for_bob_3");
+        User alice = createUser("auto_for_alice_3");
+        User bob = createUser("auto_for_bob_3");
         ForumTopic topic = addTopic(alice, "Киноклуб", false);
-        MockHttpSession session = login("for_bob_3");
+        MockHttpSession session = login("auto_for_bob_3");
 
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/comment").session(session).with(csrf())
                         .param("content", "Отличная идея, поддерживаю!"))
@@ -200,12 +200,12 @@ class ForumIntegrationTest {
 
     @Test
     void replyButtonCreatesFlatCommentAtParentLevel() throws Exception {
-        User alice = createUser("for_alice_19");
-        User bob = createUser("for_bob_19");
-        User charlie = createUser("for_charlie_19");
+        User alice = createUser("auto_for_alice_19");
+        User bob = createUser("auto_for_bob_19");
+        User charlie = createUser("auto_for_charlie_19");
         ForumTopic topic = addTopic(alice, "Гастрономия", false);
 
-        MockHttpSession bobSession = login("for_bob_19");
+        MockHttpSession bobSession = login("auto_for_bob_19");
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/comment").session(bobSession).with(csrf())
                         .param("content", "Корневой комментарий"))
                 .andExpect(status().is3xxRedirection());
@@ -217,7 +217,7 @@ class ForumIntegrationTest {
                 .andExpect(status().is3xxRedirection());
         ForumPost nested = postRepository.findByTopicIdOrderByCreatedAtAsc(topic.getId()).get(1);
 
-        MockHttpSession charlieSession = login("for_charlie_19");
+        MockHttpSession charlieSession = login("auto_for_charlie_19");
 
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/comment").session(charlieSession).with(csrf())
                         .param("content", "Плоский ответ на корень")
@@ -237,18 +237,18 @@ class ForumIntegrationTest {
 
     @Test
     void flatReplyShowsParentAndSubtreeCount() throws Exception {
-        User alice = createUser("for_alice_20");
-        User bob = createUser("for_bob_20");
-        User charlie = createUser("for_charlie_20");
+        User alice = createUser("auto_for_alice_20");
+        User bob = createUser("auto_for_bob_20");
+        User charlie = createUser("auto_for_charlie_20");
         ForumTopic topic = addTopic(alice, "Путешествия", false);
 
-        MockHttpSession bobSession = login("for_bob_20");
+        MockHttpSession bobSession = login("auto_for_bob_20");
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/comment").session(bobSession).with(csrf())
                         .param("content", "Куда поедем?"))
                 .andExpect(status().is3xxRedirection());
         ForumPost root = postRepository.findByTopicIdOrderByCreatedAtAsc(topic.getId()).get(0);
 
-        MockHttpSession charlieSession = login("for_charlie_20");
+        MockHttpSession charlieSession = login("auto_for_charlie_20");
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/comment").session(charlieSession).with(csrf())
                         .param("content", "Может в горы")
                         .param("parentId", "")
@@ -275,10 +275,10 @@ class ForumIntegrationTest {
 
     @Test
     void anonymousCommentShowsAnonym() throws Exception {
-        User alice = createUser("for_alice_4");
-        User bob = createUser("for_bob_4");
+        User alice = createUser("auto_for_alice_4");
+        User bob = createUser("auto_for_bob_4");
         ForumTopic topic = addTopic(alice, "Кулинария", false);
-        MockHttpSession session = login("for_bob_4");
+        MockHttpSession session = login("auto_for_bob_4");
 
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/comment").session(session).with(csrf())
                         .param("content", "Секретный рецепт, не буду представляться.")
@@ -293,11 +293,11 @@ class ForumIntegrationTest {
 
     @Test
     void likeAndUnlikePost() throws Exception {
-        User alice = createUser("for_alice_5");
-        User bob = createUser("for_bob_5");
+        User alice = createUser("auto_for_alice_5");
+        User bob = createUser("auto_for_bob_5");
         ForumTopic topic = addTopic(alice, "Спорт", false);
         ForumPost post = addPost(topic, alice, "Кто бегает по утрам?");
-        MockHttpSession session = login("for_bob_5");
+        MockHttpSession session = login("auto_for_bob_5");
 
         mockMvc.perform(post("/forum/post/" + post.getId() + "/like").session(session).with(csrf()))
                 .andExpect(status().isOk())
@@ -312,10 +312,10 @@ class ForumIntegrationTest {
 
     @Test
     void cannotLikeOwnPost() throws Exception {
-        User alice = createUser("for_alice_6");
+        User alice = createUser("auto_for_alice_6");
         ForumTopic topic = addTopic(alice, "Музыка", false);
         ForumPost post = addPost(topic, alice, "Мой пост");
-        MockHttpSession session = login("for_alice_6");
+        MockHttpSession session = login("auto_for_alice_6");
 
         mockMvc.perform(post("/forum/post/" + post.getId() + "/like").session(session).with(csrf()))
                 .andExpect(status().isBadRequest())
@@ -324,12 +324,12 @@ class ForumIntegrationTest {
 
     @Test
     void frozenTopicBlocksComments() throws Exception {
-        User alice = createUser("for_alice_7");
-        User bob = createUser("for_bob_7");
+        User alice = createUser("auto_for_alice_7");
+        User bob = createUser("auto_for_bob_7");
         ForumTopic topic = addTopic(alice, "Замороженный", false);
         topic.setFrozen(true);
         topicRepository.save(topic);
-        MockHttpSession session = login("for_bob_7");
+        MockHttpSession session = login("auto_for_bob_7");
 
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/comment").session(session).with(csrf())
                         .param("content", "Попытка написать"))
@@ -339,11 +339,11 @@ class ForumIntegrationTest {
 
     @Test
     void authorCanDeleteOwnPost() throws Exception {
-        User alice = createUser("for_alice_8");
-        User bob = createUser("for_bob_8");
+        User alice = createUser("auto_for_alice_8");
+        User bob = createUser("auto_for_bob_8");
         ForumTopic topic = addTopic(alice, "Фотография", false);
         ForumPost post = addPost(topic, bob, "Поделитесь лайфхаками");
-        MockHttpSession session = login("for_bob_8");
+        MockHttpSession session = login("auto_for_bob_8");
 
         mockMvc.perform(post("/forum/post/" + post.getId() + "/delete").session(session).with(csrf()))
                 .andExpect(status().is3xxRedirection())
@@ -356,8 +356,8 @@ class ForumIntegrationTest {
 
     @Test
     void bannedUserCannotComment() throws Exception {
-        User alice = createUser("for_alice_9");
-        User bob = createUser("for_bob_9");
+        User alice = createUser("auto_for_alice_9");
+        User bob = createUser("auto_for_bob_9");
         ForumTopic topic = addTopic(alice, "Игры", false);
         TopicBan ban = new TopicBan();
         ban.setTopicId(topic.getId());
@@ -365,7 +365,7 @@ class ForumIntegrationTest {
         ban.setBannedBy(alice.getId());
         ban.setReason("Спам");
         banRepository.save(ban);
-        MockHttpSession session = login("for_bob_9");
+        MockHttpSession session = login("auto_for_bob_9");
 
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/comment").session(session).with(csrf())
                         .param("content", "Меня забанили, но я всё равно пишу"))
@@ -375,11 +375,11 @@ class ForumIntegrationTest {
 
     @Test
     void moderatorCanDeleteForeignPost() throws Exception {
-        User alice = createUser("for_alice_10");
-        User bob = createUser("for_bob_10");
+        User alice = createUser("auto_for_alice_10");
+        User bob = createUser("auto_for_bob_10");
         ForumTopic topic = addTopic(alice, "Путешествия", false);
         ForumPost post = addPost(topic, bob, "Куда слетать зимой?");
-        MockHttpSession session = login("for_alice_10");
+        MockHttpSession session = login("auto_for_alice_10");
 
         mockMvc.perform(post("/forum/post/" + post.getId() + "/delete").session(session).with(csrf()))
                 .andExpect(status().is3xxRedirection());
@@ -389,10 +389,10 @@ class ForumIntegrationTest {
 
     @Test
     void deletedCommentWithoutSubtreeDisappears() throws Exception {
-        User alice = createUser("for_alice_21");
-        User bob = createUser("for_bob_21");
+        User alice = createUser("auto_for_alice_21");
+        User bob = createUser("auto_for_bob_21");
         ForumTopic topic = addTopic(alice, "Автомобили", false);
-        MockHttpSession session = login("for_bob_21");
+        MockHttpSession session = login("auto_for_bob_21");
 
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/comment").session(session).with(csrf())
                         .param("content", "Комментарий без поддерева"))
@@ -425,11 +425,11 @@ class ForumIntegrationTest {
 
     @Test
     void ownerDeletesCommentWithoutSubtreeShowsPlaceholder() throws Exception {
-        User alice = createUser("for_alice_22");
-        User bob = createUser("for_bob_22");
+        User alice = createUser("auto_for_alice_22");
+        User bob = createUser("auto_for_bob_22");
         ForumTopic topic = addTopic(alice, "Спорт", false);
         ForumPost post = addPost(topic, bob, "Без поддерева, удалит владелец");
-        MockHttpSession ownerSession = login("for_alice_22");
+        MockHttpSession ownerSession = login("auto_for_alice_22");
 
         mockMvc.perform(post("/forum/post/" + post.getId() + "/delete").session(ownerSession).with(csrf()))
                 .andExpect(status().is3xxRedirection());
@@ -445,13 +445,13 @@ class ForumIntegrationTest {
 
     @Test
     void adminDeletesCommentWithoutSubtreeShowsPlaceholder() throws Exception {
-        User alice = createUser("for_alice_23");
-        User admin = createUser("for_admin_23");
+        User alice = createUser("auto_for_alice_23");
+        User admin = createUser("auto_for_admin_23");
         admin.setRole(UserRole.MASTER);
         userRepository.save(admin);
         ForumTopic topic = addTopic(alice, "Кино", false);
         ForumPost post = addPost(topic, alice, "Без поддерева, удалит админ");
-        MockHttpSession adminSession = login("for_admin_23");
+        MockHttpSession adminSession = login("auto_for_admin_23");
 
         mockMvc.perform(post("/forum/post/" + post.getId() + "/delete").session(adminSession).with(csrf()))
                 .andExpect(status().is3xxRedirection());
@@ -467,10 +467,10 @@ class ForumIntegrationTest {
 
     @Test
     void adminCreatesTopicAnonymouslyAndSeesRealAuthor() throws Exception {
-        User admin = createUser("for_admin_11");
+        User admin = createUser("auto_for_admin_11");
         admin.setRole(UserRole.MASTER);
         userRepository.save(admin);
-        MockHttpSession session = login("for_admin_11");
+        MockHttpSession session = login("auto_for_admin_11");
 
         mockMvc.perform(post("/forum/topic/create").session(session).with(csrf())
                         .param("title", "Анонимное объявление")
@@ -482,31 +482,31 @@ class ForumIntegrationTest {
         mockMvc.perform(get("/forum/topic/" + topic.getId()).session(session))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Аноним")))
-                .andExpect(content().string(containsString("for_admin_11")));
+                .andExpect(content().string(containsString("auto_for_admin_11")));
     }
 
     @Test
     void adminDoesNotSeeRealAuthorForNonAnonymousTopic() throws Exception {
-        User admin = createUser("for_admin_12");
+        User admin = createUser("auto_for_admin_12");
         admin.setRole(UserRole.MASTER);
         userRepository.save(admin);
-        User alice = createUser("for_alice_12");
+        User alice = createUser("auto_for_alice_12");
         ForumTopic topic = addTopic(alice, "Обычный тред", false);
-        MockHttpSession session = login("for_admin_12");
+        MockHttpSession session = login("auto_for_admin_12");
 
         mockMvc.perform(get("/forum/topic/" + topic.getId()).session(session))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("for_alice_12")))
+                .andExpect(content().string(containsString("auto_for_alice_12")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Реальный автор:"))));
     }
 
     @Test
     void dislikeAndUndislikePost() throws Exception {
-        User alice = createUser("for_alice_13");
-        User bob = createUser("for_bob_13");
+        User alice = createUser("auto_for_alice_13");
+        User bob = createUser("auto_for_bob_13");
         ForumTopic topic = addTopic(alice, "Велосипеды", false);
         ForumPost post = addPost(topic, alice, "Кто ездит на работу на велосипеде?");
-        MockHttpSession session = login("for_bob_13");
+        MockHttpSession session = login("auto_for_bob_13");
 
         mockMvc.perform(post("/forum/post/" + post.getId() + "/dislike").session(session).with(csrf()))
                 .andExpect(status().isOk())
@@ -521,11 +521,11 @@ class ForumIntegrationTest {
 
     @Test
     void likeRemovesDislikeOnPost() throws Exception {
-        User alice = createUser("for_alice_14");
-        User bob = createUser("for_bob_14");
+        User alice = createUser("auto_for_alice_14");
+        User bob = createUser("auto_for_bob_14");
         ForumTopic topic = addTopic(alice, "Книги", false);
         ForumPost post = addPost(topic, alice, "Что читаете?");
-        MockHttpSession session = login("for_bob_14");
+        MockHttpSession session = login("auto_for_bob_14");
 
         mockMvc.perform(post("/forum/post/" + post.getId() + "/dislike").session(session).with(csrf()))
                 .andExpect(status().isOk())
@@ -540,10 +540,10 @@ class ForumIntegrationTest {
 
     @Test
     void likeAndDislikeFirstPostOfTopic() throws Exception {
-        User alice = createUser("for_alice_15");
-        User bob = createUser("for_bob_15");
+        User alice = createUser("auto_for_alice_15");
+        User bob = createUser("auto_for_bob_15");
         ForumTopic topic = addTopic(alice, "Кулинария и жизнь", false);
-        MockHttpSession session = login("for_bob_15");
+        MockHttpSession session = login("auto_for_bob_15");
 
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/like").session(session).with(csrf()))
                 .andExpect(status().isOk())
@@ -563,10 +563,10 @@ class ForumIntegrationTest {
 
     @Test
     void cannotDislikeOwnPost() throws Exception {
-        User alice = createUser("for_alice_16");
+        User alice = createUser("auto_for_alice_16");
         ForumTopic topic = addTopic(alice, "Творчество", false);
         ForumPost post = addPost(topic, alice, "Мой шедевр");
-        MockHttpSession session = login("for_alice_16");
+        MockHttpSession session = login("auto_for_alice_16");
 
         mockMvc.perform(post("/forum/post/" + post.getId() + "/dislike").session(session).with(csrf()))
                 .andExpect(status().isBadRequest())
@@ -575,11 +575,11 @@ class ForumIntegrationTest {
 
     @Test
     void moderatorCanBanUserFromPost() throws Exception {
-        User alice = createUser("for_alice_17");
-        User bob = createUser("for_bob_17");
+        User alice = createUser("auto_for_alice_17");
+        User bob = createUser("auto_for_bob_17");
         ForumTopic topic = addTopic(alice, "Маркетинг", false);
         ForumPost post = addPost(topic, bob, "Назойливый комментарий");
-        MockHttpSession session = login("for_alice_17");
+        MockHttpSession session = login("auto_for_alice_17");
 
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/moderation/ban").session(session).with(csrf())
                         .param("userId", String.valueOf(bob.getId())))
@@ -591,8 +591,8 @@ class ForumIntegrationTest {
 
     @Test
     void bannedListShowsAnonymousInsteadOfRealName() throws Exception {
-        User alice = createUser("for_alice_18");
-        User bob = createUser("for_bob_18");
+        User alice = createUser("auto_for_alice_18");
+        User bob = createUser("auto_for_bob_18");
         ForumTopic topic = addTopic(alice, "Недвижимость", false);
         ForumPost post = new ForumPost();
         post.setTopicId(topic.getId());
@@ -604,7 +604,7 @@ class ForumIntegrationTest {
         post.setEdited(false);
         post.setLikes(0);
         postRepository.save(post);
-        MockHttpSession session = login("for_alice_18");
+        MockHttpSession session = login("auto_for_alice_18");
 
         mockMvc.perform(post("/forum/topic/" + topic.getId() + "/moderation/ban").session(session).with(csrf())
                         .param("userId", String.valueOf(bob.getId()))
@@ -615,16 +615,16 @@ class ForumIntegrationTest {
         mockMvc.perform(get("/forum/topic/" + topic.getId()).session(session))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Аноним")))
-                .andExpect(content().string(not(containsString("for_bob_18"))));
+                .andExpect(content().string(not(containsString("auto_for_bob_18"))));
     }
 
 
 
     @Test
     void commentRedirectsToPostAnchor() throws Exception {
-        User alice = createUser("for_alice_22");
+        User alice = createUser("auto_for_alice_22");
         ForumTopic topic = addTopic(alice, "Скролл", false);
-        MockHttpSession session = login("for_alice_22");
+        MockHttpSession session = login("auto_for_alice_22");
 
         MvcResult result = mockMvc.perform(post("/forum/topic/" + topic.getId() + "/comment").session(session).with(csrf())
                         .param("content", "Комментарий с якорем"))
@@ -644,11 +644,11 @@ class ForumIntegrationTest {
 
     @Test
     void threadReplyRedirectsWithOpenParam() throws Exception {
-        User alice = createUser("for_alice_23");
-        User bob = createUser("for_bob_23");
+        User alice = createUser("auto_for_alice_23");
+        User bob = createUser("auto_for_bob_23");
         ForumTopic topic = addTopic(alice, "Ветки", false);
         ForumPost root = addPost(topic, bob, "Корневой комментарий");
-        MockHttpSession session = login("for_bob_23");
+        MockHttpSession session = login("auto_for_bob_23");
 
         MvcResult result = mockMvc.perform(post("/forum/topic/" + topic.getId() + "/comment").session(session).with(csrf())
                         .param("content", "Ответ в ветку")
@@ -663,8 +663,8 @@ class ForumIntegrationTest {
 
     @Test
     void createTopicWithSingleCharTitleAndShortContent() throws Exception {
-        createUser("for_alice_24");
-        MockHttpSession session = login("for_alice_24");
+        createUser("auto_for_alice_24");
+        MockHttpSession session = login("auto_for_alice_24");
 
         mockMvc.perform(post("/forum/topic/create").session(session).with(csrf())
                         .param("title", "A")
@@ -676,14 +676,14 @@ class ForumIntegrationTest {
 
     @Test
     void publicAttachmentEndpointRejectsPrivateTopic() throws Exception {
-        createUser("for_alice_28");
+        createUser("auto_for_alice_28");
         byte[] image = {1, 2, 3};
 
         mockMvc.perform(multipart("/forum/topic/create")
                         .file(new MockMultipartFile("files", "secret.png", "image/png", image))
                         .param("title", "Закрытый тред")
                         .param("content", "Материалы закрытого обсуждения.")
-                        .session(login("for_alice_28")).with(csrf()))
+                        .session(login("auto_for_alice_28")).with(csrf()))
                 .andExpect(status().is3xxRedirection());
 
         ForumTopic topic = topicRepository.findAll().iterator().next();
@@ -698,9 +698,9 @@ class ForumIntegrationTest {
 
     @Test
     void commentWithImageAttachmentRendersAndServesFile() throws Exception {
-        User alice = createUser("for_alice_25");
+        User alice = createUser("auto_for_alice_25");
         ForumTopic topic = addTopic(alice, "Фотографии", false);
-        MockHttpSession session = login("for_alice_25");
+        MockHttpSession session = login("auto_for_alice_25");
         byte[] image = {1, 2, 3, 4, 5};
 
         mockMvc.perform(multipart("/forum/topic/" + topic.getId() + "/comment")
@@ -724,8 +724,8 @@ class ForumIntegrationTest {
 
     @Test
     void topicWithFileAttachmentServesDownload() throws Exception {
-        createUser("for_alice_26");
-        MockHttpSession session = login("for_alice_26");
+        createUser("auto_for_alice_26");
+        MockHttpSession session = login("auto_for_alice_26");
         byte[] data = "hello".getBytes();
 
         mockMvc.perform(multipart("/forum/topic/create")

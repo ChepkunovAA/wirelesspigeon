@@ -65,8 +65,8 @@ class CinemaIntegrationTest {
 
     @Test
     void userProposesFilmAndSeesItInList() throws Exception {
-        createUser("cinema_alice_1");
-        MockHttpSession session = login("cinema_alice_1");
+        createUser("auto_cinema_alice_1");
+        MockHttpSession session = login("auto_cinema_alice_1");
 
         mockMvc.perform(post("/cinema/add").session(session).with(csrf())
                         .param("title", "Матрица"))
@@ -80,8 +80,8 @@ class CinemaIntegrationTest {
 
     @Test
     void duplicateProposalIsRejected() throws Exception {
-        User alice = createUser("cinema_alice_2");
-        MockHttpSession session = login("cinema_alice_2");
+        User alice = createUser("auto_cinema_alice_2");
+        MockHttpSession session = login("auto_cinema_alice_2");
         propose(alice, "Дюна", 2021);
 
         mockMvc.perform(post("/cinema/add").session(session).with(csrf())
@@ -92,10 +92,10 @@ class CinemaIntegrationTest {
 
     @Test
     void adminSelectsFilmThenMarksAsWatched() throws Exception {
-        User alice = createUser("cinema_alice_3");
-        createAdmin("cinema_admin_3");
+        User alice = createUser("auto_cinema_alice_3");
+        createAdmin("auto_cinema_admin_3");
         propose(alice, "Интерстеллар", 2014);
-        MockHttpSession adminSession = login("cinema_admin_3");
+        MockHttpSession adminSession = login("auto_cinema_admin_3");
 
         mockMvc.perform(post("/admin/cinema/select").session(adminSession).with(csrf()))
                 .andExpect(status().is3xxRedirection())
@@ -122,10 +122,10 @@ class CinemaIntegrationTest {
 
     @Test
     void selectingWhenAlreadySelectedShowsWarning() throws Exception {
-        User alice = createUser("cinema_alice_4");
-        createAdmin("cinema_admin_4");
+        User alice = createUser("auto_cinema_alice_4");
+        createAdmin("auto_cinema_admin_4");
         propose(alice, "Тёмный рыцарь", 2008);
-        MockHttpSession session = login("cinema_admin_4");
+        MockHttpSession session = login("auto_cinema_admin_4");
 
         mockMvc.perform(post("/admin/cinema/select").session(session).with(csrf()))
                 .andExpect(status().is3xxRedirection());
@@ -138,11 +138,11 @@ class CinemaIntegrationTest {
 
     @Test
     void adminReplacesSelectedFilm() throws Exception {
-        User alice = createUser("cinema_alice_6");
-        createAdmin("cinema_admin_6");
+        User alice = createUser("auto_cinema_alice_6");
+        createAdmin("auto_cinema_admin_6");
         propose(alice, "Джон Уик", 2014);
         propose(alice, "Гравитация", 2013);
-        MockHttpSession session = login("cinema_admin_6");
+        MockHttpSession session = login("auto_cinema_admin_6");
 
         mockMvc.perform(post("/admin/cinema/select").session(session).with(csrf()))
                 .andExpect(status().is3xxRedirection());
@@ -160,11 +160,11 @@ class CinemaIntegrationTest {
 
     @Test
     void adminDiscardsSelectedFilmWhenReplacing() throws Exception {
-        User alice = createUser("cinema_alice_7");
-        createAdmin("cinema_admin_7");
+        User alice = createUser("auto_cinema_alice_7");
+        createAdmin("auto_cinema_admin_7");
         propose(alice, "Мстители", 2012);
         propose(alice, "Титаник", 1997);
-        MockHttpSession session = login("cinema_admin_7");
+        MockHttpSession session = login("auto_cinema_admin_7");
 
         mockMvc.perform(post("/admin/cinema/select").session(session).with(csrf()))
                 .andExpect(status().is3xxRedirection());
@@ -184,10 +184,10 @@ class CinemaIntegrationTest {
 
     @Test
     void statisticsPageShowsTopProposers() throws Exception {
-        User alice = createUser("cinema_alice_8");
-        createAdmin("cinema_admin_8");
+        User alice = createUser("auto_cinema_alice_8");
+        createAdmin("auto_cinema_admin_8");
         propose(alice, "Интерстеллар", 2014);
-        MockHttpSession adminSession = login("cinema_admin_8");
+        MockHttpSession adminSession = login("auto_cinema_admin_8");
 
         mockMvc.perform(post("/admin/cinema/select").session(adminSession).with(csrf()));
         Film selected = filmRepository.findByStatus(FilmStatus.SELECTED).orElseThrow();
@@ -196,7 +196,7 @@ class CinemaIntegrationTest {
         mockMvc.perform(post("/admin/cinema/censorship").session(adminSession).with(csrf())
                         .param("filmId", String.valueOf(selected.getId()))
                         .param("rating", "NIGHTMARE"));
-        MockHttpSession aliceSession = login("cinema_alice_8");
+        MockHttpSession aliceSession = login("auto_cinema_alice_8");
         mockMvc.perform(post("/cinema/rate").session(aliceSession).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"filmId\": " + selected.getId() + ", \"rating\": 3}"))
@@ -206,15 +206,15 @@ class CinemaIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Топ лучших предлагающих")))
                 .andExpect(content().string(containsString("Топ испорченности предлагающих")))
-                .andExpect(content().string(containsString("cinema_alice_8")));
+                .andExpect(content().string(containsString("auto_cinema_alice_8")));
     }
 
     @Test
     void ratingIsUpsertedForWatchedFilm() throws Exception {
-        User alice = createUser("cinema_alice_5");
-        createAdmin("cinema_admin_5");
+        User alice = createUser("auto_cinema_alice_5");
+        createAdmin("auto_cinema_admin_5");
         propose(alice, "Бегущий по лезвию", 1982);
-        MockHttpSession adminSession = login("cinema_admin_5");
+        MockHttpSession adminSession = login("auto_cinema_admin_5");
 
         mockMvc.perform(post("/admin/cinema/select").session(adminSession).with(csrf()))
                 .andExpect(status().is3xxRedirection());
@@ -223,7 +223,7 @@ class CinemaIntegrationTest {
                         .param("filmId", String.valueOf(selected.getId())))
                 .andExpect(status().is3xxRedirection());
 
-        MockHttpSession aliceSession = login("cinema_alice_5");
+        MockHttpSession aliceSession = login("auto_cinema_alice_5");
         String base = "{\"filmId\": " + selected.getId();
 
         mockMvc.perform(post("/cinema/rate").session(aliceSession).with(csrf())
@@ -247,9 +247,9 @@ class CinemaIntegrationTest {
 
     @Test
     void ratingRejectedForFilmThatIsNotWatched() throws Exception {
-        User alice = createUser("cinema_alice_6");
+        User alice = createUser("auto_cinema_alice_6");
         propose(alice, "Матрица", 1999);
-        MockHttpSession session = login("cinema_alice_6");
+        MockHttpSession session = login("auto_cinema_alice_6");
 
         Film proposed = filmRepository.findByStatus(FilmStatus.PROPOSED).orElseThrow();
         mockMvc.perform(post("/cinema/rate").session(session).with(csrf())
@@ -260,8 +260,8 @@ class CinemaIntegrationTest {
 
     @Test
     void nonAdminCannotSelectFilm() throws Exception {
-        createUser("cinema_alice_7");
-        MockHttpSession session = login("cinema_alice_7");
+        createUser("auto_cinema_alice_7");
+        MockHttpSession session = login("auto_cinema_alice_7");
 
         mockMvc.perform(post("/admin/cinema/select").session(session).with(csrf()))
                 .andExpect(status().isForbidden());
@@ -269,10 +269,10 @@ class CinemaIntegrationTest {
 
     @Test
     void nonOwnerCannotDeleteFilm() throws Exception {
-        User alice = createUser("cinema_alice_8");
-        createUser("cinema_bob_8");
+        User alice = createUser("auto_cinema_alice_8");
+        createUser("auto_cinema_bob_8");
         Film film = propose(alice, "Гравитация", 2013);
-        MockHttpSession bobSession = login("cinema_bob_8");
+        MockHttpSession bobSession = login("auto_cinema_bob_8");
 
         mockMvc.perform(post("/cinema/delete/" + film.getId()).session(bobSession).with(csrf()))
                 .andExpect(status().isForbidden());
@@ -281,9 +281,9 @@ class CinemaIntegrationTest {
 
     @Test
     void ownerCanDeleteProposedFilm() throws Exception {
-        User alice = createUser("cinema_alice_9");
+        User alice = createUser("auto_cinema_alice_9");
         Film film = propose(alice, "Начало", 2010);
-        MockHttpSession session = login("cinema_alice_9");
+        MockHttpSession session = login("auto_cinema_alice_9");
 
         mockMvc.perform(post("/cinema/delete/" + film.getId()).session(session).with(csrf()))
                 .andExpect(status().isOk());
@@ -292,10 +292,10 @@ class CinemaIntegrationTest {
 
     @Test
     void watchedFilmAppearsInArchive() throws Exception {
-        User alice = createUser("cinema_alice_10");
-        createAdmin("cinema_admin_10");
+        User alice = createUser("auto_cinema_alice_10");
+        createAdmin("auto_cinema_admin_10");
         propose(alice, "Бойцовский клуб", 1999);
-        MockHttpSession adminSession = login("cinema_admin_10");
+        MockHttpSession adminSession = login("auto_cinema_admin_10");
 
         mockMvc.perform(post("/admin/cinema/select").session(adminSession).with(csrf()))
                 .andExpect(status().is3xxRedirection());
@@ -311,10 +311,10 @@ class CinemaIntegrationTest {
 
     @Test
     void publicProfileShowsUserInfoAndCrossRatings() throws Exception {
-        User alice = createUser("cinema_alice_11");
-        User admin = createAdmin("cinema_admin_11");
+        User alice = createUser("auto_cinema_alice_11");
+        User admin = createAdmin("auto_cinema_admin_11");
         propose(alice, "Олдбой", 2003);
-        MockHttpSession adminSession = login("cinema_admin_11");
+        MockHttpSession adminSession = login("auto_cinema_admin_11");
 
         mockMvc.perform(post("/admin/cinema/select").session(adminSession).with(csrf()));
         Film selected = filmRepository.findByStatus(FilmStatus.SELECTED).orElseThrow();
@@ -330,7 +330,7 @@ class CinemaIntegrationTest {
 
         mockMvc.perform(get("/profile/" + alice.getId()).session(adminSession))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("cinema_alice_11")))
+                .andExpect(content().string(containsString("auto_cinema_alice_11")))
                 .andExpect(content().string(containsString("Дата регистрации")))
                 .andExpect(content().string(containsString("Средняя оценка вами его фильмов")))
                 .andExpect(content().string(containsString("Средняя оценка им ваших фильмов")))

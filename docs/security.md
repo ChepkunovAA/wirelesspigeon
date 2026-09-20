@@ -72,8 +72,10 @@
 CSRF=$(curl -s -c jar http://localhost:8080/login \
   | grep -o 'name="_csrf" value="[^"]*"' | head -1 | sed 's/.*value="//;s/"$//')
 # 2. Залогиниться (cookies + csrf)
+#    Аккаунты e2e-проверок — ТОЛЬКО с префиксом auto_ (см. AGENTS.md),
+#    ручные аккаунты (admin, user и т.п.) для автоматических проверок не используются.
 curl -s -b jar -c jar -o /dev/null \
-  --data-urlencode "username=admin" --data-urlencode "password=admin" \
+  --data-urlencode "username=auto_admin" --data-urlencode "password=auto_admin123" \
   --data-urlencode "_csrf=$CSRF" http://localhost:8080/login
 # 3. Дальше все запросы с -b/-c jar и _csrf где нужно
 ```

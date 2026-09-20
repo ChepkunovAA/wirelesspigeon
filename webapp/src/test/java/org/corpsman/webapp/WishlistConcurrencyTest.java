@@ -52,7 +52,7 @@ class WishlistConcurrencyTest {
 
     @Test
     void concurrentReservationsNeverExceedLimit() throws Exception {
-        User owner = createUser("conc_owner");
+        User owner = createUser("auto_conc_owner");
         Gift gift = new Gift();
         gift.setTitle("Редкий подарок");
         gift.setDescription("");
@@ -63,7 +63,7 @@ class WishlistConcurrencyTest {
 
         List<Callable<Boolean>> tasks = new ArrayList<>();
         for (int i = 0; i < ATTEMPTS; i++) {
-            final long userId = createUser("conc_user_" + i).getId();
+            final long userId = createUser("auto_conc_user_" + i).getId();
             tasks.add(() -> {
                 try {
                     wishlistService.reserveGift(gift.getId(), userId);

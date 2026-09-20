@@ -65,31 +65,31 @@ class MemberServiceTest {
 
     @Test
     void getMembersReturnsMappedActiveUsers() {
-        User alice = user(1L, "alice", UserRole.RESIDENT, true);
+        User alice = user(1L, "auto_alice", UserRole.RESIDENT, true);
         Pageable pageable = PageRequest.of(0, 20);
         when(userRepository.findByActiveTrue(pageable)).thenReturn(new PageImpl<>(List.of(alice)));
-        when(memberMapper.toDto(alice)).thenReturn(memberDto(1L, "alice", UserRole.RESIDENT));
+        when(memberMapper.toDto(alice)).thenReturn(memberDto(1L, "auto_alice", UserRole.RESIDENT));
 
         var page = memberService.getMembers("", pageable);
 
         assertThat(page.getContent()).hasSize(1);
-        assertThat(page.getContent().get(0).getUsername()).isEqualTo("alice");
+        assertThat(page.getContent().get(0).getUsername()).isEqualTo("auto_alice");
         assertThat(page.getContent().get(0).getLastLoginAt()).isNotNull();
     }
 
     @Test
     void getMembersSearchesByUsernameWhenSearchProvided() {
-        User bob = user(2L, "bob", UserRole.RESIDENT, true);
+        User bob = user(2L, "auto_bob", UserRole.RESIDENT, true);
         Pageable pageable = PageRequest.of(0, 20);
         when(userRepository.findByActiveTrueAndUsernameContainingIgnoreCase("bo", pageable))
                 .thenReturn(new PageImpl<>(List.of(bob)));
-        when(memberMapper.toDto(bob)).thenReturn(memberDto(2L, "bob", UserRole.RESIDENT));
+        when(memberMapper.toDto(bob)).thenReturn(memberDto(2L, "auto_bob", UserRole.RESIDENT));
 
         var page = memberService.getMembers(" bo ", pageable);
 
         verify(userRepository, never()).findByActiveTrue(any());
         assertThat(page.getContent()).hasSize(1);
-        assertThat(page.getContent().get(0).getUsername()).isEqualTo("bob");
+        assertThat(page.getContent().get(0).getUsername()).isEqualTo("auto_bob");
     }
 
     @Test
@@ -122,7 +122,7 @@ class MemberServiceTest {
 
     @Test
     void banUserFailsForAdmin() {
-        User admin = user(2L, "chief", UserRole.MASTER, true);
+        User admin = user(2L, "auto_chief", UserRole.MASTER, true);
         when(userRepository.findById(2L)).thenReturn(Optional.of(admin));
 
         assertThatThrownBy(() -> memberService.banUser(2L, 1L))

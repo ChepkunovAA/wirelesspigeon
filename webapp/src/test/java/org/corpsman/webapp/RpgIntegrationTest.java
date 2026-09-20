@@ -121,8 +121,8 @@ class RpgIntegrationTest {
 
     @Test
     void residentCreatesGameAndSeesDetail() throws Exception {
-        User resident = createUser("rpg_master_1", UserRole.RESIDENT);
-        MockHttpSession session = login("rpg_master_1");
+        User resident = createUser("auto_rpg_master_1", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rpg_master_1");
 
         mockMvc.perform(get("/rpg/games/new").session(session))
                 .andExpect(status().isOk())
@@ -155,8 +155,8 @@ class RpgIntegrationTest {
 
     @Test
     void masterCanEditGame() throws Exception {
-        User master = createUser("rpg_master_2", UserRole.RESIDENT);
-        MockHttpSession session = login("rpg_master_2");
+        User master = createUser("auto_rpg_master_2", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rpg_master_2");
         Game game = createGame(master, "До", "Описание.", GameSystem.VERBAL, GameVisibility.OPEN, GameStatus.RECRUITING);
 
         mockMvc.perform(get("/rpg/games/" + game.getId() + "/edit").session(session))
@@ -185,8 +185,8 @@ class RpgIntegrationTest {
 
     @Test
     void guestPostingPublicVisibilityGetsDowngradedToGuest() throws Exception {
-        createUser("rpg_guest_1", UserRole.GUEST);
-        MockHttpSession session = login("rpg_guest_1");
+        createUser("auto_rpg_guest_1", UserRole.GUEST);
+        MockHttpSession session = login("auto_rpg_guest_1");
 
         mockMvc.perform(post("/rpg/games").session(session).with(csrf())
                         .param("title", "Публичная игра")
@@ -195,17 +195,17 @@ class RpgIntegrationTest {
                 .andExpect(status().is3xxRedirection());
 
         Game game = gameRepository.findByMasterIdOrderByCreatedAtDesc(
-                userRepository.findByUsername("rpg_guest_1").orElseThrow().getId()).get(0);
+                userRepository.findByUsername("auto_rpg_guest_1").orElseThrow().getId()).get(0);
         assertThat(game.getVisibility()).isEqualTo(GameVisibility.GUEST);
     }
 
     @Test
     void guestSeesPublicButNotOpenGames() throws Exception {
-        User host = createUser("rpg_host_2", UserRole.RESIDENT);
+        User host = createUser("auto_rpg_host_2", UserRole.RESIDENT);
         Game publicGame = createGame(host, "Общая", "Для всех.", GameSystem.VERBAL, GameVisibility.PUBLIC, GameStatus.RECRUITING);
         Game openGame = createGame(host, "Своя", "Для резидентов.", GameSystem.VERBAL, GameVisibility.OPEN, GameStatus.RECRUITING);
-        createUser("rpg_guest_2", UserRole.GUEST);
-        MockHttpSession session = login("rpg_guest_2");
+        createUser("auto_rpg_guest_2", UserRole.GUEST);
+        MockHttpSession session = login("auto_rpg_guest_2");
 
         mockMvc.perform(get("/rpg/games").session(session))
                 .andExpect(status().isOk())
@@ -220,7 +220,7 @@ class RpgIntegrationTest {
 
     @Test
     void anonymousSeesPublicGamesOnly() throws Exception {
-        User host = createUser("rpg_host_anon", UserRole.RESIDENT);
+        User host = createUser("auto_rpg_host_anon", UserRole.RESIDENT);
         Game publicGame = createGame(host, "Открытая анониму", "Для всех.", GameSystem.VERBAL,
                 GameVisibility.PUBLIC, GameStatus.RECRUITING);
         Game openGame = createGame(host, "Своя анониму", "Только резидентам.", GameSystem.VERBAL,
@@ -248,8 +248,8 @@ class RpgIntegrationTest {
 
     @Test
     void guestCanCreateAndManageOwnGame() throws Exception {
-        createUser("rpg_guest_3", UserRole.GUEST);
-        MockHttpSession session = login("rpg_guest_3");
+        createUser("auto_rpg_guest_3", UserRole.GUEST);
+        MockHttpSession session = login("auto_rpg_guest_3");
 
         mockMvc.perform(post("/rpg/games").session(session).with(csrf())
                         .param("title", "Игра гостя")
@@ -259,7 +259,7 @@ class RpgIntegrationTest {
                 .andExpect(status().is3xxRedirection());
 
         Game game = gameRepository.findByMasterIdOrderByCreatedAtDesc(
-                userRepository.findByUsername("rpg_guest_3").orElseThrow().getId()).get(0);
+                userRepository.findByUsername("auto_rpg_guest_3").orElseThrow().getId()).get(0);
 
         mockMvc.perform(get("/rpg/games/" + game.getId()).session(session))
                 .andExpect(status().isOk())
@@ -269,10 +269,10 @@ class RpgIntegrationTest {
 
     @Test
     void closedGameHiddenUntilWhitelisted() throws Exception {
-        User master = createUser("rpg_master_3", UserRole.RESIDENT);
-        User resident = createUser("rpg_res_1", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_3", UserRole.RESIDENT);
+        User resident = createUser("auto_rpg_res_1", UserRole.RESIDENT);
         Game game = createGame(master, "Тайный клуб", "Только по приглашению.", GameSystem.VERBAL, GameVisibility.CLOSED, GameStatus.RECRUITING);
-        MockHttpSession resSession = login("rpg_res_1");
+        MockHttpSession resSession = login("auto_rpg_res_1");
 
         mockMvc.perform(get("/rpg/games").session(resSession))
                 .andExpect(status().isOk())
@@ -280,7 +280,7 @@ class RpgIntegrationTest {
         mockMvc.perform(get("/rpg/games/" + game.getId()).session(resSession))
                 .andExpect(status().isForbidden());
 
-        MockHttpSession masterSession = login("rpg_master_3");
+        MockHttpSession masterSession = login("auto_rpg_master_3");
         mockMvc.perform(post("/rpg/games/" + game.getId() + "/whitelist/add").session(masterSession).with(csrf())
                         .param("userId", String.valueOf(resident.getId())))
                 .andExpect(status().is3xxRedirection());
@@ -293,10 +293,10 @@ class RpgIntegrationTest {
 
     @Test
     void applyThenRejectFlow() throws Exception {
-        User master = createUser("rpg_master_4", UserRole.RESIDENT);
-        User player = createUser("rpg_player_4", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_4", UserRole.RESIDENT);
+        User player = createUser("auto_rpg_player_4", UserRole.RESIDENT);
         Game game = createGame(master, "Набор", "Ищем двоих.", GameSystem.VERBAL, GameVisibility.OPEN, GameStatus.RECRUITING);
-        MockHttpSession session = login("rpg_player_4");
+        MockHttpSession session = login("auto_rpg_player_4");
 
         mockMvc.perform(get("/rpg/games/" + game.getId() + "/apply").session(session))
                 .andExpect(status().isOk())
@@ -319,7 +319,7 @@ class RpgIntegrationTest {
         var sheet = sheetRepository.findById(app.getSheetId()).orElseThrow();
         assertThat(sheet.getName()).isEqualTo("Эления");
 
-        MockHttpSession masterSession = login("rpg_master_4");
+        MockHttpSession masterSession = login("auto_rpg_master_4");
         mockMvc.perform(post("/rpg/games/" + game.getId() + "/applications/" + app.getId() + "/reject")
                         .session(masterSession).with(csrf()))
                 .andExpect(status().is3xxRedirection())
@@ -334,11 +334,11 @@ class RpgIntegrationTest {
 
     @Test
     void dndSheetFormSpinnersCirclesAndDefaults() throws Exception {
-        User master = createUser("rpg_master_dndui", UserRole.RESIDENT);
-        User player = createUser("rpg_player_dndui", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_dndui", UserRole.RESIDENT);
+        User player = createUser("auto_rpg_player_dndui", UserRole.RESIDENT);
         Game game = createGame(master, "DND-UI-тест", "Проверка формы листа.", GameSystem.DND, GameVisibility.OPEN, GameStatus.RECRUITING);
 
-        MockHttpSession session = login("rpg_player_dndui");
+        MockHttpSession session = login("auto_rpg_player_dndui");
         MvcResult pageRes = mockMvc.perform(get("/rpg/games/" + game.getId() + "/apply").session(session))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Бонус мастерства")))
@@ -383,23 +383,23 @@ class RpgIntegrationTest {
 
     @Test
     void acceptingApplicationMakesPlayerVisibleAndCounted() throws Exception {
-        User master = createUser("rpg_master_5", UserRole.RESIDENT);
-        User player = createUser("rpg_player_5", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_5", UserRole.RESIDENT);
+        User player = createUser("auto_rpg_player_5", UserRole.RESIDENT);
         Game game = createGameFor(master, "Хроники", GameSystem.VERBAL, GameVisibility.OPEN);
-        Long playerId = applyFor("rpg_player_5", game, "Торин");
+        Long playerId = applyFor("auto_rpg_player_5", game, "Торин");
 
         acceptFor(game, playerId);
 
         assertThat(applicationRepository.existsByGameIdAndUserIdAndStatus(game.getId(), playerId, ApplicationStatus.ACCEPTED))
                 .isTrue();
 
-        MockHttpSession playerSession = login("rpg_player_5");
+        MockHttpSession playerSession = login("auto_rpg_player_5");
         mockMvc.perform(get("/rpg/games/" + game.getId()).session(playerSession))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Вы в игре")))
                 .andExpect(content().string(containsString("Редактировать лист")));
 
-        MockHttpSession masterSession = login("rpg_master_5");
+        MockHttpSession masterSession = login("auto_rpg_master_5");
         String masterPage = mockMvc.perform(get("/rpg/games/" + game.getId()).session(masterSession))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
@@ -409,15 +409,15 @@ class RpgIntegrationTest {
 
     @Test
     void applyingUpdatesExistingSheet() throws Exception {
-        User master = createUser("rpg_master_6", UserRole.RESIDENT);
-        createUser("rpg_player_6", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_6", UserRole.RESIDENT);
+        createUser("auto_rpg_player_6", UserRole.RESIDENT);
         Game game = createGame(master, "Редактирование", "Обновляем лист.", GameSystem.VERBAL, GameVisibility.OPEN, GameStatus.RECRUITING);
-        MockHttpSession session = login("rpg_player_6");
+        MockHttpSession session = login("auto_rpg_player_6");
 
         mockMvc.perform(post("/rpg/games/" + game.getId() + "/apply").session(session).with(csrf())
                         .param("name", "Исходное"))
                 .andExpect(status().is3xxRedirection());
-        Long playerId = userRepository.findByUsername("rpg_player_6").orElseThrow().getId();
+        Long playerId = userRepository.findByUsername("auto_rpg_player_6").orElseThrow().getId();
         var app = applicationRepository.findByGameIdAndUserId(game.getId(), playerId).orElseThrow();
         Long sheetId = app.getSheetId();
 
@@ -430,9 +430,9 @@ class RpgIntegrationTest {
 
     @Test
     void masterCannotApplyToOwnGame() throws Exception {
-        User master = createUser("rpg_master_7", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_7", UserRole.RESIDENT);
         Game game = createGame(master, "Своя игра", "Ведущий не может подавать.", GameSystem.VERBAL, GameVisibility.OPEN, GameStatus.RECRUITING);
-        MockHttpSession session = login("rpg_master_7");
+        MockHttpSession session = login("auto_rpg_master_7");
 
         mockMvc.perform(post("/rpg/games/" + game.getId() + "/apply").session(session).with(csrf())
                         .param("name", "Попытка"))
@@ -442,9 +442,9 @@ class RpgIntegrationTest {
 
     @Test
     void masterCreatesNpcs() throws Exception {
-        User master = createUser("rpg_master_8", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_8", UserRole.RESIDENT);
         Game game = createGame(master, "NPC-тест", "Нужны NPC.", GameSystem.VERBAL, GameVisibility.OPEN, GameStatus.RECRUITING);
-        MockHttpSession session = login("rpg_master_8");
+        MockHttpSession session = login("auto_rpg_master_8");
 
         mockMvc.perform(post("/rpg/games/" + game.getId() + "/npc").session(session).with(csrf())
                         .param("name", "Стражник")
@@ -472,14 +472,14 @@ class RpgIntegrationTest {
 
     @Test
     void applicationsListShowsOnlyPending() throws Exception {
-        User master = createUser("rpg_master_apl", UserRole.RESIDENT);
-        User p1 = createUser("rpg_player_apl1", UserRole.RESIDENT);
-        User p2 = createUser("rpg_player_apl2", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_apl", UserRole.RESIDENT);
+        User p1 = createUser("auto_rpg_player_apl1", UserRole.RESIDENT);
+        User p2 = createUser("auto_rpg_player_apl2", UserRole.RESIDENT);
         Game game = createGameFor(master, "Заявки-лист", GameSystem.VERBAL, GameVisibility.OPEN);
-        applyFor("rpg_player_apl1", game, "Первый");
-        applyFor("rpg_player_apl2", game, "Второй");
+        applyFor("auto_rpg_player_apl1", game, "Первый");
+        applyFor("auto_rpg_player_apl2", game, "Второй");
 
-        MockHttpSession masterSession = login("rpg_master_apl");
+        MockHttpSession masterSession = login("auto_rpg_master_apl");
         mockMvc.perform(get("/rpg/games/" + game.getId()).session(masterSession))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Лист: Первый")))
@@ -512,14 +512,14 @@ class RpgIntegrationTest {
 
     @Test
     void postWithRollsAndDiceClamp() throws Exception {
-        User master = createUser("rpg_master_9", UserRole.RESIDENT);
-        User player = createUser("rpg_player_9", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_9", UserRole.RESIDENT);
+        User player = createUser("auto_rpg_player_9", UserRole.RESIDENT);
         Game game = createGameFor(master, "Комнаты-тест", GameSystem.VERBAL, GameVisibility.OPEN);
-        applyFor("rpg_player_9", game, "Воин");
+        applyFor("auto_rpg_player_9", game, "Воин");
         acceptFor(game, player.getId());
 
         MvcResult roomRes = mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms")
-                        .session(login("rpg_master_9")).with(csrf())
+                        .session(login("auto_rpg_master_9")).with(csrf())
                         .param("title", "Таверна")
                         .param("privateRoom", "false"))
                 .andExpect(status().is3xxRedirection())
@@ -527,7 +527,7 @@ class RpgIntegrationTest {
         Long roomId = Long.parseLong(roomRes.getResponse().getRedirectedUrl().replaceAll(".*rooms/", ""));
 
         mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms/" + roomId + "/posts")
-                        .session(login("rpg_player_9")).with(csrf())
+                        .session(login("auto_rpg_player_9")).with(csrf())
                         .param("content", "Разведка боем.")
                         .param("die", "d6", "d20")
                         .param("count", "2", "2000")
@@ -537,7 +537,7 @@ class RpgIntegrationTest {
                 .andExpect(redirectedUrl("/rpg/games/" + game.getId() + "/rooms/" + roomId));
 
         mockMvc.perform(get("/rpg/games/" + game.getId() + "/rooms/" + roomId)
-                        .session(login("rpg_player_9")))
+                        .session(login("auto_rpg_player_9")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Разведка боем.")))
                 .andExpect(content().string(containsString(":name=\"'die'\"")))
@@ -562,18 +562,18 @@ class RpgIntegrationTest {
 
     @Test
     void strangerCannotEnterOrPostInRoom() throws Exception {
-        User master = createUser("rpg_master_10", UserRole.RESIDENT);
-        User stranger = createUser("rpg_stranger_1", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_10", UserRole.RESIDENT);
+        User stranger = createUser("auto_rpg_stranger_1", UserRole.RESIDENT);
         Game game = createGameFor(master, "Закрытые комнаты", GameSystem.VERBAL, GameVisibility.OPEN);
 
         MvcResult roomRes = mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms")
-                        .session(login("rpg_master_10")).with(csrf())
+                        .session(login("auto_rpg_master_10")).with(csrf())
                         .param("title", "Дом кузнеца"))
                 .andExpect(status().is3xxRedirection())
                 .andReturn();
         Long roomId = Long.parseLong(roomRes.getResponse().getRedirectedUrl().replaceAll(".*rooms/", ""));
 
-        MockHttpSession strSession = login("rpg_stranger_1");
+        MockHttpSession strSession = login("auto_rpg_stranger_1");
         mockMvc.perform(get("/rpg/games/" + game.getId() + "/rooms/" + roomId).session(strSession))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Дом кузнеца")))
@@ -586,21 +586,21 @@ class RpgIntegrationTest {
 
     @Test
     void privateRoomGatedByMembership() throws Exception {
-        User master = createUser("rpg_master_11", UserRole.RESIDENT);
-        User player = createUser("rpg_player_11", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_11", UserRole.RESIDENT);
+        User player = createUser("auto_rpg_player_11", UserRole.RESIDENT);
         Game game = createGameFor(master, "Приватные", GameSystem.VERBAL, GameVisibility.OPEN);
-        applyFor("rpg_player_11", game, "Наблюдатель");
+        applyFor("auto_rpg_player_11", game, "Наблюдатель");
         acceptFor(game, player.getId());
 
         MvcResult roomRes = mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms")
-                        .session(login("rpg_master_11")).with(csrf())
+                        .session(login("auto_rpg_master_11")).with(csrf())
                         .param("title", "Тайная комната")
                         .param("privateRoom", "true"))
                 .andExpect(status().is3xxRedirection())
                 .andReturn();
         Long roomId = Long.parseLong(roomRes.getResponse().getRedirectedUrl().replaceAll(".*rooms/", ""));
 
-        MockHttpSession pSession = login("rpg_player_11");
+        MockHttpSession pSession = login("auto_rpg_player_11");
         String gamePage = mockMvc.perform(get("/rpg/games/" + game.getId()).session(pSession))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
@@ -611,7 +611,7 @@ class RpgIntegrationTest {
                 .andExpect(status().isForbidden());
 
         mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms/" + roomId + "/members")
-                        .session(login("rpg_master_11")).with(csrf())
+                        .session(login("auto_rpg_master_11")).with(csrf())
                         .param("memberIds", String.valueOf(player.getId())))
                 .andExpect(status().is3xxRedirection());
 
@@ -628,24 +628,24 @@ class RpgIntegrationTest {
 
     @Test
     void gameLevelAttributeVisibilityCheckbox() throws Exception {
-        User master = createUser("rpg_master_12", UserRole.RESIDENT);
-        User player = createUser("rpg_player_12", UserRole.RESIDENT);
-        User viewer = createUser("rpg_viewer_12", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_12", UserRole.RESIDENT);
+        User player = createUser("auto_rpg_player_12", UserRole.RESIDENT);
+        User viewer = createUser("auto_rpg_viewer_12", UserRole.RESIDENT);
         Game game = createGameFor(master, "DND-тест", GameSystem.DND, GameVisibility.OPEN);
-        applyFor("rpg_player_12", game, "Варвар");
-        Long playerId = userRepository.findByUsername("rpg_player_12").orElseThrow().getId();
+        applyFor("auto_rpg_player_12", game, "Варвар");
+        Long playerId = userRepository.findByUsername("auto_rpg_player_12").orElseThrow().getId();
         acceptFor(game, playerId);
         var app = applicationRepository.findByGameIdAndUserId(game.getId(), playerId).orElseThrow();
         Long sheetId = app.getSheetId();
 
-        MockHttpSession viewerSession = login("rpg_viewer_12");
+        MockHttpSession viewerSession = login("auto_rpg_viewer_12");
         // По умолчанию (attributesVisible=true) все, кто имеет доступ к игре, видят все атрибуты.
         mockMvc.perform(get("/rpg/games/" + game.getId() + "/characters/" + sheetId).session(viewerSession))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Сила")));
 
         // Ведущий выключает чекбокс «игроки видят все параметры» в настройках игры.
-        mockMvc.perform(post("/rpg/games/" + game.getId() + "/edit").session(login("rpg_master_12")).with(csrf())
+        mockMvc.perform(post("/rpg/games/" + game.getId() + "/edit").session(login("auto_rpg_master_12")).with(csrf())
                         .param("title", "DND-тест")
                         .param("description", "Описание test.")
                         .param("system", "DND")
@@ -662,28 +662,28 @@ class RpgIntegrationTest {
                 .andExpect(content().string(containsString("Ведущий скрыл параметры")));
 
         // Ведущий и владелец листа видят всё.
-        mockMvc.perform(get("/rpg/games/" + game.getId() + "/characters/" + sheetId).session(login("rpg_master_12")))
+        mockMvc.perform(get("/rpg/games/" + game.getId() + "/characters/" + sheetId).session(login("auto_rpg_master_12")))
                 .andExpect(content().string(containsString("<span>Сила</span>")));
-        mockMvc.perform(get("/rpg/games/" + game.getId() + "/characters/" + sheetId).session(login("rpg_player_12")))
+        mockMvc.perform(get("/rpg/games/" + game.getId() + "/characters/" + sheetId).session(login("auto_rpg_player_12")))
                 .andExpect(content().string(containsString("<span>Сила</span>")));
     }
 
     @Test
     void npcSheetsVisibleToPlayers() throws Exception {
-        User master = createUser("rpg_master_n1", UserRole.RESIDENT);
-        User player = createUser("rpg_player_n1", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_n1", UserRole.RESIDENT);
+        User player = createUser("auto_rpg_player_n1", UserRole.RESIDENT);
         Game game = createGameFor(master, "NPC-игроки", GameSystem.DND, GameVisibility.OPEN);
-        applyFor("rpg_player_n1", game, "Следопыт");
-        Long playerId = userRepository.findByUsername("rpg_player_n1").orElseThrow().getId();
+        applyFor("auto_rpg_player_n1", game, "Следопыт");
+        Long playerId = userRepository.findByUsername("auto_rpg_player_n1").orElseThrow().getId();
         acceptFor(game, playerId);
 
-        mockMvc.perform(post("/rpg/games/" + game.getId() + "/npc").session(login("rpg_master_n1")).with(csrf())
+        mockMvc.perform(post("/rpg/games/" + game.getId() + "/npc").session(login("auto_rpg_master_n1")).with(csrf())
                         .param("name", "Трактирщик Багман")
                         .param("kventa", "Хозяин «Сломанной подковы»."))
                 .andExpect(status().is3xxRedirection());
         Long npcId = sheetRepository.findByGameIdAndNpcOrderByCreatedAtDesc(game.getId(), true).get(0).getId();
 
-        MockHttpSession playerSession = login("rpg_player_n1");
+        MockHttpSession playerSession = login("auto_rpg_player_n1");
         mockMvc.perform(get("/rpg/games/" + game.getId()).session(playerSession))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Трактирщик Багман")))
@@ -697,24 +697,24 @@ class RpgIntegrationTest {
 
     @Test
     void masterPostsAsNpc() throws Exception {
-        User master = createUser("rpg_master_13", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_13", UserRole.RESIDENT);
         Game game = createGameFor(master, "NPC-посты", GameSystem.DND, GameVisibility.OPEN);
 
-        mockMvc.perform(post("/rpg/games/" + game.getId() + "/npc").session(login("rpg_master_13")).with(csrf())
+        mockMvc.perform(post("/rpg/games/" + game.getId() + "/npc").session(login("auto_rpg_master_13")).with(csrf())
                         .param("name", "Стражник Гора")
                         .param("kventa", "Немой страж ворот."))
                 .andExpect(status().is3xxRedirection());
         Long npcId = sheetRepository.findByGameIdAndNpcOrderByCreatedAtDesc(game.getId(), true).get(0).getId();
 
         MvcResult roomRes = mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms")
-                        .session(login("rpg_master_13")).with(csrf())
+                        .session(login("auto_rpg_master_13")).with(csrf())
                         .param("title", "Ворота"))
                 .andExpect(status().is3xxRedirection())
                 .andReturn();
         Long roomId = Long.parseLong(roomRes.getResponse().getRedirectedUrl().replaceAll(".*rooms/", ""));
 
         mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms/" + roomId + "/posts")
-                        .session(login("rpg_master_13")).with(csrf())
+                        .session(login("auto_rpg_master_13")).with(csrf())
                         .param("content", "Кто идёт?")
                         .param("sheetId", String.valueOf(npcId)))
                 .andExpect(status().is3xxRedirection())
@@ -723,7 +723,7 @@ class RpgIntegrationTest {
         RoomPost post = roomPostRepository.findByRoomIdOrderByCreatedAtAsc(roomId).get(0);
         assertThat(post.getSheetId()).isEqualTo(npcId);
 
-        mockMvc.perform(get("/rpg/games/" + game.getId() + "/rooms/" + roomId).session(login("rpg_master_13")))
+        mockMvc.perform(get("/rpg/games/" + game.getId() + "/rooms/" + roomId).session(login("auto_rpg_master_13")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Кто идёт?")))
                 .andExpect(content().string(containsString("Стражник Гора")));
@@ -731,11 +731,11 @@ class RpgIntegrationTest {
 
     @Test
     void postWithImageAttachment() throws Exception {
-        User master = createUser("rpg_master_14", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_14", UserRole.RESIDENT);
         Game game = createGameFor(master, "Вложения", GameSystem.VERBAL, GameVisibility.OPEN);
 
         MvcResult roomRes = mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms")
-                        .session(login("rpg_master_14")).with(csrf())
+                        .session(login("auto_rpg_master_14")).with(csrf())
                         .param("title", "Склеп"))
                 .andExpect(status().is3xxRedirection())
                 .andReturn();
@@ -744,7 +744,7 @@ class RpgIntegrationTest {
         MockMultipartFile image = new MockMultipartFile("files", "карта.zip", "image/png", new byte[]{1, 2, 3});
         mockMvc.perform(multipart("/rpg/games/" + game.getId() + "/rooms/" + roomId + "/posts")
                         .file(image)
-                        .session(login("rpg_master_14")).with(csrf())
+                        .session(login("auto_rpg_master_14")).with(csrf())
                         .param("content", "Карта склепа"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/rpg/games/" + game.getId() + "/rooms/" + roomId));
@@ -755,32 +755,32 @@ class RpgIntegrationTest {
         assertThat(attachments.get(0).getContentType()).isEqualTo("image/png");
         assertThat(attachments.get(0).getFileName()).isEqualTo("карта.zip");
 
-        mockMvc.perform(get("/rpg/games/" + game.getId() + "/rooms/" + roomId).session(login("rpg_master_14")))
+        mockMvc.perform(get("/rpg/games/" + game.getId() + "/rooms/" + roomId).session(login("auto_rpg_master_14")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Карта склепа")))
                 .andExpect(content().string(containsString("img-thumbnail")))
                 .andExpect(content().string(containsString("/attachments/" + attachments.get(0).getId())));
 
         mockMvc.perform(get("/rpg/games/" + game.getId() + "/rooms/" + roomId
-                        + "/attachments/" + attachments.get(0).getId()).session(login("rpg_master_14")))
+                        + "/attachments/" + attachments.get(0).getId()).session(login("auto_rpg_master_14")))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.IMAGE_PNG));
     }
 
     @Test
     void savedRollScopedToGame() throws Exception {
-        User master = createUser("rpg_master_15", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_15", UserRole.RESIDENT);
         Game game = createGameFor(master, "Избранное-игра", GameSystem.VERBAL, GameVisibility.OPEN);
 
         MvcResult roomRes = mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms")
-                        .session(login("rpg_master_15")).with(csrf())
+                        .session(login("auto_rpg_master_15")).with(csrf())
                         .param("title", "Комната"))
                 .andExpect(status().is3xxRedirection())
                 .andReturn();
         Long roomId = Long.parseLong(roomRes.getResponse().getRedirectedUrl().replaceAll(".*rooms/", ""));
 
         mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms/" + roomId + "/saved-rolls")
-                        .session(login("rpg_master_15")).with(csrf())
+                        .session(login("auto_rpg_master_15")).with(csrf())
                         .param("die", "d20")
                         .param("count", "3")
                         .param("modifier", "2")
@@ -793,35 +793,35 @@ class RpgIntegrationTest {
         assertThat(saved.getDieSize()).isEqualTo(20);
         assertThat(saved.getComment()).isEqualTo("Ambush");
 
-        mockMvc.perform(get("/rpg/games/" + game.getId() + "/rooms/" + roomId).session(login("rpg_master_15")))
+        mockMvc.perform(get("/rpg/games/" + game.getId() + "/rooms/" + roomId).session(login("auto_rpg_master_15")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Ambush")));
     }
 
     @Test
     void npcFavoriteScopedToSheetAndDeduped() throws Exception {
-        User master = createUser("rpg_master_16", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_16", UserRole.RESIDENT);
         Game game = createGameFor(master, "Избранное-NPC", GameSystem.DND, GameVisibility.OPEN);
 
-        mockMvc.perform(post("/rpg/games/" + game.getId() + "/npc").session(login("rpg_master_16")).with(csrf())
+        mockMvc.perform(post("/rpg/games/" + game.getId() + "/npc").session(login("auto_rpg_master_16")).with(csrf())
                         .param("name", "Трактирщик Гобры"))
                 .andExpect(status().is3xxRedirection());
         Long npcId = sheetRepository.findByGameIdAndNpcOrderByCreatedAtDesc(game.getId(), true).get(0).getId();
 
         MvcResult roomRes = mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms")
-                        .session(login("rpg_master_16")).with(csrf())
+                        .session(login("auto_rpg_master_16")).with(csrf())
                         .param("title", "Комната"))
                 .andExpect(status().is3xxRedirection())
                 .andReturn();
         Long roomId = Long.parseLong(roomRes.getResponse().getRedirectedUrl().replaceAll(".*rooms/", ""));
 
         mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms/" + roomId + "/posts")
-                        .session(login("rpg_master_16")).with(csrf())
+                        .session(login("auto_rpg_master_16")).with(csrf())
                         .param("content", "Личное")
                         .param("die", "d20").param("count", "1").param("modifier", "1").param("rollComment", "Удар"))
                 .andExpect(status().is3xxRedirection());
         mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms/" + roomId + "/posts")
-                        .session(login("rpg_master_16")).with(csrf())
+                        .session(login("auto_rpg_master_16")).with(csrf())
                         .param("content", "От NPC")
                         .param("sheetId", String.valueOf(npcId))
                         .param("die", "d20").param("count", "1").param("modifier", "2").param("rollComment", "Рык"))
@@ -835,7 +835,7 @@ class RpgIntegrationTest {
 
         // Свой пост → личное «Избранное» (sheetId is null).
         mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms/" + roomId + "/saved-rolls")
-                        .session(login("rpg_master_16")).with(csrf())
+                        .session(login("auto_rpg_master_16")).with(csrf())
                         .param("postId", String.valueOf(ownPostId))
                         .param("die", "d20").param("count", "1").param("modifier", "1").param("rollComment", "Удар"))
                 .andExpect(status().isOk())
@@ -843,13 +843,13 @@ class RpgIntegrationTest {
 
         // Пост NPC → вложенное «Избранное» NPC; повторная попытка не дублируется.
         mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms/" + roomId + "/saved-rolls")
-                        .session(login("rpg_master_16")).with(csrf())
+                        .session(login("auto_rpg_master_16")).with(csrf())
                         .param("postId", String.valueOf(npcPostId))
                         .param("die", "d20").param("count", "1").param("modifier", "2").param("rollComment", "Рык"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true));
         mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms/" + roomId + "/saved-rolls")
-                        .session(login("rpg_master_16")).with(csrf())
+                        .session(login("auto_rpg_master_16")).with(csrf())
                         .param("postId", String.valueOf(npcPostId))
                         .param("die", "d20").param("count", "1").param("modifier", "2").param("rollComment", "Рык"))
                 .andExpect(status().isOk())
@@ -866,7 +866,7 @@ class RpgIntegrationTest {
         // Удаление вложенного избранного.
         mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms/" + roomId
                         + "/saved-rolls/" + npc.getId() + "/delete")
-                        .session(login("rpg_master_16")).with(csrf()))
+                        .session(login("auto_rpg_master_16")).with(csrf()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ok").value(true));
         assertThat(savedRollRepository.count()).isEqualTo(1);
@@ -874,8 +874,8 @@ class RpgIntegrationTest {
 
     @Test
     void gameCreateOpenWithGuestAccessBecomesGuest() throws Exception {
-        User resident = createUser("rpg_master_16", UserRole.RESIDENT);
-        MockHttpSession session = login("rpg_master_16");
+        User resident = createUser("auto_rpg_master_16", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rpg_master_16");
 
         mockMvc.perform(post("/rpg/games").session(session).with(csrf())
                         .param("title", "Для всех")
@@ -891,9 +891,9 @@ class RpgIntegrationTest {
 
     @Test
     void gameCreateClosedSavesWhitelistFromForm() throws Exception {
-        User master = createUser("rpg_master_17", UserRole.RESIDENT);
-        User friend = createUser("rpg_friend_17", UserRole.RESIDENT);
-        MockHttpSession session = login("rpg_master_17");
+        User master = createUser("auto_rpg_master_17", UserRole.RESIDENT);
+        User friend = createUser("auto_rpg_friend_17", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rpg_master_17");
 
         mockMvc.perform(post("/rpg/games").session(session).with(csrf())
                         .param("title", "Тайный стол")
@@ -910,12 +910,12 @@ class RpgIntegrationTest {
 
     @Test
     void roomCreatePrivateStoresChosenMembers() throws Exception {
-        User master = createUser("rpg_master_18", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_18", UserRole.RESIDENT);
         Game game = createGameFor(master, "Приват-создание", GameSystem.VERBAL, GameVisibility.OPEN);
-        User friend = createUser("rpg_friend_18", UserRole.RESIDENT);
+        User friend = createUser("auto_rpg_friend_18", UserRole.RESIDENT);
 
         MvcResult roomRes = mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms")
-                        .session(login("rpg_master_18")).with(csrf())
+                        .session(login("auto_rpg_master_18")).with(csrf())
                         .param("title", "Личная")
                         .param("privateRoom", "true")
                         .param("memberIds", String.valueOf(friend.getId())))
@@ -929,42 +929,42 @@ class RpgIntegrationTest {
 
     @Test
     void postsSignedByAuthorNameNpcNotHighlightedNoBadge() throws Exception {
-        User master = createUser("rpg_master_19", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_19", UserRole.RESIDENT);
         Game game = createGameFor(master, "Подписи", GameSystem.DND, GameVisibility.OPEN);
 
-        mockMvc.perform(post("/rpg/games/" + game.getId() + "/npc").session(login("rpg_master_19")).with(csrf())
+        mockMvc.perform(post("/rpg/games/" + game.getId() + "/npc").session(login("auto_rpg_master_19")).with(csrf())
                         .param("name", "Стражник Гора")
                         .param("kventa", "Немой страж ворот."))
                 .andExpect(status().is3xxRedirection());
         Long npcId = sheetRepository.findByGameIdAndNpcOrderByCreatedAtDesc(game.getId(), true).get(0).getId();
 
         MvcResult roomRes = mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms")
-                        .session(login("rpg_master_19")).with(csrf())
+                        .session(login("auto_rpg_master_19")).with(csrf())
                         .param("title", "Ворота"))
                 .andExpect(status().is3xxRedirection())
                 .andReturn();
         Long roomId = Long.parseLong(roomRes.getResponse().getRedirectedUrl().replaceAll(".*rooms/", ""));
 
         mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms/" + roomId + "/posts")
-                        .session(login("rpg_master_19")).with(csrf())
+                        .session(login("auto_rpg_master_19")).with(csrf())
                         .param("content", "Ворота заперты."))
                 .andExpect(status().is3xxRedirection());
         mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms/" + roomId + "/posts")
-                        .session(login("rpg_master_19")).with(csrf())
+                        .session(login("auto_rpg_master_19")).with(csrf())
                         .param("content", "Кто идёт?")
                         .param("sheetId", String.valueOf(npcId)))
                 .andExpect(status().is3xxRedirection());
 
-        User player = createUser("rpg_player_19", UserRole.RESIDENT);
-        applyFor("rpg_player_19", game, "Геральт");
+        User player = createUser("auto_rpg_player_19", UserRole.RESIDENT);
+        applyFor("auto_rpg_player_19", game, "Геральт");
         acceptFor(game, player.getId());
         mockMvc.perform(post("/rpg/games/" + game.getId() + "/rooms/" + roomId + "/posts")
-                        .session(login("rpg_player_19")).with(csrf())
+                        .session(login("auto_rpg_player_19")).with(csrf())
                         .param("content", "Я Геральт, ищу грош."))
                 .andExpect(status().is3xxRedirection());
 
         MvcResult pageRes = mockMvc.perform(get("/rpg/games/" + game.getId() + "/rooms/" + roomId)
-                        .session(login("rpg_master_19")))
+                        .session(login("auto_rpg_master_19")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Мастер")))
                 .andExpect(content().string(containsString("Стражник Гора")))
@@ -983,16 +983,16 @@ class RpgIntegrationTest {
 
     @Test
     void applyEditShowsClassAndRaceUpTopAsSelectOptions() throws Exception {
-        User master = createUser("rpg_master_20", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_20", UserRole.RESIDENT);
         Game game = createGameFor(master, "Анкета-редактирование", GameSystem.DND, GameVisibility.OPEN);
-        createUser("rpg_player_20", UserRole.RESIDENT);
+        createUser("auto_rpg_player_20", UserRole.RESIDENT);
 
-        mockMvc.perform(post("/rpg/games/" + game.getId() + "/apply").session(login("rpg_player_20")).with(csrf())
+        mockMvc.perform(post("/rpg/games/" + game.getId() + "/apply").session(login("auto_rpg_player_20")).with(csrf())
                         .param("name", "Эльфийка")
                         .param("kventa", "Странница."))
                 .andExpect(status().is3xxRedirection());
 
-        Long playerId = userRepository.findByUsername("rpg_player_20").orElseThrow().getId();
+        Long playerId = userRepository.findByUsername("auto_rpg_player_20").orElseThrow().getId();
         Long sheetId = applicationRepository.findByGameIdAndUserId(game.getId(), playerId).orElseThrow().getSheetId();
         Map<String, SheetAttribute> attrs = attributeRepository.findBySheetIdOrderByPositionAsc(sheetId).stream()
                 .collect(Collectors.toMap(SheetAttribute::getKey, Function.identity()));
@@ -1001,7 +1001,7 @@ class RpgIntegrationTest {
         attributeRepository.saveAll(attrs.values());
 
         MvcResult pageRes = mockMvc.perform(get("/rpg/games/" + game.getId() + "/apply")
-                        .session(login("rpg_player_20")))
+                        .session(login("auto_rpg_player_20")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Лист персонажа и заявка")))
                 .andReturn();
@@ -1015,12 +1015,12 @@ class RpgIntegrationTest {
 
     @Test
     void whitelistEditorShowsOnlyAddedUsers() throws Exception {
-        User master = createUser("rpg_master_wl2", UserRole.RESIDENT);
-        User invited1 = createUser("rpg_wl_invite_1", UserRole.RESIDENT);
-        User invited2 = createUser("rpg_wl_invite_2", UserRole.RESIDENT);
-        User outsider = createUser("rpg_wl_outsider", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_wl2", UserRole.RESIDENT);
+        User invited1 = createUser("auto_rpg_wl_invite_1", UserRole.RESIDENT);
+        User invited2 = createUser("auto_rpg_wl_invite_2", UserRole.RESIDENT);
+        User outsider = createUser("auto_rpg_wl_outsider", UserRole.RESIDENT);
         Game game = createGame(master, "Закрытая-WL", "Описание.", GameSystem.VERBAL, GameVisibility.CLOSED, GameStatus.RECRUITING);
-        MockHttpSession masterSession = login("rpg_master_wl2");
+        MockHttpSession masterSession = login("auto_rpg_master_wl2");
         mockMvc.perform(post("/rpg/games/" + game.getId() + "/whitelist/add").session(masterSession).with(csrf())
                         .param("userId", String.valueOf(invited1.getId())))
                 .andExpect(status().is3xxRedirection());
@@ -1032,9 +1032,9 @@ class RpgIntegrationTest {
         String page = mockMvc.perform(get("/rpg/games/" + game.getId()).session(masterSession))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
-        assertThat(page).contains("data-wl-user=\"rpg_wl_invite_1\"");
-        assertThat(page).contains("data-wl-user=\"rpg_wl_invite_2\"");
-        assertThat(page).doesNotContain("data-wl-user=\"rpg_wl_outsider\"");
+        assertThat(page).contains("data-wl-user=\"auto_rpg_wl_invite_1\"");
+        assertThat(page).contains("data-wl-user=\"auto_rpg_wl_invite_2\"");
+        assertThat(page).doesNotContain("data-wl-user=\"auto_rpg_wl_outsider\"");
         int removeButtons = 0;
         int pos = 0;
         while ((pos = page.indexOf("Убрать", pos)) != -1) {
@@ -1046,10 +1046,10 @@ class RpgIntegrationTest {
 
     @Test
     void masterConfiguresCustomSheetAttributes() throws Exception {
-        User master = createUser("rpg_master_custom2", UserRole.RESIDENT);
-        User player = createUser("rpg_player_custom2", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_custom2", UserRole.RESIDENT);
+        User player = createUser("auto_rpg_player_custom2", UserRole.RESIDENT);
         Game game = createGame(master, "Кастом-правила", "Своя система.", GameSystem.CUSTOM, GameVisibility.OPEN, GameStatus.RECRUITING);
-        MockHttpSession masterSession = login("rpg_master_custom2");
+        MockHttpSession masterSession = login("auto_rpg_master_custom2");
 
         mockMvc.perform(get("/rpg/games/" + game.getId()).session(masterSession))
                 .andExpect(status().isOk())
@@ -1074,7 +1074,7 @@ class RpgIntegrationTest {
                 .andExpect(content().string(containsString("Слава")))
                 .andExpect(content().string(containsString("Тень")));
 
-        MockHttpSession playerSession = login("rpg_player_custom2");
+        MockHttpSession playerSession = login("auto_rpg_player_custom2");
         mockMvc.perform(get("/rpg/games/" + game.getId() + "/attributes").session(playerSession))
                 .andExpect(status().isForbidden());
 
@@ -1089,7 +1089,7 @@ class RpgIntegrationTest {
 
     @Test
     void anonymousSeesNonPrivateRoomOfPublicGame() throws Exception {
-        User master = createUser("rpg_master_roompub", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_roompub", UserRole.RESIDENT);
         Game game = createGame(master, "Публичная комната анониму", "Для всех.",
                 GameSystem.VERBAL, GameVisibility.PUBLIC, GameStatus.RECRUITING);
 
@@ -1116,7 +1116,7 @@ class RpgIntegrationTest {
 
     @Test
     void unStarRemovesWholeKindOfFavorite() throws Exception {
-        User master = createUser("rpg_master_rmkind", UserRole.RESIDENT);
+        User master = createUser("auto_rpg_master_rmkind", UserRole.RESIDENT);
         Game game = createGame(master, "Снятие вида", "Фильтр по комбинации.",
                 GameSystem.VERBAL, GameVisibility.PUBLIC, GameStatus.RECRUITING);
         MockHttpSession ms = null;
