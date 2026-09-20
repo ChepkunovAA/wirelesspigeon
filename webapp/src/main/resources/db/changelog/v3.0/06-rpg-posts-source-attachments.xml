@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- Источник поста: мастер может публиковать от имени NPC (sheet_id). -->
+    <changeSet id="v3.0-06" author="architect">
+        <addColumn tableName="rpg_room_posts">
+            <column name="sheet_id" type="BIGINT">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        <addForeignKeyConstraint baseTableName="rpg_room_posts"
+                                 baseColumnNames="sheet_id"
+                                 referencedTableName="rpg_character_sheets"
+                                 referencedColumnNames="id"
+                                 constraintName="fk_rpg_posts_sheet"
+                                 onDelete="SET NULL"/>
+        <createIndex tableName="rpg_room_posts"
+                     indexName="idx_rpg_posts_sheet">
+            <column name="sheet_id"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- Вложения постов комнаты (картинки и файлы). -->
+    <changeSet id="v3.0-07" author="architect">
+        <createTable tableName="rpg_post_attachments">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="post_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="file_name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="stored_name" type="VARCHAR(255)">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="content_type" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="file_size" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="version" type="BIGINT" defaultValueNumeric="0"/>
+        </createTable>
+        <createIndex tableName="rpg_post_attachments"
+                     indexName="idx_rpg_post_attachments_post">
+            <column name="post_id"/>
+        </createIndex>
+        <addForeignKeyConstraint baseTableName="rpg_post_attachments"
+                                 baseColumnNames="post_id"
+                                 referencedTableName="rpg_room_posts"
+                                 referencedColumnNames="id"
+                                 constraintName="fk_rpg_post_attachments_post"
+                                 onDelete="CASCADE"/>
+    </changeSet>
+
+    <!-- Сохранённые броски привязываются к конкретной игре («Избранное» комнаты). -->
+    <changeSet id="v3.0-08" author="architect">
+        <addColumn tableName="rpg_saved_rolls">
+            <column name="game_id" type="BIGINT">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        <addForeignKeyConstraint baseTableName="rpg_saved_rolls"
+                                 baseColumnNames="game_id"
+                                 referencedTableName="rpg_games"
+                                 referencedColumnNames="id"
+                                 constraintName="fk_rpg_saved_rolls_game"
+                                 onDelete="CASCADE"/>
+        <createIndex tableName="rpg_saved_rolls"
+                     indexName="idx_rpg_saved_rolls_user_game">
+            <column name="user_id"/>
+            <column name="game_id"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

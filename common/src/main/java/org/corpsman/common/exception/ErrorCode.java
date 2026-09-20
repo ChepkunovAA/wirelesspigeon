@@ -63,7 +63,20 @@ public enum ErrorCode {
     BLOG_USER_NOT_BANNED(HttpStatus.BAD_REQUEST, "Пользователь не забанен в этом блоге"),
     CANNOT_BAN_BLOG_OWNER(HttpStatus.BAD_REQUEST, "Нельзя забанить владельца блога"),
     CANNOT_VOTE_OWN_BLOG_POST(HttpStatus.BAD_REQUEST, "Нельзя оценивать свой пост"),
-    CANNOT_VOTE_OWN_BLOG_COMMENT(HttpStatus.BAD_REQUEST, "Нельзя оценивать свой комментарий");
+    CANNOT_VOTE_OWN_BLOG_COMMENT(HttpStatus.BAD_REQUEST, "Нельзя оценивать свой комментарий"),
+
+    GAME_NOT_FOUND(HttpStatus.NOT_FOUND, "Игра не найдена"),
+    GAME_PERMISSION_DENIED(HttpStatus.FORBIDDEN, "Нет доступа к игре"),
+    ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "Комната не найдена"),
+    ROOM_POST_NOT_FOUND(HttpStatus.NOT_FOUND, "Пост не найден"),
+    ROOM_ACCESS_DENIED(HttpStatus.FORBIDDEN, "Нет доступа к комнате"),
+    SHEET_NOT_FOUND(HttpStatus.NOT_FOUND, "Лист персонажа не найден"),
+    SHEET_PERMISSION_DENIED(HttpStatus.FORBIDDEN, "Нет доступа к листу персонажа"),
+    APPLICATION_ALREADY_EXISTS(HttpStatus.CONFLICT, "Вы уже подали заявку на эту игру"),
+    APPLICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "Заявка не найдена"),
+    CANNOT_APPLY_SELF(HttpStatus.BAD_REQUEST, "Нельзя подать заявку на свою игру"),
+    INVALID_DICE(HttpStatus.BAD_REQUEST, "Некорректный бросок костей"),
+    SAVED_ROLL_NOT_FOUND(HttpStatus.NOT_FOUND, "Сохранённый бросок не найден");
 
     private final HttpStatus httpStatus;
     private final String message;

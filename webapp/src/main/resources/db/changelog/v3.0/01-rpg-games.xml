@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <changeSet id="v3.0-01" author="architect">
+        <createTable tableName="rpg_games">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="title" type="VARCHAR(200)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="VARCHAR(1000000)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="master_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="system" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="visibility" type="VARCHAR(20)" defaultValue="OPEN">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="VARCHAR(20)" defaultValue="RECRUITING">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="version" type="BIGINT" defaultValueNumeric="0"/>
+        </createTable>
+        <createIndex tableName="rpg_games" indexName="idx_rpg_games_master">
+            <column name="master_id"/>
+        </createIndex>
+        <createIndex tableName="rpg_games" indexName="idx_rpg_games_visibility">
+            <column name="visibility"/>
+        </createIndex>
+        <addForeignKeyConstraint baseTableName="rpg_games"
+                                 baseColumnNames="master_id"
+                                 referencedTableName="users"
+                                 referencedColumnNames="id"
+                                 constraintName="fk_rpg_games_master"
+                                 onDelete="RESTRICT"/>
+
+        <createTable tableName="rpg_game_whitelist">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="game_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="version" type="BIGINT" defaultValueNumeric="0"/>
+        </createTable>
+        <addUniqueConstraint tableName="rpg_game_whitelist"
+                             columnNames="game_id, user_id"
+                             constraintName="uk_rpg_game_whitelist"/>
+        <addForeignKeyConstraint baseTableName="rpg_game_whitelist"
+                                 baseColumnNames="game_id"
+                                 referencedTableName="rpg_games"
+                                 referencedColumnNames="id"
+                                 constraintName="fk_rpg_whitelist_game"
+                                 onDelete="CASCADE"/>
+        <addForeignKeyConstraint baseTableName="rpg_game_whitelist"
+                                 baseColumnNames="user_id"
+                                 referencedTableName="users"
+                                 referencedColumnNames="id"
+                                 constraintName="fk_rpg_whitelist_user"
+                                 onDelete="CASCADE"/>
+    </changeSet>
+</databaseChangeLog>

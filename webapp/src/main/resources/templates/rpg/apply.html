@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${npcMode} ? 'Новый NPC — Corpsman' : 'Лист персонажа — Corpsman'">Лист персонажа</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link th:href="@{/css/app.css}" rel="stylesheet">
+    <style>
+        .spin-num {
+            width: 48px;
+            text-align: center;
+            line-height: 1;
+            font-weight: 600;
+            border: 1px solid var(--app-border, #ced4da);
+            border-radius: .375rem;
+            padding: .25rem .3rem;
+            background: var(--app-bg, #fff);
+        }
+        .btn-spin {
+            line-height: 1;
+            padding: .1rem .35rem;
+        }
+        .derive-value {
+            font-size: 1.15rem;
+            font-weight: 600;
+            min-width: 44px;
+            text-align: center;
+            display: inline-block;
+        }
+        .prof-circle {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            border: 2px solid #adb5bd;
+            background: transparent;
+            transition: all .15s ease;
+            padding: 0;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .prof-circle:hover {
+            transform: scale(1.12);
+        }
+        .prof-circle[data-state="1"] {
+            border-color: #0d6efd;
+            background: #fff;
+        }
+        .prof-circle[data-state="1"]::after {
+            content: "";
+            display: block;
+            width: 8px;
+            height: 8px;
+            margin: 7px auto;
+            border-radius: 50%;
+            background: #0d6efd;
+        }
+        .prof-circle[data-state="2"] {
+            border-color: #0d6efd;
+            background: #0d6efd;
+        }
+        .list-card {
+            cursor: default;
+        }
+        .list-card .btn-remove {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-light">
+<nav th:replace="~{fragments/nav :: nav}"></nav>
+
+<main class="container pb-5" style="max-width: 860px;">
+    <div class="mb-3">
+        <a th:href="@{/rpg/games/{id}(id=${game.id})}" class="text-decoration-none small">
+            <i class="bi bi-arrow-left"></i> К игре «<span th:text="${game.title}">игра</span>»
+        </a>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <i class="bi bi-person-badge"></i>
+            <th:block th:text="${npcMode} ? 'Новый NPC' : (${editMode} ? 'Редактирование листа' : 'Лист персонажа и заявка')">
+                Лист персонажа
+            </th:block>
+        </div>
+        <div class="card-body">
+            <form th:action="${npcMode} ? @{/rpg/games/{id}/npc(id=${game.id})} : (${editMode} ? @{/rpg/games/{gameId}/characters/{sheetId}/edit(gameId=${game.id}, sheetId=${sheetId})} : @{/rpg/games/{id}/apply(id=${game.id})})"
+                  method="post" enctype="multipart/form-data" th:object="${sheetForm}">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-8">
+                        <label class="form-label">Имя персонажа</label>
+                        <input type="text" class="form-control" th:field="*{name}" required maxlength="200"
+                               placeholder="Имя и титул...">
+                        <div class="invalid-feedback" th:if="${#fields.hasErrors('name')}"
+                             th:errors="*{name}">Ошибка</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Аватар персонажа</label>
+                        <input type="file" name="avatar" class="form-control form-control-sm"
+                               accept="image/*">
+                        <div class="form-text" th:if="${sheet.avatarPath != null}">Нынешний аватар сохранится, если файл не выбран.</div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Квента (история, описание)</label>
+                    <textarea class="form-control" th:field="*{kventa}" rows="5"
+                              placeholder="Жизненный путь, характер, цели..."></textarea>
+                </div>
+
+                <div class="card border-0 bg-transparent mb-3">
+                    <div class="card-body border rounded p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                            <h6 class="mb-0"><i class="bi bi-sliders"></i> Параметры
+                                <span class="badge text-bg-secondary" th:text="${game.system.label()}">система</span>
+                            </h6>
+                            <span class="badge text-bg-light border" th:if="${game.system.name() == 'DND'}">
+                                Бонус мастерства: <span data-pb>+2</span>
+                            </span>
+                        </div>
+
+                        <div th:if="${#lists.isEmpty(sheet.attributes)}" class="text-muted small">
+                            У этой системы нет параметров листа.
+                        </div>
+
+                        <th:block th:each="a, stat : ${sheet.attributes}">
+                            <th:block th:with="dup=${(a.groupHeader != null and a.groupHeader == a.name) or (a.subHeader != null and a.subHeader == a.name)}">
+                            <div th:if="${a.groupHeader != null}" class="rpg-section">
+                                <span class="rpg-section-title" th:text="${a.groupHeader}">группа</span>
+                            </div>
+                            <div th:if="${a.subHeader != null}" class="rpg-subcaption"
+                                 th:text="${a.subHeader}">подзаголовок</div>
+                            <div class="row g-2 align-items-center mb-2">
+                            <div th:if="${!dup}" class="col-md-4">
+                                <label class="form-label mb-0 fw-semibold small" th:text="${a.name}">Параметр</label>
+                            </div>
+                            <div class="col-md-8" th:class="${dup ? 'col-md-12' : 'col-md-8'}">
+                                <th:block th:switch="${a.type.name()}">
+                                    <th:block th:case="NUMERIC">
+                                        <th:block th:if="${a.flagMax > 0}">
+                                            <div class="d-inline-flex align-items-center gap-2 flex-wrap"
+                                                 th:attr="data-flag-for=${a.key}">
+                                                <button type="button" class="prof-circle"
+                                                        th:attr="data-flag-max=${a.flagMax},data-state=${a.flags}"
+                                                        title="Владение: пусто / обведён / закрашен"></button>
+                                                <span class="derive-value"
+                                                      th:attr="data-derived-of=${a.key}"
+                                                      th:text="${a.modifier >= 0 ? '+' + a.modifier : a.modifier}">+0</span>
+                                                <input type="hidden" th:field="*{attributes[__${stat.index}__].flags}"
+                                                       th:attr="data-flag-of=${a.key}"/>
+                                            </div>
+                                        </th:block>
+                                        <th:block th:if="${a.flagMax <= 0}">
+                                            <div class="d-inline-flex spin-group align-items-center gap-2 flex-wrap">
+                                                <span class="d-inline-flex flex-column">
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary btn-spin"
+                                                            data-spin-step="1" title="+1">
+                                                        <i class="bi bi-caret-up-fill"></i>
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary btn-spin"
+                                                            data-spin-step="-1" title="-1">
+                                                        <i class="bi bi-caret-down-fill"></i>
+                                                    </button>
+                                                </span>
+                                                <span class="spin-num" th:attr="data-num-view=${a.key}"
+                                                      th:text="${a.numericValue}">10</span>
+                                                <input type="hidden" class="num-source"
+                                                       th:field="*{attributes[__${stat.index}__].numericValue}"
+                                                       th:attr="data-num-of=${a.key}"/>
+                                                <span th:if="${a.modifier != null}" class="badge text-bg-primary"
+                                                      th:attr="data-mod-of=${a.key}"
+                                                      th:text="${a.modifier >= 0 ? '+' + a.modifier : a.modifier}">+0</span>
+                                            </div>
+                                        </th:block>
+                                    </th:block>
+                                    <th:block th:case="TEXT">
+                                        <th:block th:if="${a.options != null and !#lists.isEmpty(a.options)}">
+                                            <div class="opt-picker mb-1" th:attr="data-other=${a.otherOptionLabel}">
+                                                <input type="hidden" th:field="*{attributes[__${stat.index}__].textValue}"
+                                                       data-opt-value/>
+                                                <select class="form-select form-select-sm" data-opt-select>
+                                                    <option value="">— выберите из списка —</option>
+                                                    <option th:each="o : ${a.options}" th:value="${o}" th:text="${o}"></option>
+                                                    <option th:if="${a.otherOptionLabel != null and !#strings.isEmpty(a.otherOptionLabel)}"
+                                                            value="__other__" th:text="${a.otherOptionLabel + '…'}"></option>
+                                                </select>
+                                                <input type="text" class="form-control form-control-sm mt-1"
+                                                       data-opt-manual placeholder="Введите своё значение"
+                                                       autocomplete="off" style="display: none;">
+                                            </div>
+                                        </th:block>
+                                        <th:block th:if="${a.options == null or #lists.isEmpty(a.options)}">
+                                            <input type="text" class="form-control form-control-sm"
+                                                   th:field="*{attributes[__${stat.index}__].textValue}"
+                                                   placeholder="Значение">
+                                        </th:block>
+                                    </th:block>
+                                    <th:block th:case="LIST">
+                                        <div th:attr="data-list-root=${a.key}">
+                                            <input type="hidden"
+                                                   th:field="*{attributes[__${stat.index}__].listText}"
+                                                   th:attr="data-list-source=${a.key}"/>
+                                            <div class="d-flex flex-wrap gap-1 mb-1"
+                                                 th:attr="data-list-cards=${a.key}"></div>
+                                            <div class="input-group input-group-sm" style="max-width: 360px;">
+                                                <input type="text" class="form-control form-control-sm list-input"
+                                                       th:attr="data-list-input=${a.key}"
+                                                       placeholder="Новый элемент">
+                                                <button type="button" class="btn btn-outline-primary btn-sm list-add"
+                                                        th:attr="data-list-add=${a.key}">
+                                                    <i class="bi bi-plus-lg"></i> Добавить
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </th:block>
+                                </th:block>
+                            </div>
+                            <input type="hidden" th:field="*{attributes[__${stat.index}__].key}"/>
+                            <input type="hidden" th:field="*{attributes[__${stat.index}__].type}"/>
+                            </div>
+                            </th:block>
+                        </th:block>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end gap-2">
+                    <a th:href="@{/rpg/games/{id}(id=${game.id})}" class="btn btn-outline-secondary">Отмена</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i>
+                        <th:block th:text="${npcMode} ? 'Создать NPC' : (${editMode} ? 'Сохранить' : (${sheetId != null} ? 'Сохранить заявку' : 'Подать заявку'))">Отправить</th:block>
+                    </button>
+                </div>
+                <div class="form-text mt-2" th:if="${!npcMode and !editMode and sheetId != null}">
+                    Заявка уже была подана — изменения сохранятся в текущем листе.
+                </div>
+            </form>
+        </div>
+    </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script th:inline="javascript">
+    const RPG_SYSTEM = /*[[${game.system.name()}]]*/ 'DND';
+    const RPG_ATTRS = /*[[${sheet.attributes}]]*/ [];
+
+    (function () {
+        const byKey = {};
+        RPG_ATTRS.forEach(function (a) { byKey[a.key] = a; });
+
+        const isDnd = RPG_SYSTEM === 'DND';
+
+        function numSource(key) {
+            return document.querySelector('input[data-num-of="' + key + '"]');
+        }
+
+        function flagSource(key) {
+            return document.querySelector('input[data-flag-of="' + key + '"]');
+        }
+
+        function abilityKeyOf(attr) {
+            if (attr.key.indexOf('skill:') === 0) return attr.abilityKey;
+            if (attr.key.indexOf('save:') === 0) return attr.key.slice(5);
+            return null;
+        }
+
+        function abilityMod(score) {
+            return Math.floor((score - 10) / 2);
+        }
+
+        function profBonus(level) {
+            return 2 + Math.floor((Math.max(level, 1) - 1) / 4);
+        }
+
+        function sign(v) {
+            return v >= 0 ? '+' + v : String(v);
+        }
+
+        function numberValue(key) {
+            var el = numSource(key);
+            if (!el) return null;
+            var v = parseInt(el.value, 10);
+            return isNaN(v) ? null : v;
+        }
+
+        function flagValue(key) {
+            var el = flagSource(key);
+            return el ? parseInt(el.value, 10) || 0 : 0;
+        }
+
+        function recalc() {
+            var level = numberValue('level');
+            var prof = profBonus(level == null ? 1 : level);
+            document.querySelectorAll('[data-pb]').forEach(function (el) {
+                el.textContent = sign(prof);
+            });
+            RPG_ATTRS.forEach(function (attr) {
+                if (!attr.key || attr.key.indexOf('ability:') !== 0) return;
+                var nv = numberValue(attr.key);
+                if (nv == null) return;
+                var modEl = document.querySelector('[data-mod-of="' + attr.key + '"]');
+                if (modEl) modEl.textContent = sign(abilityMod(nv));
+            });
+            if (!isDnd) return;
+            RPG_ATTRS.forEach(function (attr) {
+                var isSkill = attr.key.indexOf('skill:') === 0;
+                var isSave = attr.key.indexOf('save:') === 0;
+                if (!isSkill && !isSave) return;
+                var ability = abilityKeyOf(attr);
+                var nv = numberValue('ability:' + ability);
+                var score = nv == null ? 10 : nv;
+                var base = abilityMod(score);
+                var flag = flagValue(attr.key);
+                var flagMax = attr.flagMax || 0;
+                if (flag > flagMax) flag = flagMax;
+                var total;
+                if (isSave) {
+                    var pb = flag >= 1 ? prof : 0;
+                    total = base + pb;
+                } else {
+                    var mult = flag === 2 ? prof * 2 : (flag === 1 ? prof : 0);
+                    total = base + mult;
+                }
+                var valEl = document.querySelector('[data-derived-of="' + attr.key + '"]');
+                if (valEl) valEl.textContent = sign(total);
+            });
+        }
+
+        function paintCircle(el) {
+            var state = parseInt(el.getAttribute('data-state'), 10) || 0;
+            el.setAttribute('data-state', String(state));
+        }
+
+        document.querySelectorAll('.prof-circle').forEach(function (el) {
+            paintCircle(el);
+            el.addEventListener('click', function () {
+                var key = el.closest('[data-flag-for]').getAttribute('data-flag-for');
+                if (!key) return;
+                var flagMax = parseInt(el.getAttribute('data-flag-max'), 10) || 0;
+                var cur = flagValue(key);
+                var next = (cur + 1) % (flagMax + 1);
+                var hidden = flagSource(key);
+                if (hidden) hidden.value = String(next);
+                el.setAttribute('data-state', String(next));
+                paintCircle(el);
+                recalc();
+            });
+        });
+
+        document.querySelectorAll('.btn-spin').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var row = btn.closest('.spin-group');
+                var hidden = row.querySelector('input.num-source');
+                var view = row.querySelector('[data-num-view]');
+                if (!hidden || !view) return;
+                var step = parseInt(btn.getAttribute('data-spin-step'), 10) || 0;
+                var cur = parseInt(hidden.value, 10);
+                if (isNaN(cur)) cur = 0;
+                var next = cur + step;
+                if (hidden.getAttribute('data-num-of') === 'level') next = Math.max(next, 1);
+                hidden.value = String(next);
+                view.textContent = String(next);
+                recalc();
+            });
+        });
+
+        function listValues(key) {
+            var source = document.querySelector('input[data-list-source="' + key + '"]');
+            if (!source) return [];
+            return source.value.split('\n').map(function (s) { return s.trim(); }).filter(function (s) { return s.length > 0; });
+        }
+
+        function syncList(key) {
+            var source = document.querySelector('input[data-list-source="' + key + '"]');
+            if (!source) return;
+            source.value = listValues(key).join('\n');
+            renderList(key);
+        }
+
+        function renderList(key) {
+            var cards = document.querySelector('[data-list-cards="' + key + '"]');
+            if (!cards) return;
+            var values = listValues(key);
+            cards.innerHTML = '';
+            values.forEach(function (v, i) {
+                var card = document.createElement('div');
+                card.className = 'card list-card';
+                card.innerHTML = '<div class="card-body py-1 px-2 d-flex align-items-center gap-2">' +
+                    '<span class="small">' + escapeHtml(v) + '</span>' +
+                    '<button type="button" class="btn btn-sm btn-link p-0 ms-auto text-danger btn-remove del-' + i + '">' +
+                    '<i class="bi bi-x-lg"></i></button></div>';
+                card.querySelector('.del-' + i).addEventListener('click', function () {
+                    var values2 = listValues(key);
+                    values2.splice(i, 1);
+                    var source = document.querySelector('input[data-list-source="' + key + '"]');
+                    if (source) source.value = values2.join('\n');
+                    renderList(key);
+                });
+                cards.appendChild(card);
+            });
+        }
+
+        function escapeHtml(s) {
+            return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        document.querySelectorAll('[data-list-root]').forEach(function (root) {
+            var key = root.getAttribute('data-list-root');
+            renderList(key);
+            var input = root.querySelector('input[data-list-input="' + key + '"]');
+            var add = root.querySelector('button[data-list-add="' + key + '"]');
+            if (!input || !add) return;
+            function addItem() {
+                var v = input.value.trim();
+                if (!v) return;
+                var source = root.querySelector('input[data-list-source="' + key + '"]');
+                if (!source) return;
+                var values = source.value ? source.value.split('\n') : [];
+                while (values.length && values[values.length - 1] === '') values.pop();
+                values.push(v);
+                source.value = values.join('\n');
+                input.value = '';
+                renderList(key);
+            }
+            add.addEventListener('click', addItem);
+            input.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addItem();
+                }
+            });
+        });
+
+        document.querySelectorAll('.opt-picker').forEach(function (root) {
+            var hidden = root.querySelector('[data-opt-value]');
+            var select = root.querySelector('[data-opt-select]');
+            var manual = root.querySelector('[data-opt-manual]');
+            var other = root.getAttribute('data-other') || '';
+            function sync() {
+                var val = (hidden.value || '').trim();
+                var matched = false;
+                for (var i = 0; i < select.options.length; i++) {
+                    if (select.options[i].value && select.options[i].value === val) {
+                        matched = true;
+                        break;
+                    }
+                }
+                if (other && val && !matched) {
+                    select.value = '__other__';
+                    manual.value = val;
+                    manual.style.display = '';
+                } else {
+                    select.value = matched ? val : '';
+                    manual.value = '';
+                    manual.style.display = 'none';
+                }
+            }
+            select.addEventListener('change', function () {
+                if (select.value === '__other__') {
+                    manual.style.display = '';
+                    manual.focus();
+                } else {
+                    manual.style.display = 'none';
+                    manual.value = '';
+                    hidden.value = select.value;
+                }
+            });
+            manual.addEventListener('input', function () {
+                hidden.value = manual.value.trim();
+            });
+            sync();
+        });
+
+        recalc();
+    })();
+</script>
+</body>
+</html>

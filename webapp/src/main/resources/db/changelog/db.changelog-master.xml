@@ -29,4 +29,12 @@
     <include file="v1.0/22-deleted-by-owner.xml" relativeToChangelogFile="true"/>
     <include file="v1.0/23-invite-token-used-by.xml" relativeToChangelogFile="true"/>
     <include file="v1.0/24-avatar-path.xml" relativeToChangelogFile="true"/>
+    <include file="v3.0/01-rpg-games.xml" relativeToChangelogFile="true"/>
+    <include file="v3.0/02-rpg-characters.xml" relativeToChangelogFile="true"/>
+    <include file="v3.0/03-rpg-applications.xml" relativeToChangelogFile="true"/>
+    <include file="v3.0/04-rpg-rooms-posts.xml" relativeToChangelogFile="true"/>
+    <include file="v3.0/05-rpg-saved-rolls.xml" relativeToChangelogFile="true"/>
+    <include file="v3.0/06-rpg-posts-source-attachments.xml" relativeToChangelogFile="true"/>
+    <include file="v3.0/07-rpg-games-attributes-visible.xml" relativeToChangelogFile="true"/>
+    <include file="v3.0/08-rpg-saved-rolls-sheet.xml" relativeToChangelogFile="true"/>
 </databaseChangeLog>

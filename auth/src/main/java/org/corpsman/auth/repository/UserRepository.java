@@ -57,6 +57,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByActive(boolean active);
 
     /**
+     * Находит всех активных пользователей, отсортированных по нику.
+     *
+     * @return список активных пользователей
+     */
+    List<User> findByActiveTrueOrderByUsernameAsc();
+
+    /**
      * Находит страницу активных пользователей.
      *
      * @param pageable пагинация и сортировка
