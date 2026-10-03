@@ -2,6 +2,7 @@ package org.corpsman.rpg.dto;
 
 import lombok.Data;
 import org.corpsman.rpg.model.AttributeType;
+import org.corpsman.rpg.model.ListKind;
 
 /**
  * Редактируемое значение одного параметра листа.
@@ -19,12 +20,23 @@ public class SheetAttributeForm {
 
     private String textValue;
 
-    private java.util.List<String> listValues;
+    /**
+     * Элементы списка в виде JSON: [{"header":"...","description":"...","level":3}, ...].
+     * Формируется на клиенте из карточек и модального окна добавления.
+     */
+    private String listJson;
 
     /**
-     * Построчное представление элементов списка для редактирования в текстовой области.
+     * Построчное представление элементов «простого» списка (по одному элементу
+     * в строке). Заполняется при сохранении простого списка.
      */
     private String listText;
+
+    /**
+     * Тип списка: {@code SIMPLE} («Простой список») или {@code COMPLEX}
+     * («Сложный список»). null — по умолчанию простой.
+     */
+    private ListKind listKind;
 
     private Integer flags;
 }

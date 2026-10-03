@@ -40,6 +40,12 @@ public class GameDetailDto {
      */
     private String viewerApplication;
 
+    /**
+     * Лист персонажа зрителя (нужен для ссылки «Редактировать лист»).
+     * null — заявки ещё нет.
+     */
+    private Long viewerSheetId;
+
     private List<RoomDto> rooms = new ArrayList<>();
 
     private List<String> whitelistNames = new ArrayList<>();

@@ -3,11 +3,13 @@ package org.corpsman.rpg.dto;
 import lombok.Data;
 import org.corpsman.rpg.model.AttributeType;
 import org.corpsman.rpg.model.GameVisibility;
+import org.corpsman.rpg.model.ListItem;
+import org.corpsman.rpg.model.ListKind;
 
 import java.util.List;
 
 /**
- * Представление параметра листа для отображения (включая расчётные модификаторы D&amp;D).
+ * Представление параметра листа для отображения (включая расчётные модификаторы D&D).
  */
 @Data
 public class AttributeViewDto {
@@ -24,7 +26,23 @@ public class AttributeViewDto {
 
     private String textValue;
 
-    private List<String> listValues;
+    /**
+     * Элементы списка с заголовком, описанием и уровнем (для type=LIST).
+     * Поддерживается обратная совместимость со старым форматом (простые строки).
+     */
+    private List<ListItem> listItems;
+
+    /**
+     * Тип списка: {@code SIMPLE} («Простой список») или {@code COMPLEX}
+     * («Сложный список»). Для не-списков null.
+     */
+    private ListKind listKind;
+
+    /**
+     * Признак того, что параметр является ячейкой заклинаний (spell_slot_max:N /
+     * spell_slot_current:N). Такие параметры рендерятся отдельным блоком «Ячейки».
+     */
+    private boolean spellSlot;
 
     private int flags;
 

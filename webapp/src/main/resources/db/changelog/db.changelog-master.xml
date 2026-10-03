@@ -37,4 +37,11 @@
     <include file="v3.0/06-rpg-posts-source-attachments.xml" relativeToChangelogFile="true"/>
     <include file="v3.0/07-rpg-games-attributes-visible.xml" relativeToChangelogFile="true"/>
     <include file="v3.0/08-rpg-saved-rolls-sheet.xml" relativeToChangelogFile="true"/>
+    <include file="v3.1/00-rpg-system-definitions.xml" relativeToChangelogFile="true"/>
+    <include file="v3.1/01-rpg-games-custom-system.xml" relativeToChangelogFile="true"/>
+    <include file="v3.1/02-rpg-list-kind.xml" relativeToChangelogFile="true"/>
+    <include file="v3.1/03-rpg-drop-system-template.xml" relativeToChangelogFile="true"/>
+    <include file="v3.1/04-rpg-system-template-attributes.xml" relativeToChangelogFile="true"/>
+    <include file="v3.1/05-rpg-list-kind-source-of-truth.xml" relativeToChangelogFile="true"/>
+    <include file="v3.1/06-rpg-drop-system-version.xml" relativeToChangelogFile="true"/>
 </databaseChangeLog>

@@ -3,6 +3,7 @@ package org.corpsman.rpg.web;
 import lombok.RequiredArgsConstructor;
 import org.corpsman.auth.security.SecurityUtils;
 import org.corpsman.rpg.model.AttributeType;
+import org.corpsman.rpg.model.ListKind;
 import org.corpsman.rpg.model.CustomAttribute;
 import org.corpsman.rpg.model.Game;
 import org.corpsman.rpg.repository.CustomAttributeRepository;
@@ -43,7 +44,8 @@ public class CustomAttributeController {
     @PostMapping
     public String add(@PathVariable Long gameId,
                       @RequestParam String name,
-                      @RequestParam(value = "attributeType", required = false) AttributeType attributeType) {
+                      @RequestParam(value = "attributeType", required = false) AttributeType attributeType,
+                      @RequestParam(value = "listKind", required = false) ListKind listKind) {
         gameService.requireMaster(gameId, SecurityUtils.currentUserId());
         if (name != null && !name.isBlank()) {
             int last = customAttributeRepository.findByGameIdOrderByPositionAsc(gameId).stream()
@@ -52,6 +54,9 @@ public class CustomAttributeController {
             attr.setGameId(gameId);
             attr.setName(name.trim());
             attr.setType(attributeType == null ? AttributeType.TEXT : attributeType);
+            // Вид списка задаётся только для параметров типа LIST.
+            attr.setListKind(attr.getType() == AttributeType.LIST
+                    ? ListKind.parse(listKind == null ? null : listKind.name()) : null);
             attr.setPosition(last + 1);
             customAttributeRepository.save(attr);
         }

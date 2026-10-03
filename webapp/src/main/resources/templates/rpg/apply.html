@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title th:text="${npcMode} ? 'Новый NPC — Corpsman' : 'Лист персонажа — Corpsman'">Лист персонажа</title>
+    <title th:text="${previewMode} ? 'Пробный персонаж — Corpsman' : (${npcMode} ? 'Новый NPC — Corpsman' : 'Лист персонажа — Corpsman')">Лист персонажа</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link th:href="@{/css/app.css}" rel="stylesheet">
@@ -66,6 +66,34 @@
         .list-card .btn-remove {
             cursor: pointer;
         }
+        .spell-slot-level {
+            min-width: 3.5rem;
+            font-weight: 500;
+        }
+        .spell-slot-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.15rem;
+        }
+        .spell-slot-line {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.1rem 0;
+        }
+        .btn-slot-step, .btn-slot-max {
+            min-width: 1.9rem;
+        }
+        .slot-num {
+            min-width: 5.5rem;
+        }
+        .slot-arrows .btn {
+            padding: 0 .3rem;
+            line-height: 1;
+        }
+        .list-item-edit {
+            background: var(--app-bg, #fff);
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -73,21 +101,36 @@
 
 <main class="container pb-5" style="max-width: 860px;">
     <div class="mb-3">
-        <a th:href="@{/rpg/games/{id}(id=${game.id})}" class="text-decoration-none small">
+        <a th:if="${previewMode}" th:href="@{/rpg/systems/{id}(id=${previewSystem.id})}"
+           class="text-decoration-none small">
+            <i class="bi bi-arrow-left"></i> К системе «<span th:text="${previewSystem.name}">система</span>»
+        </a>
+        <a th:unless="${previewMode}" th:href="@{/rpg/games/{id}(id=${game.id})}"
+           class="text-decoration-none small">
             <i class="bi bi-arrow-left"></i> К игре «<span th:text="${game.title}">игра</span>»
         </a>
+    </div>
+
+    <div th:if="${previewMode}" class="alert alert-info d-flex align-items-center gap-2">
+        <i class="bi bi-info-circle"></i>
+        <div>
+            <strong>Пробный лист.</strong> Предпросмотр создания персонажа по правилам
+            системы «<span th:text="${previewSystem.name}">система</span>».
+            Лист <strong>не сохраняется</strong>.
+        </div>
     </div>
 
     <div class="card shadow-sm mb-4">
         <div class="card-header">
             <i class="bi bi-person-badge"></i>
-            <th:block th:text="${npcMode} ? 'Новый NPC' : (${editMode} ? 'Редактирование листа' : 'Лист персонажа и заявка')">
+            <th:block th:text="${previewMode} ? 'Пробный персонаж' : (${npcMode} ? 'Новый NPC' : (${editMode} ? 'Редактирование листа' : 'Лист персонажа и заявка'))">
                 Лист персонажа
             </th:block>
         </div>
         <div class="card-body">
-            <form th:action="${npcMode} ? @{/rpg/games/{id}/npc(id=${game.id})} : (${editMode} ? @{/rpg/games/{gameId}/characters/{sheetId}/edit(gameId=${game.id}, sheetId=${sheetId})} : @{/rpg/games/{id}/apply(id=${game.id})})"
-                  method="post" enctype="multipart/form-data" th:object="${sheetForm}">
+            <form th:action="${previewMode} ? '' : (${npcMode} ? @{/rpg/games/{id}/npc(id=${game.id})} : (${editMode} ? @{/rpg/games/{gameId}/characters/{sheetId}/edit(gameId=${game.id}, sheetId=${sheetId})} : @{/rpg/games/{id}/apply(id=${game.id})}))"
+                  method="post" enctype="multipart/form-data" th:object="${sheetForm}"
+                  th:attr="onsubmit=${previewMode} ? 'return false' : null">
                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
 
                 <div class="row g-3 mb-3">
@@ -98,7 +141,7 @@
                         <div class="invalid-feedback" th:if="${#fields.hasErrors('name')}"
                              th:errors="*{name}">Ошибка</div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-4" th:unless="${previewMode}">
                         <label class="form-label">Аватар персонажа</label>
                         <input type="file" name="avatar" class="form-control form-control-sm"
                                accept="image/*">
@@ -128,6 +171,7 @@
                         </div>
 
                         <th:block th:each="a, stat : ${sheet.attributes}">
+                            <th:block th:unless="${a.spellSlot}">
                             <th:block th:with="dup=${(a.groupHeader != null and a.groupHeader == a.name) or (a.subHeader != null and a.subHeader == a.name)}">
                             <div th:if="${a.groupHeader != null}" class="rpg-section">
                                 <span class="rpg-section-title" th:text="${a.groupHeader}">группа</span>
@@ -200,22 +244,48 @@
                                         </th:block>
                                     </th:block>
                                     <th:block th:case="LIST">
-                                        <div th:attr="data-list-root=${a.key}">
-                                            <input type="hidden"
-                                                   th:field="*{attributes[__${stat.index}__].listText}"
-                                                   th:attr="data-list-source=${a.key}"/>
-                                            <div class="d-flex flex-wrap gap-1 mb-1"
-                                                 th:attr="data-list-cards=${a.key}"></div>
-                                            <div class="input-group input-group-sm" style="max-width: 360px;">
-                                                <input type="text" class="form-control form-control-sm list-input"
-                                                       th:attr="data-list-input=${a.key}"
-                                                       placeholder="Новый элемент">
-                                                <button type="button" class="btn btn-outline-primary btn-sm list-add"
-                                                        th:attr="data-list-add=${a.key}">
+                                        <!-- Простой список: карточки, поле ввода и кнопка «+» -->
+                                        <th:block th:if="${a.listKind.name() == 'SIMPLE'}">
+                                            <input type="hidden" th:field="*{attributes[__${stat.index}__].listKind}"/>
+                                            <div th:attr="data-simple-list=${a.key}">
+                                                <input type="hidden"
+                                                       th:field="*{attributes[__${stat.index}__].listText}"
+                                                       th:attr="data-simple-source=${a.key}"/>
+
+                                                <div class="d-flex flex-wrap gap-1 mb-2"
+                                                     th:attr="data-simple-cards=${a.key}"></div>
+
+                                                <div class="input-group input-group-sm" style="max-width: 420px;">
+                                                    <input type="text" class="form-control"
+                                                           th:attr="data-simple-input=${a.key}"
+                                                           maxlength="200" placeholder="Название предмета">
+                                                    <button type="button" class="btn btn-outline-primary"
+                                                            th:attr="data-simple-add=${a.key}"
+                                                            title="Добавить">
+                                                        <i class="bi bi-plus-lg"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </th:block>
+
+                                        <!-- Сложный список: только кнопка «Добавить» и модальное окно -->
+                                        <th:block th:if="${a.listKind.name() == 'COMPLEX'}">
+                                            <input type="hidden" th:field="*{attributes[__${stat.index}__].listKind}"/>
+                                            <div th:attr="data-list-root=${a.key}">
+                                                <input type="hidden"
+                                                       th:field="*{attributes[__${stat.index}__].listJson}"
+                                                       th:attr="data-list-source=${a.key}"/>
+
+                                                <div class="d-flex flex-wrap gap-1 mb-2"
+                                                     th:attr="data-list-cards=${a.key}"></div>
+
+                                                <button type="button" class="btn btn-outline-primary btn-sm"
+                                                        data-bs-toggle="modal"
+                                                        th:attr="data-list-add=${a.key},data-bs-target='#list-add-modal-' + ${a.key}">
                                                     <i class="bi bi-plus-lg"></i> Добавить
                                                 </button>
                                             </div>
-                                        </div>
+                                        </th:block>
                                     </th:block>
                                 </th:block>
                             </div>
@@ -223,23 +293,144 @@
                             <input type="hidden" th:field="*{attributes[__${stat.index}__].type}"/>
                             </div>
                             </th:block>
+                            </th:block>
                         </th:block>
                     </div>
                 </div>
 
+                <!-- Ячейки заклинаний: один блок, все уровни 1–9, каждый на своей строке.
+                     Числа не вводятся вручную: только кнопки +/-; значения хранятся
+                     в скрытых полях. Текущее может превышать максимум — тогда строка
+                     помечается предупреждением. -->
+                <div th:if="${!#lists.isEmpty(sheet.spellSlotEdits)}" class="card border-0 bg-transparent mb-3"
+                     id="spell-slots-block">
+                    <div class="card-body border rounded p-3">
+                        <div class="d-flex align-items-center mb-3 flex-wrap gap-2">
+                            <h6 class="mb-0"><i class="bi bi-lightning-charge"></i> Ячейки</h6>
+                            <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" id="spell-slots-restore">
+                                <i class="bi bi-arrow-clockwise"></i> Восстановить
+                            </button>
+                        </div>
+                        <div class="spell-slot-list">
+                            <div th:each="slot : ${sheet.spellSlotEdits}" class="spell-slot-line"
+                                 th:attr="data-slot-row=${slot.level}">
+                                <span class="spell-slot-level" th:text="'Ур. ' + ${slot.level}">Ур. 1</span>
+
+                                <span class="d-inline-flex align-items-center gap-2">
+                                    <!-- стрелки текущего значения -->
+                                    <span class="d-inline-flex flex-column slot-arrows">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-slot-step"
+                                                th:attr="data-slot-step=1,data-slot-level=${slot.level}"
+                                                title="Увеличить текущее">
+                                            <i class="bi bi-caret-up-fill"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-slot-step"
+                                                th:attr="data-slot-step=-1,data-slot-level=${slot.level}"
+                                                title="Уменьшить текущее">
+                                            <i class="bi bi-caret-down-fill"></i>
+                                        </button>
+                                    </span>
+
+                                    <span class="spin-num slot-num">
+                                        <span data-slot-current th:text="${slot.current}">0</span>
+                                        <span class="text-muted">/</span>
+                                        <span data-slot-max th:text="${slot.max}">0</span>
+                                    </span>
+
+                                    <!-- стрелки максимального значения -->
+                                    <span class="d-inline-flex flex-column slot-arrows">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-slot-max"
+                                                th:attr="data-max-step=1,data-slot-level=${slot.level}"
+                                                title="Увеличить максимум">
+                                            <i class="bi bi-caret-up-fill"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-slot-max"
+                                                th:attr="data-max-step=-1,data-slot-level=${slot.level}"
+                                                title="Уменьшить максимум">
+                                            <i class="bi bi-caret-down-fill"></i>
+                                        </button>
+                                    </span>
+
+                                    <button type="button" class="btn btn-sm btn-link p-0 text-warning d-none"
+                                            data-slot-warning title="Текущее число ячеек больше максимального">
+                                        <i class="bi bi-exclamation-triangle-fill"></i>
+                                    </button>
+                                </span>
+
+                                <input type="hidden" class="spell-slot-value"
+                                       th:field="*{attributes[__${slot.currentAttrIndex}__].numericValue}"
+                                       th:attr="data-role=current,data-level=${slot.level}">
+                                <input type="hidden" class="spell-slot-value"
+                                       th:field="*{attributes[__${slot.maxAttrIndex}__].numericValue}"
+                                       th:attr="data-role=max,data-level=${slot.level}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="d-flex justify-content-end gap-2">
-                    <a th:href="@{/rpg/games/{id}(id=${game.id})}" class="btn btn-outline-secondary">Отмена</a>
-                    <button type="submit" class="btn btn-primary">
+                    <a th:if="${previewMode}" th:href="@{/rpg/systems/{id}(id=${previewSystem.id})}"
+                       class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> К системе
+                    </a>
+                    <a th:unless="${previewMode}" th:href="@{/rpg/games/{id}(id=${game.id})}"
+                       class="btn btn-outline-secondary">Отмена</a>
+                    <button th:unless="${previewMode}" type="submit" class="btn btn-primary">
                         <i class="bi bi-check-lg"></i>
                         <th:block th:text="${npcMode} ? 'Создать NPC' : (${editMode} ? 'Сохранить' : (${sheetId != null} ? 'Сохранить заявку' : 'Подать заявку'))">Отправить</th:block>
                     </button>
                 </div>
-                <div class="form-text mt-2" th:if="${!npcMode and !editMode and sheetId != null}">
+                <div class="form-text mt-2" th:if="${!previewMode and !npcMode and !editMode and sheetId != null}">
                     Заявка уже была подана — изменения сохранятся в текущем листе.
                 </div>
             </form>
         </div>
     </div>
+
+    <!-- Модальные окна добавления элементов сложных списков.
+         Без <form>: подтверждение обрабатывает JS и пишет в listJson. -->
+    <th:block th:each="a : ${sheet.attributes}">
+        <div th:if="${a.type.name() == 'LIST' and a.listKind.name() == 'COMPLEX'}"
+             class="modal fade" th:id="'list-add-modal-' + ${a.key}" tabindex="-1"
+             aria-labelledby="'list-add-modal-label-' + ${a.key}">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h6 class="modal-title" th:id="'list-add-modal-label-' + ${a.key}"
+                            th:text="'Добавить в «' + ${a.name} + '»'">Добавить</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-2">
+                            <label class="form-label small">Заголовок</label>
+                            <input type="text" name="header" class="form-control form-control-sm"
+                                   maxlength="200" placeholder="Обязательно">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Описание</label>
+                            <textarea name="description" rows="2" maxlength="2000"
+                                      class="form-control form-control-sm"
+                                      placeholder="Необязательно"></textarea>
+                        </div>
+                        <div class="mb-2" th:if="${a.key == 'spells'}">
+                            <label class="form-label small">Уровень</label>
+                            <input type="number" name="level" min="1" max="9" value="1"
+                                   class="form-control form-control-sm" style="max-width: 7rem;">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
+                            Отмена
+                        </button>
+                        <button type="button" class="btn btn-sm btn-primary list-modal-confirm"
+                                data-bs-dismiss="modal">
+                            <i class="bi bi-plus-lg"></i> Добавить
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </th:block>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -367,65 +558,154 @@
             });
         });
 
-        function listValues(key) {
-            var source = document.querySelector('input[data-list-source="' + key + '"]');
-            if (!source) return [];
-            return source.value.split('\n').map(function (s) { return s.trim(); }).filter(function (s) { return s.length > 0; });
+        // ===== Ячейки заклинаний: только кнопки, ручного ввода нет =====
+        // Текущее может превышать максимум — тогда в строке горит предупреждение.
+        function slotInputs(level) {
+            return {
+                current: document.querySelector('input.spell-slot-value[data-role="current"][data-level="' + level + '"]'),
+                max: document.querySelector('input.spell-slot-value[data-role="max"][data-level="' + level + '"]')
+            };
         }
 
-        function syncList(key) {
-            var source = document.querySelector('input[data-list-source="' + key + '"]');
-            if (!source) return;
-            source.value = listValues(key).join('\n');
-            renderList(key);
+        function slotValue(input) {
+            var v = parseInt(input.value, 10);
+            return isNaN(v) ? 0 : v;
         }
 
-        function renderList(key) {
-            var cards = document.querySelector('[data-list-cards="' + key + '"]');
+        function paintSlot(level) {
+            var pair = slotInputs(level);
+            if (!pair.current || !pair.max) return;
+            var current = slotValue(pair.current);
+            var max = slotValue(pair.max);
+            if (current < 0) {
+                current = 0;
+                pair.current.value = '0';
+            }
+            if (max < 0) {
+                max = 0;
+                pair.max.value = '0';
+            }
+            var row = document.querySelector('[data-slot-row="' + level + '"]');
+            if (!row) return;
+            var currentOut = row.querySelector('[data-slot-current]');
+            var maxOut = row.querySelector('[data-slot-max]');
+            var warning = row.querySelector('[data-slot-warning]');
+            if (currentOut) currentOut.textContent = String(current);
+            if (maxOut) maxOut.textContent = String(max);
+            if (warning) warning.classList.toggle('d-none', current <= max);
+        }
+
+        function stepSlot(level, step) {
+            var pair = slotInputs(level);
+            if (!pair.current) return;
+            var next = slotValue(pair.current) + step;
+            if (next < 0) next = 0;
+            pair.current.value = String(next);
+            paintSlot(level);
+        }
+
+        function stepSlotMax(level, step) {
+            var pair = slotInputs(level);
+            if (!pair.max) return;
+            var next = slotValue(pair.max) + step;
+            if (next < 0) next = 0;
+            pair.max.value = String(next);
+            paintSlot(level);
+        }
+
+        function restoreSpellSlots() {
+            document.querySelectorAll('input.spell-slot-value[data-role="max"]').forEach(function (maxInput) {
+                var level = maxInput.getAttribute('data-level');
+                var pair = slotInputs(level);
+                pair.current.value = pair.max.value;
+                paintSlot(level);
+            });
+        }
+
+        document.querySelectorAll('.btn-slot-step').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                stepSlot(btn.getAttribute('data-slot-level'),
+                    parseInt(btn.getAttribute('data-slot-step'), 10) || 0);
+            });
+        });
+
+        document.querySelectorAll('.btn-slot-max').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                stepSlotMax(btn.getAttribute('data-slot-level'),
+                    parseInt(btn.getAttribute('data-max-step'), 10) || 0);
+            });
+        });
+
+        var restoreBtn = document.getElementById('spell-slots-restore');
+        if (restoreBtn) {
+            restoreBtn.addEventListener('click', restoreSpellSlots);
+        }
+
+        document.querySelectorAll('[data-slot-row]').forEach(function (row) {
+            paintSlot(row.getAttribute('data-slot-row'));
+        });
+
+        // ===== Простые списки: карточки + поле ввода + кнопка «+» =====
+        function simpleSource(key) {
+            return document.querySelector('input[data-simple-source="' + key + '"]');
+        }
+
+        function readSimpleItems(key) {
+            var source = simpleSource(key);
+            if (!source || !source.value) return [];
+            return source.value.split('\n')
+                .map(function (t) { return t.trim(); })
+                .filter(function (t) { return t.length > 0; });
+        }
+
+        function writeSimpleItems(key, items) {
+            var source = simpleSource(key);
+            if (source) source.value = items.join('\n');
+        }
+
+        function renderSimpleList(key) {
+            var cards = document.querySelector('[data-simple-cards="' + key + '"]');
             if (!cards) return;
-            var values = listValues(key);
+            var items = readSimpleItems(key);
             cards.innerHTML = '';
-            values.forEach(function (v, i) {
+            items.forEach(function (item, i) {
                 var card = document.createElement('div');
-                card.className = 'card list-card';
-                card.innerHTML = '<div class="card-body py-1 px-2 d-flex align-items-center gap-2">' +
-                    '<span class="small">' + escapeHtml(v) + '</span>' +
-                    '<button type="button" class="btn btn-sm btn-link p-0 ms-auto text-danger btn-remove del-' + i + '">' +
-                    '<i class="bi bi-x-lg"></i></button></div>';
-                card.querySelector('.del-' + i).addEventListener('click', function () {
-                    var values2 = listValues(key);
-                    values2.splice(i, 1);
-                    var source = document.querySelector('input[data-list-source="' + key + '"]');
-                    if (source) source.value = values2.join('\n');
-                    renderList(key);
+                card.className = 'list-item-edit d-flex align-items-center gap-2 border rounded p-2 mb-1';
+                card.innerHTML = '<span class="flex-grow-1">' + escapeHtml(item) + '</span>' +
+                    '<button type="button" class="btn btn-sm btn-link p-0 text-danger" title="Удалить">' +
+                    '<i class="bi bi-x-lg"></i></button>';
+                card.querySelector('button').addEventListener('click', function () {
+                    var current = readSimpleItems(key);
+                    current.splice(i, 1);
+                    writeSimpleItems(key, current);
+                    renderSimpleList(key);
                 });
                 cards.appendChild(card);
             });
         }
 
-        function escapeHtml(s) {
-            return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        }
+        document.querySelectorAll('[data-simple-list]').forEach(function (root) {
+            var key = root.getAttribute('data-simple-list');
+            var input = root.querySelector('input[data-simple-input="' + key + '"]');
+            var addBtn = root.querySelector('button[data-simple-add="' + key + '"]');
+            renderSimpleList(key);
+            if (!input || !addBtn) return;
 
-        document.querySelectorAll('[data-list-root]').forEach(function (root) {
-            var key = root.getAttribute('data-list-root');
-            renderList(key);
-            var input = root.querySelector('input[data-list-input="' + key + '"]');
-            var add = root.querySelector('button[data-list-add="' + key + '"]');
-            if (!input || !add) return;
             function addItem() {
-                var v = input.value.trim();
-                if (!v) return;
-                var source = root.querySelector('input[data-list-source="' + key + '"]');
-                if (!source) return;
-                var values = source.value ? source.value.split('\n') : [];
-                while (values.length && values[values.length - 1] === '') values.pop();
-                values.push(v);
-                source.value = values.join('\n');
+                var value = input.value.trim();
+                if (!value) {
+                    input.focus();
+                    return;
+                }
+                var items = readSimpleItems(key);
+                items.push(value);
+                writeSimpleItems(key, items);
                 input.value = '';
-                renderList(key);
+                renderSimpleList(key);
+                input.focus();
             }
-            add.addEventListener('click', addItem);
+
+            addBtn.addEventListener('click', addItem);
             input.addEventListener('keydown', function (e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
@@ -434,45 +714,119 @@
             });
         });
 
-        document.querySelectorAll('.opt-picker').forEach(function (root) {
-            var hidden = root.querySelector('[data-opt-value]');
-            var select = root.querySelector('[data-opt-select]');
-            var manual = root.querySelector('[data-opt-manual]');
-            var other = root.getAttribute('data-other') || '';
-            function sync() {
-                var val = (hidden.value || '').trim();
-                var matched = false;
-                for (var i = 0; i < select.options.length; i++) {
-                    if (select.options[i].value && select.options[i].value === val) {
-                        matched = true;
-                        break;
-                    }
-                }
-                if (other && val && !matched) {
-                    select.value = '__other__';
-                    manual.value = val;
-                    manual.style.display = '';
-                } else {
-                    select.value = matched ? val : '';
-                    manual.value = '';
-                    manual.style.display = 'none';
-                }
+        // ===== Списки: карточки + модальное окно добавления =====
+        function listSource(key) {
+            return document.querySelector('input[data-list-source="' + key + '"]');
+        }
+
+        function readItems(key) {
+            var source = listSource(key);
+            if (!source || !source.value) return [];
+            try {
+                var parsed = JSON.parse(source.value);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (e) {
+                return [];
             }
-            select.addEventListener('change', function () {
-                if (select.value === '__other__') {
-                    manual.style.display = '';
-                    manual.focus();
-                } else {
-                    manual.style.display = 'none';
-                    manual.value = '';
-                    hidden.value = select.value;
-                }
+        }
+
+        function writeItems(key, items) {
+            var source = listSource(key);
+            if (source) source.value = JSON.stringify(items);
+        }
+
+        function escapeHtml(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function renderList(key) {
+            var cards = document.querySelector('[data-list-cards="' + key + '"]');
+            if (!cards) return;
+            var items = readItems(key);
+            cards.innerHTML = '';
+            if (items.length === 0) {
+                var empty = document.createElement('div');
+                empty.className = 'text-muted small';
+                empty.textContent = 'Список пуст.';
+                cards.appendChild(empty);
+                return;
+            }
+            items.forEach(function (item, i) {
+                var level = item.level == null ? '' : item.level;
+                var badge = (key === 'spells' && level !== '')
+                    ? '<span class="badge text-bg-primary ms-2">Ур. ' + escapeHtml(level) + '</span>' : '';
+                var desc = item.description
+                    ? '<div class="small text-muted">' + escapeHtml(item.description) + '</div>' : '';
+                var card = document.createElement('div');
+                card.className = 'list-item-edit d-flex align-items-start gap-2 border rounded p-2 mb-1';
+                card.innerHTML =
+                    '<div class="flex-grow-1">' +
+                    '<div class="fw-semibold small">' + escapeHtml(item.header) + badge + '</div>' +
+                    desc +
+                    '</div>' +
+                    '<button type="button" class="btn btn-sm btn-link p-0 text-danger list-remove" title="Удалить">' +
+                    '<i class="bi bi-x-lg"></i></button>';
+                card.querySelector('.list-remove').addEventListener('click', function () {
+                    var current = readItems(key);
+                    current.splice(i, 1);
+                    writeItems(key, current);
+                    renderList(key);
+                });
+                cards.appendChild(card);
             });
-            manual.addEventListener('input', function () {
-                hidden.value = manual.value.trim();
-            });
-            sync();
+        }
+
+        document.querySelectorAll('[data-list-root]').forEach(function (root) {
+            var key = root.getAttribute('data-list-root');
+            var isSpells = key === 'spells';
+            renderList(key);
+
+            var modal = document.getElementById('list-add-modal-' + key);
+            if (!modal) return;
+
+            var headerInput = modal.querySelector('input[name="header"]');
+            var descInput = modal.querySelector('textarea[name="description"]');
+            var levelInput = modal.querySelector('input[name="level"]');
+
+            function resetModal() {
+                headerInput.value = '';
+                descInput.value = '';
+                if (levelInput) levelInput.value = '1';
+            }
+
+            // Модалку открывает Bootstrap (data-bs-toggle), скрипт только
+            // очищает поля перед каждым показом.
+            modal.addEventListener('show.bs.modal', resetModal);
+
+            // Кнопка «Добавить» в модалке не отправляет форму: элемент
+            // добавляется в скрытое поле listJson и отображается карточкой.
+            var confirmBtn = modal.querySelector('.list-modal-confirm');
+            if (confirmBtn) {
+                confirmBtn.addEventListener('click', function () {
+                    var header = headerInput.value.trim();
+                    if (!header) {
+                        headerInput.focus();
+                        return;
+                    }
+                    var level = isSpells && levelInput
+                        ? Math.min(Math.max(parseInt(levelInput.value, 10) || 1, 1), 9) : null;
+                    var items = readItems(key);
+                    items.push({
+                        header: header,
+                        description: descInput.value.trim(),
+                        level: level
+                    });
+                    writeItems(key, items);
+                    renderList(key);
+                    resetModal();
+                });
+            }
         });
+
 
         recalc();
     })();

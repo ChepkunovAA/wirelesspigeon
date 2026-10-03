@@ -13,7 +13,14 @@ import org.corpsman.rpg.model.RoomPost;
 import org.corpsman.rpg.model.SavedRoll;
 import org.corpsman.rpg.model.SheetAttribute;
 import org.corpsman.rpg.repository.CharacterSheetRepository;
+import org.corpsman.rpg.dto.SystemAttributeDto;
+import org.corpsman.rpg.model.AttributeType;
+import org.corpsman.rpg.model.CustomAttribute;
+import org.corpsman.rpg.model.GameSystemDefinition;
+import org.corpsman.rpg.model.ListKind;
+import org.corpsman.rpg.repository.CustomAttributeRepository;
 import org.corpsman.rpg.repository.DiceRollRepository;
+import org.corpsman.rpg.repository.GameSystemDefinitionRepository;
 import org.corpsman.rpg.repository.GameApplicationRepository;
 import org.corpsman.rpg.repository.GameRepository;
 import org.corpsman.rpg.repository.GameWhitelistRepository;
@@ -25,6 +32,7 @@ import org.corpsman.rpg.repository.SheetAttributeRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cache.CacheManager;
@@ -37,6 +45,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -73,6 +82,9 @@ class RpgIntegrationTest {
     private GameRepository gameRepository;
 
     @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
     private GameApplicationRepository applicationRepository;
 
     @Autowired
@@ -101,6 +113,12 @@ class RpgIntegrationTest {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private GameSystemDefinitionRepository definitionRepository;
+
+    @Autowired
+    private CustomAttributeRepository customAttributeRepository;
 
     @Autowired
     private CacheManager cacheManager;
@@ -348,8 +366,10 @@ class RpgIntegrationTest {
                 .andExpect(content().string(containsString("data-num-view=\"level\">1</span>")))
                 .andExpect(content().string(containsString("data-num-view=\"ability:strength\">10</span>")))
                 .andExpect(content().string(containsString("data-derived-of=\"save:strength\"")))
-                .andExpect(content().string(containsString("data-list-cards=\"inventory\"")))
-                .andExpect(content().string(not(containsString("type=\"number\""))))
+                .andExpect(content().string(containsString("data-simple-add=\"inventory\"")))
+                .andExpect(content().string(containsString("id=\"spell-slots-block\"")))
+                .andExpect(content().string(containsString("data-role=\"current\"")))
+                .andExpect(content().string(containsString("data-role=\"max\"")))
                 .andExpect(content().string(containsString("<select")))
                 .andExpect(content().string(containsString(">Бард</option>")))
                 .andExpect(content().string(containsString(">Эльф</option>")))
@@ -364,6 +384,15 @@ class RpgIntegrationTest {
         assertThat(page.indexOf("Черты")).isLessThan(page.indexOf("Умения"));
         assertThat(page.indexOf("Умения")).isLessThan(page.indexOf("Заклинания"));
         assertThat(page.indexOf("Заклинания")).isLessThan(page.indexOf("Инвентарь"));
+        // Ячейки заклинаний — отдельный блок, в общем списке параметров их нет.
+        assertThat(page).doesNotContain("Ячейки 1 ур.");
+        // Все девять уровней видны в форме, даже если ячеек нет.
+        // 9 уровней × 2 скрытых поля (текущее и максимальное) + 9 строк.
+        assertThat(page.split("class=\"spell-slot-value\"", -1)).hasSize(19);
+        for (int level = 1; level <= 9; level++) {
+            assertThat(page).contains("Ур. " + level);
+            assertThat(page).contains("data-slot-row=\"" + level + "\"");
+        }
 
         mockMvc.perform(post("/rpg/games/" + game.getId() + "/apply").session(session).with(csrf())
                         .param("name", "Эльфийка")
@@ -379,6 +408,1005 @@ class RpgIntegrationTest {
         assertThat(attrs.get("save:strength").getNumericValue()).isNull();
         assertThat(attrs.get("skill:acrobatics").getNumericValue()).isNull();
         assertThat(attrs.get("skill:acrobatics").getFlags()).isZero();
+    }
+
+    @Test
+    void dndSheetShowsEmptyTextFieldsAsDash() throws Exception {
+        User master = createUser("auto_rpg_master_dash", UserRole.RESIDENT);
+        createUser("auto_rpg_player_dash", UserRole.RESIDENT);
+        Game game = createGame(master, "Прочерки", "Пустые текстовые поля.", GameSystem.DND, GameVisibility.OPEN, GameStatus.RECRUITING);
+        Long playerId = applyFor("auto_rpg_player_dash", game, "Пустой лист");
+        acceptFor(game, playerId);
+        Long sheetId = sheetIdFor(game, playerId);
+
+        // Класс, раса и предыстория не заданы — все три показываются с прочерком.
+        String page = sheetPage(game, sheetId, "auto_rpg_player_dash");
+
+        assertThat(page).contains("Класс</span>");
+        assertThat(page).contains("Раса</span>");
+        assertThat(page).contains("Предыстория</span>");
+        assertThat(page).contains("<div class=\"rpg-value\">—</div>");
+    }
+
+    @Test
+    void dndSheetShowsSpellSlotsAsSingleBlockWithCurrentSlashMax() throws Exception {
+        User master = createUser("auto_rpg_master_slots", UserRole.RESIDENT);
+        createUser("auto_rpg_player_slots", UserRole.RESIDENT);
+        Game game = createGame(master, "Ячейки", "Блок ячеек.", GameSystem.DND, GameVisibility.OPEN, GameStatus.RECRUITING);
+        Long playerId = applyFor("auto_rpg_player_slots", game, "Маг");
+        acceptFor(game, playerId);
+        Long sheetId = sheetIdFor(game, playerId);
+        setNumeric(sheetId, "spell_slot_max:1", 4);
+        setNumeric(sheetId, "spell_slot_current:1", 2);
+        setNumeric(sheetId, "spell_slot_max:3", 1);
+
+        String page = sheetPage(game, sheetId, "auto_rpg_player_slots");
+
+        assertThat(page).contains("Ячейки</span>");
+        // Никаких отдельных разделов «Ячейки N ур.» в общем списке параметров.
+        assertThat(page).doesNotContain("Ячейки 1 ур.");
+        assertThat(page).doesNotContain("Ячейки 3 ур.");
+        // Нулевые уровни скрыты, непустые показаны.
+        assertThat(page).contains("Ур. 1");
+        assertThat(page).contains("Ур. 3");
+        assertThat(page).doesNotContain("Ур. 2");
+        assertThat(page).doesNotContain("Ур. 5");
+        // Счётчик «текущее / максимальное» одной строкой.
+        assertThat(page).contains("<span class=\"text-muted\">/</span>");
+        // Блок ровно один, в нём только непустые уровни (1 и 3).
+        assertThat(page.split("bi-lightning-charge", -1)).hasSize(2);
+        assertThat(page.split("class=\"spell-slot-level\"", -1)).hasSize(3);
+    }
+
+    @Test
+    void sheetViewKeepsListsReadOnlyExceptInventory() throws Exception {
+        User master = createUser("auto_rpg_master_ro", UserRole.RESIDENT);
+        createUser("auto_rpg_player_ro", UserRole.RESIDENT);
+        Game game = createGame(master, "Только чтение", "Просмотр без правок.",
+                GameSystem.DND, GameVisibility.OPEN, GameStatus.RECRUITING);
+        Long playerId = applyFor("auto_rpg_player_ro", game, "Наблюдатель");
+        acceptFor(game, playerId);
+        Long sheetId = sheetIdFor(game, playerId);
+        int spellsIndex = attributeIndex(sheetId, "spells");
+        MockHttpSession session = login("auto_rpg_player_ro");
+
+        // Наполняем сложный список через форму редактирования.
+        mockMvc.perform(post("/rpg/games/" + game.getId() + "/characters/" + sheetId + "/edit")
+                        .session(session).with(csrf())
+                        .param("name", "Наблюдатель")
+                        .param("attributes[" + spellsIndex + "].key", "spells")
+                        .param("attributes[" + spellsIndex + "].type", "LIST")
+                        .param("attributes[" + spellsIndex + "].listKind", "COMPLEX")
+                        .param("attributes[" + spellsIndex + "].listJson",
+                                "[{\"header\":\"Огненный шар\",\"description\":\"Урон 8d6\",\"level\":3}]"))
+                .andExpect(status().is3xxRedirection());
+
+        String page = sheetPage(game, sheetId, "auto_rpg_player_ro");
+
+        // Сложный список виден...
+        assertThat(page).contains("Огненный шар").contains("Урон 8д6".replace("д", "d")).contains("Ур. 3");
+        // ...но правки списков в просмотре нет.
+        assertThat(page).doesNotContain("lists/spells/add");
+        assertThat(page).doesNotContain("lists/spells/remove");
+
+        // Инвентарь — простой список, его править из просмотра можно (оговорено отдельно).
+        assertThat(page).contains("inventory-add");
+        assertThat(page).contains("name=\"itemHeader\"");
+
+        mockMvc.perform(post("/rpg/games/" + game.getId() + "/characters/" + sheetId + "/inventory-add")
+                        .session(session).with(csrf())
+                        .param("itemHeader", "Факел"))
+                .andExpect(status().is3xxRedirection());
+
+        String withItem = sheetPage(game, sheetId, "auto_rpg_player_ro");
+        assertThat(withItem).contains("Факел");
+        assertThat(withItem).contains("inventory-remove");
+        assertThat(withItem).contains("name=\"itemIndex\"");
+    }
+
+    @Test
+    void inventoryCanBeEditedFromSheetView() throws Exception {
+        User master = createUser("auto_rpg_master_inv", UserRole.RESIDENT);
+        createUser("auto_rpg_player_inv", UserRole.RESIDENT);
+        Game game = createGame(master, "Инвентарь", "Правка из просмотра.", GameSystem.DND, GameVisibility.OPEN, GameStatus.RECRUITING);
+        Long playerId = applyFor("auto_rpg_player_inv", game, "Кладоискатель");
+        acceptFor(game, playerId);
+        Long sheetId = sheetIdFor(game, playerId);
+        MockHttpSession session = login("auto_rpg_player_inv");
+
+        mockMvc.perform(post("/rpg/games/" + game.getId() + "/characters/" + sheetId + "/inventory-add")
+                        .session(session).with(csrf())
+                        .param("itemHeader", "Факел"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/rpg/games/" + game.getId() + "/characters/" + sheetId));
+        mockMvc.perform(post("/rpg/games/" + game.getId() + "/characters/" + sheetId + "/inventory-add")
+                        .session(session).with(csrf())
+                        .param("itemHeader", "Хлеб"))
+                .andExpect(status().is3xxRedirection());
+
+        String page = sheetPage(game, sheetId, "auto_rpg_player_inv");
+        assertThat(page).contains("Факел").contains("Хлеб");
+
+        // Инвентарь хранится простым списком — JSON-массивом строк.
+        String stored = listValues(sheetId, "inventory");
+        assertThat(stored).contains("\"Факел\"").doesNotContain("header");
+
+        mockMvc.perform(post("/rpg/games/" + game.getId() + "/characters/" + sheetId + "/inventory-remove")
+                        .session(session).with(csrf())
+                        .param("itemIndex", "0"))
+                .andExpect(status().is3xxRedirection());
+
+        assertThat(sheetPage(game, sheetId, "auto_rpg_player_inv")).doesNotContain("Факел").contains("Хлеб");
+    }
+
+    @Test
+    void simpleListIsRenderedAsPlainItemsAndComplexAsCards() throws Exception {
+        User master = createUser("auto_rpg_master_kinds", UserRole.RESIDENT);
+        createUser("auto_rpg_player_kinds", UserRole.RESIDENT);
+        Game game = createGame(master, "Виды списков", "Простой и сложный.", GameSystem.DND, GameVisibility.OPEN, GameStatus.RECRUITING);
+        Long playerId = applyFor("auto_rpg_player_kinds", game, "Смешанный");
+        acceptFor(game, playerId);
+        Long sheetId = sheetIdFor(game, playerId);
+        MockHttpSession session = login("auto_rpg_player_kinds");
+        int invIdx = attributeIndex(sheetId, "inventory");
+        int spellsIdx = attributeIndex(sheetId, "spells");
+        int featsIdx = attributeIndex(sheetId, "feats");
+
+        mockMvc.perform(post("/rpg/games/" + game.getId() + "/characters/" + sheetId + "/edit")
+                        .session(session).with(csrf())
+                        .param("name", "Смешанный")
+                        .param("attributes[" + invIdx + "].key", "inventory")
+                        .param("attributes[" + invIdx + "].type", "LIST")
+                        .param("attributes[" + invIdx + "].listKind", "SIMPLE")
+                        .param("attributes[" + invIdx + "].listText", "Факел\nХлеб")
+                        .param("attributes[" + spellsIdx + "].key", "spells")
+                        .param("attributes[" + spellsIdx + "].type", "LIST")
+                        .param("attributes[" + spellsIdx + "].listKind", "COMPLEX")
+                        .param("attributes[" + spellsIdx + "].listJson",
+                                "[{\"header\":\"Огненный шар\",\"description\":\"Урон\",\"level\":3}]")
+                        .param("attributes[" + featsIdx + "].key", "feats")
+                        .param("attributes[" + featsIdx + "].type", "LIST")
+                        .param("attributes[" + featsIdx + "].listKind", "COMPLEX")
+                        .param("attributes[" + featsIdx + "].listJson",
+                                "[{\"header\":\"Второе дыхание\",\"description\":\"Раз в день\",\"level\":1}]"))
+                .andExpect(status().is3xxRedirection());
+
+        assertThat(listKindOf(sheetId, "inventory")).isEqualTo("SIMPLE");
+        assertThat(listKindOf(sheetId, "spells")).isEqualTo("COMPLEX");
+        assertThat(listKindOf(sheetId, "feats")).isEqualTo("COMPLEX");
+        // Простой список — строки без заголовков/описаний.
+        assertThat(listValues(sheetId, "inventory")).isEqualTo("[\"Факел\",\"Хлеб\"]");
+        // Сложный список — объекты.
+        assertThat(listValues(sheetId, "spells")).contains("header").contains("level");
+
+        String page = sheetPage(game, sheetId, "auto_rpg_player_kinds");
+        assertThat(page).contains("Факел").contains("Хлеб");
+        assertThat(page).contains("Огненный шар").contains("Второе дыхание");
+        // У простого списка нет карточек, у сложных — есть.
+        assertThat(page).contains("list-item-card");
+    }
+
+    @Test
+    void dndListsAreComplexAndInventoryIsSimpleInEditForm() throws Exception {
+        User master = createUser("auto_rpg_master_kinds2", UserRole.RESIDENT);
+        createUser("auto_rpg_player_kinds2", UserRole.RESIDENT);
+        Game game = createGame(master, "Виды списков 2", "Проверка формы.", GameSystem.DND, GameVisibility.OPEN, GameStatus.RECRUITING);
+        Long playerId = applyFor("auto_rpg_player_kinds2", game, "Проверка");
+        acceptFor(game, playerId);
+        Long sheetId = sheetIdFor(game, playerId);
+
+        String page = mockMvc.perform(get("/rpg/games/" + game.getId() + "/characters/" + sheetId + "/edit")
+                        .session(login("auto_rpg_player_kinds2")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        // Сложные списки D&D: карточки + модалка добавления.
+        assertThat(page).contains("list-add-modal-spells");
+        assertThat(page).contains("list-add-modal-feats");
+        assertThat(page).contains("list-add-modal-skills");
+        // Простой инвентарь: карточки + поле ввода + кнопка «+», без модалки.
+        assertThat(page).contains("data-simple-input=\"inventory\"");
+        assertThat(page).contains("data-simple-cards=\"inventory\"");
+        assertThat(page).doesNotContain("list-add-modal-inventory");
+        // У ячеек только кнопки, ручного ввода нет; есть предупреждение.
+        assertThat(page).contains("btn-slot-step");
+        assertThat(page).contains("data-slot-step=\"1\"");
+        assertThat(page).contains("data-slot-step=\"-1\"");
+        assertThat(page).contains("data-slot-warning");
+        assertThat(page).contains("btn-slot-max");
+        assertThat(page).contains("data-max-step=\"1\"");
+        assertThat(page).contains("data-max-step=\"-1\"");
+        assertThat(page).contains("slot-arrows");
+        assertThat(page).contains("slot-num");
+        // Ручного ввода числа ячеек нет: поля скрытые, значение меняют кнопки.
+        assertThat(page).doesNotContain("spell-slot-input");
+        assertThat(page).doesNotContain("spell-slots-fill");
+        assertThat(page).doesNotContain("syncSpellSlot");
+        assertThat(page).contains("list-modal-confirm");
+        // Сложные списки без поля ввода: только кнопка «Добавить».
+        assertThat(page).doesNotContain("data-list-input");
+        assertThat(page).contains("Восстановить");
+        assertThat(page).doesNotContain("Заполнить");
+        // Подсказки-пересказы убраны.
+        assertThat(page).doesNotContain("Текущее не может превышать максимальное");
+    }
+
+    @Test
+    void librarySystemFormLetsAuthorDeclareParametersAndListKind() throws Exception {
+        User master = createUser("auto_rpg_master_lib2", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rpg_master_lib2");
+
+        // Пустая анкета: есть раздел и кнопка добавления.
+        String emptyForm = mockMvc.perform(get("/rpg/systems/new").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(emptyForm).contains("Публикация новой системы");
+        assertThat(emptyForm).contains("Публичная система");
+        assertThat(emptyForm).contains("Состав параметров листа");
+        assertThat(emptyForm).contains("id=\"add-attr-btn\"");
+        assertThat(emptyForm).contains("data-new-list-kind");
+        assertThat(emptyForm).contains("value=\"COMPLEX\"");
+        assertThat(emptyForm).contains("value=\"SIMPLE\"");
+
+        // Заполненная анкета: параметры выводятся, вид списка выбирается.
+        Long systemId = createLibrarySystemWithTemplate(master, "Система с анкетой");
+        String editForm = mockMvc.perform(get("/rpg/systems/" + systemId + "/edit").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(editForm).contains("Мана");
+        assertThat(editForm).contains("Заклинания");
+        assertThat(editForm).contains("templateAttributes[0].name");
+        assertThat(editForm).contains("templateAttributes[1].listKind");
+        assertThat(editForm).contains("templateAttributes[2].listKind");
+
+        // Страница системы: кнопка предпросмотра, без ложной подсказки.
+        String view = mockMvc.perform(get("/rpg/systems/" + systemId).session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(view).contains("Открыть режим создания");
+
+        // Пробный лист показывает состав параметров системы.
+        String preview = mockMvc.perform(get("/rpg/systems/" + systemId + "/character").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(preview).contains("Пробный персонаж");
+        assertThat(preview).contains("не сохраняется");
+        assertThat(preview).doesNotContain("Подать заявку");
+        assertThat(preview).doesNotContain("настраивает ведущий");
+        assertThat(preview).contains("Мана");
+        assertThat(preview).contains("Заклинания");
+        // Сложный список в предпросмотре даёт модалку, простой — поле ввода.
+        assertThat(preview).contains("data-list-cards");
+        assertThat(preview).contains("data-simple-input");
+    }
+
+    @Test
+    void librarySystemTemplateIsAppliedToGameWithoutManualSetup() throws Exception {
+        User master = createUser("auto_rpg_master_tpl", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rpg_master_tpl");
+        Long sysId = createLibrarySystemWithTemplate(master, "Система с анкетой");
+
+        mockMvc.perform(post("/rpg/games").session(session).with(csrf())
+                        .param("title", "Игра с готовой анкетой")
+                        .param("description", "Параметры приходят из системы.")
+                        .param("system", "CUSTOM")
+                        .param("customSystemId", String.valueOf(sysId))
+                        .param("visibility", "OPEN")
+                        .param("status", "RECRUITING"))
+                .andExpect(status().is3xxRedirection());
+
+        Long gameId = gameIdByTitle("Игра с готовой анкетой");
+        assertThat(gameId).isNotNull();
+
+        // Ведущему не нужно заполнять параметры вручную — они уже созданы.
+        List<CustomAttribute> attrs = customAttributeRepository.findByGameIdOrderByPositionAsc(gameId);
+        assertThat(attrs).extracting(CustomAttribute::getName)
+                .containsExactly("Мана", "Заклинания", "Инвентарь");
+        assertThat(attrs).extracting(CustomAttribute::getType)
+                .containsExactly(AttributeType.NUMERIC, AttributeType.LIST, AttributeType.LIST);
+        assertThat(attrs.get(1).getListKind()).isEqualTo(ListKind.COMPLEX);
+        assertThat(attrs.get(2).getListKind()).isEqualTo(ListKind.SIMPLE);
+    }
+
+    @Test
+    void masterCanChooseSimpleOrComplexListForCustomAttribute() throws Exception {
+        User master = createUser("auto_rpg_master_kinds3", UserRole.RESIDENT);
+        Game game = createGameFor(master, "Виды списков ведущего", GameSystem.CUSTOM, GameVisibility.OPEN);
+        MockHttpSession session = login("auto_rpg_master_kinds3");
+
+        mockMvc.perform(post("/rpg/games/" + game.getId() + "/attributes").session(session).with(csrf())
+                        .param("name", "Черты")
+                        .param("attributeType", "LIST")
+                        .param("listKind", "COMPLEX"))
+                .andExpect(status().is3xxRedirection());
+
+        CustomAttribute attr = customAttributeRepository.findByGameIdOrderByPositionAsc(game.getId()).get(0);
+        assertThat(attr.getListKind()).isEqualTo(ListKind.COMPLEX);
+
+        String page = mockMvc.perform(get("/rpg/games/" + game.getId() + "/attributes").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(page).contains("name=\"listKind\"");
+        assertThat(page).contains("Сложный");
+    }
+
+    @Test
+    void editSheetLinkOnGamePagePointsToExistingSheet() throws Exception {
+        User master = createUser("auto_rpg_master_link", UserRole.RESIDENT);
+        createUser("auto_rpg_player_link", UserRole.RESIDENT);
+        Game game = createGame(master, "Ссылка на лист", "Проверка ссылки.", GameSystem.DND, GameVisibility.OPEN, GameStatus.RECRUITING);
+        Long playerId = applyFor("auto_rpg_player_link", game, "Герой");
+        acceptFor(game, playerId);
+        Long sheetId = sheetIdFor(game, playerId);
+
+        String page = mockMvc.perform(get("/rpg/games/" + game.getId()).session(login("auto_rpg_player_link")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(page).contains("/rpg/games/" + game.getId() + "/characters/" + sheetId + "/edit");
+    }
+
+    @Test
+    void systemsButtonHiddenFromAnonymous() throws Exception {
+        User master = createUser("auto_rpg_master_anon", UserRole.RESIDENT);
+        Game game = createGame(master, "Открытая игра", "Видна анонимным.", GameSystem.DND, GameVisibility.PUBLIC, GameStatus.RECRUITING);
+
+        String anonymous = mockMvc.perform(get("/rpg/games"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(anonymous).doesNotContain("/rpg/systems\"");
+
+        String authorized = mockMvc.perform(get("/rpg/games").session(login("auto_rpg_master_anon")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(authorized).contains("/rpg/systems");
+    }
+
+    @Test
+    void dndListsAreComplexInViewAndForNewSheet() throws Exception {
+        User master = createUser("auto_rpg_master_cplx", UserRole.RESIDENT);
+        createUser("auto_rpg_player_cplx", UserRole.RESIDENT);
+        Game game = createGame(master, "Сложные списки", "Вид списков D&D.", GameSystem.DND, GameVisibility.OPEN, GameStatus.RECRUITING);
+        Long playerId = applyFor("auto_rpg_player_cplx", game, "Мастер");
+        acceptFor(game, playerId);
+        Long sheetId = sheetIdFor(game, playerId);
+
+        // Форма нового листа: умения, черты, заклинания — сложные, инвентарь простой.
+        String applyPage = mockMvc.perform(get("/rpg/games/" + game.getId() + "/apply")
+                        .session(login("auto_rpg_player_cplx")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        for (String key : new String[]{"skills", "feats", "spells"}) {
+            assertThat(applyPage).contains("data-list-add=\"" + key + "\"");
+            assertThat(applyPage).doesNotContain("data-simple-add=\"" + key + "\"");
+        }
+        assertThat(applyPage).contains("data-simple-add=\"inventory\"");
+
+        // Просмотр листа: те же списки идут блоком сложных.
+        String viewPage = sheetPage(game, sheetId, "auto_rpg_player_cplx");
+        for (String key : new String[]{"skills", "feats", "spells"}) {
+            assertThat(listKindOf(sheetId, key)).isEqualTo("COMPLEX");
+        }
+        assertThat(listKindOf(sheetId, "inventory")).isEqualTo("SIMPLE");
+
+        // Форма редактирования существующего листа.
+        String editPage = mockMvc.perform(get("/rpg/games/" + game.getId() + "/characters/" + sheetId + "/edit")
+                        .session(login("auto_rpg_player_cplx")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        for (String key : new String[]{"skills", "feats", "spells"}) {
+            assertThat(editPage).contains("data-list-add=\"" + key + "\"");
+            assertThat(editPage).doesNotContain("data-simple-add=\"" + key + "\"");
+        }
+    }
+
+    @Test
+    void dndListsRenderAsComplexEvenWithStaleSimpleStamp() throws Exception {
+        User master = createUser("auto_rpg_master_stale", UserRole.RESIDENT);
+        createUser("auto_rpg_player_stale", UserRole.RESIDENT);
+        Game game = createGame(master, "Устаревший вид", "Имитация данных до миграции.",
+                GameSystem.DND, GameVisibility.OPEN, GameStatus.RECRUITING);
+        Long playerId = applyFor("auto_rpg_player_stale", game, "Пух");
+        acceptFor(game, playerId);
+        Long sheetId = sheetIdFor(game, playerId);
+
+        // Именно то, что осталось после миграции 3.1.0-02: вид SIMPLE у сложных
+        // списков D&D и пустой JSON.
+        setListKind(sheetId, "spells", "SIMPLE");
+        setListKind(sheetId, "feats", "SIMPLE");
+        setListKind(sheetId, "skills", "SIMPLE");
+        setListValues(sheetId, "spells", "[]");
+        setListValues(sheetId, "feats", "[]");
+        setListValues(sheetId, "skills", "[]");
+
+        String editPage = mockMvc.perform(get("/rpg/games/" + game.getId() + "/characters/" + sheetId + "/edit")
+                        .session(login("auto_rpg_player_stale")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        for (String key : new String[]{"spells", "feats", "skills"}) {
+            // Сложный список: кнопка «Добавить» и всплывающее окно, без поля ввода.
+            assertThat(editPage).as("%s: кнопка «Добавить»", key).contains("data-list-add=\"" + key + "\"");
+            assertThat(editPage).as("%s: всплывающее окно", key).contains("list-add-modal-" + key);
+            assertThat(editPage).as("%s: нет поля ввода", key).doesNotContain("data-simple-input=\"" + key + "\"");
+            assertThat(editPage).as("%s: нет кнопки +", key).doesNotContain("data-simple-add=\"" + key + "\"");
+        }
+        // Инвентарь — простой список: есть поле ввода и кнопка «+».
+        assertThat(editPage).contains("data-simple-input=\"inventory\"");
+        assertThat(editPage).contains("data-simple-add=\"inventory\"");
+        assertThat(editPage).doesNotContain("list-add-modal-inventory");
+
+        // И в просмотре листа списки идут блоком сложных, а не строк простого списка.
+        String viewPage = sheetPage(game, sheetId, "auto_rpg_player_stale");
+        int complexBadges = count(viewPage, "list-add-modal-");
+        assertThat(complexBadges).as("модалок сложных списков в просмотре нет").isZero();
+    }
+
+    private int count(String text, String needle) {
+        int n = 0;
+        int i = text.indexOf(needle);
+        while (i >= 0) {
+            n++;
+            i = text.indexOf(needle, i + needle.length());
+        }
+        return n;
+    }
+
+    @Test
+    void systemPageShowsCompositionAndAuthorActions() throws Exception {
+        User master = createUser("auto_rpg_master_comp", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rpg_master_comp");
+        Long systemId = createLibrarySystemWithTemplate(master, "Система с составом");
+
+        String page = mockMvc.perform(get("/rpg/systems/" + systemId).session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(page).contains("Состав параметров листа");
+        assertThat(page).contains("Мана");
+        assertThat(page).contains("Заклинания");
+        assertThat(page).contains("Инвентарь");
+        assertThat(page).contains("Сложный");
+        assertThat(page).contains("Простой");
+        // Кнопка создания игры ведёт с предвыбранной системой.
+        assertThat(page).contains("customSystemId=" + systemId);
+        // Форк открывает форму создания с предзаполненными параметрами.
+        assertThat(page).contains("/rpg/systems/new?forkFrom=" + systemId);
+        assertThat(page).doesNotContain("action=\"/rpg/systems/" + systemId + "/fork\"");
+        // Избыточная подсказка убрана.
+        assertThat(page).doesNotContain("ведущему не нужно заполнять");
+    }
+
+    @Test
+    void systemFormHintIsRemovedAndNewRowsGetNames() throws Exception {
+        User master = createUser("auto_rpg_master_hint", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rpg_master_hint");
+
+        String form = mockMvc.perform(get("/rpg/systems/new").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(form).doesNotContain("Этот набор переносится в лист персонажа");
+        assertThat(form).doesNotContain("ведущему не нужно заполнять");
+        // Скрипт назначает name полям шаблона, иначе добавленные параметры не сохранятся.
+        assertThat(form).contains("data-new-name");
+        assertThat(form).contains("input.name = PREFIX + index + SUFFIX + field");
+    }
+
+    @Test
+    void createGameFormPreselectsSystemFromQuery() throws Exception {
+        User master = createUser("auto_rpg_master_pre", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rpg_master_pre");
+        Long systemId = createLibrarySystem(master, "Система для предвыбора");
+
+        String form = mockMvc.perform(get("/rpg/games/new?system=CUSTOM&customSystemId=" + systemId)
+                        .session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(form).contains("name=\"system\"");
+        assertThat(form).contains("value=\"CUSTOM\" selected=\"selected\"");
+        assertThat(form).contains("value=\"" + systemId + "\" selected=\"selected\"");
+    }
+
+    @Test
+    void complexListAddButtonOpensModal() throws Exception {
+        User master = createUser("auto_rpg_master_modal", UserRole.RESIDENT);
+        createUser("auto_rpg_player_modal", UserRole.RESIDENT);
+        Game game = createGame(master, "Модалка списка", "Кнопка «Добавить».", GameSystem.DND, GameVisibility.OPEN, GameStatus.RECRUITING);
+        Long playerId = applyFor("auto_rpg_player_modal", game, "Маг");
+        acceptFor(game, playerId);
+        Long sheetId = sheetIdFor(game, playerId);
+
+        String page = mockMvc.perform(get("/rpg/games/" + game.getId() + "/characters/" + sheetId + "/edit")
+                        .session(login("auto_rpg_player_modal")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        // Без data-bs-toggle/data-bs-target модалка не открывается — кнопка мёртвая.
+        for (String key : new String[]{"spells", "feats", "skills"}) {
+            assertThat(page).as("%s: кнопка открывает модалку", key)
+                    .contains("data-list-add=\"" + key + "\" data-bs-target=\"#list-add-modal-" + key + "\"");
+        }
+        assertThat(page).contains("data-bs-toggle=\"modal\"");
+        assertThat(page).contains("show.bs.modal");
+    }
+
+    @Test
+    void systemListCardKeepsBadgeStyleAndButtonsInsideCard() throws Exception {
+        User master = createUser("auto_rpg_master_card", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rpg_master_card");
+        Long systemId = createLibrarySystem(master, "Система для карточки");
+
+        String page = mockMvc.perform(get("/rpg/systems").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        // th:class заменял атрибут целиком и терял .badge (скругления, жирный шрифт).
+        assertThat(page).contains("class=\"badge text-bg-success\"");
+        assertThat(page).contains("Публичная");
+        // th:classappend сохраняет базовые классы.
+        assertThat(page).doesNotContain("<span class=\"text-bg-success\">");
+        // Кнопки действий — POST-формы внутри футера, перенос строки разрешён.
+        assertThat(page).contains("card-footer bg-transparent border-top-0 d-flex flex-wrap");
+        // Автору доступны правка и удаление, форк ведёт на форму создания.
+        assertThat(page).contains("href=\"/rpg/systems/" + systemId + "/edit\"");
+        assertThat(page).contains("href=\"/rpg/systems/new?forkFrom=" + systemId + "\"");
+        assertThat(page).contains("href=\"/rpg/systems/" + systemId + "\"");
+        // Удаление остаётся POST-формой: GET-ссылки на действие нет.
+        assertThat(page).contains("action=\"/rpg/systems/" + systemId + "/delete\"");
+        assertThat(page).doesNotContain("href=\"/rpg/systems/" + systemId + "/delete\"");
+        // Копия создаётся только после отправки формы, отдельного POST-форка нет.
+        assertThat(page).doesNotContain("action=\"/rpg/systems/" + systemId + "/fork\"");
+        // «К играм» ведёт на список игр, а не на форму создания.
+        assertThat(page).contains("href=\"/rpg/games\"");
+    }
+
+    @Test
+    void forkOpensCreateFormPrefilledFromSourceSystem() throws Exception {
+        User author = createUser("auto_rpg_master_fork_src", UserRole.RESIDENT);
+        createUser("auto_rpg_player_forker", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rpg_player_forker");
+        Long sourceId = createLibrarySystemWithTemplate(author, "Своя D&D 5e");
+
+        String form = mockMvc.perform(get("/rpg/systems/new").param("forkFrom", String.valueOf(sourceId))
+                        .session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        // Название предзаполнено и не совпадает с исходным.
+        assertThat(form).contains("value=\"Своя D&amp;D 5e (форк)\"");
+        assertThat(form).contains("Система с составом параметров.");
+        // Состав параметров исходной системы уже в форме, с типами и видом списка.
+        assertThat(form).contains("value=\"Мана\"");
+        assertThat(form).contains("value=\"Заклинания\"");
+        assertThat(form).contains("value=\"Инвентарь\"");
+        assertThat(form).containsPattern("<option value=\"COMPLEX\" selected=\"selected\">Сложный</option>");
+        assertThat(form).contains("action=\"/rpg/systems/new\"");
+        assertThat(form).contains("data-fork-banner");
+        // Форк приватный по умолчанию: галка публичности снята, скрытое поле false на месте.
+        assertThat(form).doesNotContain("id=\"published\" checked");
+        assertThat(form).contains("<input type=\"hidden\" name=\"published\" value=\"false\"/>");
+
+        // Сохранение формы создаёт отдельную систему с копией состава.
+        mockMvc.perform(post("/rpg/systems/new").session(session).with(csrf())
+                        .param("name", "Своя D&D 5e (форк)")
+                        .param("description", "Система с составом параметров.")
+                        .param("published", "false")
+                        .param("templateAttributes[0].name", "Мана")
+                        .param("templateAttributes[0].type", "NUMERIC")
+                        .param("templateAttributes[1].name", "Заклинания")
+                        .param("templateAttributes[1].type", "LIST")
+                        .param("templateAttributes[1].listKind", "COMPLEX")
+                        .param("templateAttributes[2].name", "Инвентарь")
+                        .param("templateAttributes[2].type", "LIST")
+                        .param("templateAttributes[2].listKind", "SIMPLE"))
+                .andExpect(status().is3xxRedirection());
+
+        GameSystemDefinition fork = definitionRepository.findAll().stream()
+                .filter(sys -> "Своя D&D 5e (форк)".equals(sys.getName()))
+                .findFirst().orElseThrow();
+        assertThat(fork.getId()).isNotEqualTo(sourceId);
+        assertThat(fork.getAuthorId()).isNotEqualTo(author.getId());
+        assertThat(fork.isPublic()).isFalse();
+        assertThat(fork.getTemplateAttributeList()).hasSize(3);
+        assertThat(fork.getTemplateAttributeList().get(1).getName()).isEqualTo("Заклинания");
+        assertThat(fork.getTemplateAttributeList().get(1).listKindOrDefault()).isEqualTo(ListKind.COMPLEX);
+        // Исходная система не тронута.
+        assertThat(definitionRepository.findById(sourceId).orElseThrow().getTemplateAttributeList()).hasSize(3);
+    }
+
+    @Test
+    void uncheckedVisibilityCreatesPrivateSystem() throws Exception {
+        createUser("auto_rpg_master_privdef", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rpg_master_privdef");
+
+        // Галочка «Публичная система» снята: браузер присылает published=false
+        // из скрытого поля. Без него значение по умолчанию сделало бы систему публичной.
+        mockMvc.perform(post("/rpg/systems/new").session(session).with(csrf())
+                        .param("name", "Приватная по умолчанию")
+                        .param("published", "false"))
+                .andExpect(status().is3xxRedirection());
+
+        GameSystemDefinition created = definitionRepository.findAll().stream()
+                .filter(sys -> "Приватная по умолчанию".equals(sys.getName()))
+                .findFirst().orElseThrow();
+        assertThat(created.isPublic()).isFalse();
+    }
+
+    @Test
+    void forkNameGetsSuffixWhenCopyAlreadyExists() throws Exception {
+        User author = createUser("auto_rpg_master_fork_dup", UserRole.RESIDENT);
+        User forker = createUser("auto_rpg_player_forker2", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rpg_player_forker2");
+        Long sourceId = createLibrarySystem(author, "Система для повторного форка");
+        createLibrarySystem(forker, "Система для повторного форка (форк)");
+
+        String form = mockMvc.perform(get("/rpg/systems/new").param("forkFrom", String.valueOf(sourceId))
+                        .session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(form).contains("value=\"Система для повторного форка (форк) 1\"");
+    }
+
+    @Test
+    void forkOfPrivateSystemOfAnotherAuthorDenied() throws Exception {
+        User author = createUser("auto_rpg_master_fork_priv", UserRole.RESIDENT);
+        createUser("auto_rpg_player_forker3", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rpg_player_forker3");
+        Long privateId = createLibrarySystemWithTemplate(author, "Приватная система");
+        GameSystemDefinition privateSystem = definitionRepository.findById(privateId).orElseThrow();
+        privateSystem.setPublic(false);
+        definitionRepository.save(privateSystem);
+
+        mockMvc.perform(get("/rpg/systems/new").param("forkFrom", String.valueOf(privateId)).session(session))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void systemPreviewHasNoSaveButton() throws Exception {
+        User author = createUser("auto_rpg_master_preview", UserRole.RESIDENT);
+        Long systemId = createLibrarySystemWithTemplate(author, "Система для предпросмотра");
+
+        String page = mockMvc.perform(get("/rpg/systems/" + systemId + "/character")
+                        .session(login("auto_rpg_master_preview")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(page).doesNotContain("Не сохраняется");
+        assertThat(page).doesNotContain("disabled");
+        assertThat(page).contains("К системе");
+        // Форма предпросмотра не отправляется даже по Enter: иначе POST дал бы 405.
+        assertThat(page).contains("onsubmit=\"return false\"");
+    }
+
+    @Test
+    void authorCanEditAndDeleteOwnSystem() throws Exception {
+        User author = createUser("auto_rpg_master_owner", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rpg_master_owner");
+        Long systemId = createLibrarySystemWithTemplate(author, "Система автора");
+
+        mockMvc.perform(get("/rpg/systems/" + systemId + "/edit").session(session))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/rpg/systems/" + systemId + "/edit").session(session).with(csrf())
+                        .param("name", "Система автора (обновлённая)")
+                        .param("description", "Новое описание.")
+                        .param("templateAttributes[0].name", "Мана")
+                        .param("templateAttributes[0].type", "NUMERIC"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/rpg/systems/" + systemId));
+
+        GameSystemDefinition updated = definitionRepository.findById(systemId).orElseThrow();
+        assertThat(updated.getName()).isEqualTo("Система автора (обновлённая)");
+        assertThat(updated.getDescription()).isEqualTo("Новое описание.");
+        assertThat(updated.getTemplateAttributeList()).hasSize(1);
+
+        mockMvc.perform(post("/rpg/systems/" + systemId + "/delete").session(session).with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/rpg/systems"));
+
+        assertThat(definitionRepository.findById(systemId)).isEmpty();
+    }
+
+    @Test
+    void strangerCannotEditOrDeleteSystem() throws Exception {
+        User author = createUser("auto_rpg_master_owner2", UserRole.RESIDENT);
+        createUser("auto_rpg_player_stranger", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rpg_player_stranger");
+        Long systemId = createLibrarySystemWithTemplate(author, "Чужая система");
+
+        mockMvc.perform(get("/rpg/systems/" + systemId + "/edit").session(session))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/rpg/systems/" + systemId + "/edit").session(session).with(csrf())
+                        .param("name", "Захвачено"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/rpg/systems/" + systemId + "/delete").session(session).with(csrf()))
+                .andExpect(status().isForbidden());
+
+        GameSystemDefinition untouched = definitionRepository.findById(systemId).orElseThrow();
+        assertThat(untouched.getName()).isEqualTo("Чужая система");
+        assertThat(untouched.getTemplateAttributeList()).hasSize(3);
+    }
+
+    @Test
+    void versionBadgeAndColumnAreGone() throws Exception {
+        User author = createUser("auto_rpg_master_nover", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rpg_master_nover");
+        Long systemId = createLibrarySystemWithTemplate(author, "Система без версии");
+
+        String list = mockMvc.perform(get("/rpg/systems").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        String view = mockMvc.perform(get("/rpg/systems/" + systemId).session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        // Бейдж версии удалён, колонка из базы тоже.
+        assertThat(list).doesNotContain(">v1<");
+        assertThat(list).doesNotContain(">v</");
+        assertThat(view).doesNotContain(">v1<");
+        assertThat(view).doesNotContain(">v</");
+        assertThat(columnExists("rpg_system_definitions", "system_version")).isFalse();
+    }
+
+    @Test
+    void anyUserCanForkButOnlyAuthorEditsAndDeletes() throws Exception {
+        User author = createUser("auto_rpg_master_forkui", UserRole.RESIDENT);
+        createUser("auto_rpg_player_forkui", UserRole.RESIDENT);
+        MockHttpSession authorSession = login("auto_rpg_master_forkui");
+        MockHttpSession otherSession = login("auto_rpg_player_forkui");
+        Long systemId = createLibrarySystemWithTemplate(author, "Публичная система автора");
+
+        String listOther = mockMvc.perform(get("/rpg/systems").session(otherSession))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        String cardOther = cardWithId(listOther, systemId);
+
+        // Чужому пользователю доступен форк и просмотр, но не правка и не удаление.
+        assertThat(cardOther).contains("href=\"/rpg/systems/new?forkFrom=" + systemId + "\"");
+        assertThat(cardOther).contains("href=\"/rpg/systems/" + systemId + "\"");
+        assertThat(cardOther).doesNotContain("href=\"/rpg/systems/" + systemId + "/edit\"");
+        assertThat(cardOther).doesNotContain("/rpg/systems/" + systemId + "/delete");
+
+        String listAuthor = mockMvc.perform(get("/rpg/systems").session(authorSession))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        String cardAuthor = cardWithId(listAuthor, systemId);
+
+        // Автору доступны все три действия.
+        assertThat(cardAuthor).contains("href=\"/rpg/systems/new?forkFrom=" + systemId + "\"");
+        assertThat(cardAuthor).contains("href=\"/rpg/systems/" + systemId + "/edit\"");
+        assertThat(cardAuthor).contains("action=\"/rpg/systems/" + systemId + "/delete\"");
+
+        // На странице системы то же самое.
+        String viewOther = mockMvc.perform(get("/rpg/systems/" + systemId).session(otherSession))
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(viewOther).contains("href=\"/rpg/systems/new?forkFrom=" + systemId + "\"");
+        assertThat(viewOther).doesNotContain("/edit");
+        assertThat(viewOther).doesNotContain("/delete");
+    }
+
+    @Test
+    void newSystemFormHasHiddenFieldForVisibilityCheckbox() throws Exception {
+        createUser("auto_rpg_master_chk", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rpg_master_chk");
+
+        String form = mockMvc.perform(get("/rpg/systems/new").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(form).contains("<input type=\"hidden\" name=\"published\" value=\"false\"/>");
+    }
+
+    @Test
+    void gameFormHasHiddenFieldForSheetVisibilityCheckbox() throws Exception {
+        User master = createUser("auto_rpg_master_chk2", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rpg_master_chk2");
+
+        String form = mockMvc.perform(get("/rpg/games/new").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        // Снятая галочка не отправляется, а поле по умолчанию true — без скрытого
+        // поля «анкета скрыта» не работала бы.
+        assertThat(form).contains("<input type=\"hidden\" name=\"attributesVisible\" value=\"false\"/>");
+    }
+
+    @Test
+    void uncheckedSheetVisibilityHidesAttributes() throws Exception {
+        User master = createUser("auto_rpg_master_chk3", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rpg_master_chk3");
+
+        // attributesVisible не передаём — как это делает браузер при снятой галочке,
+        // полагаясь на скрытое поле false из формы.
+        mockMvc.perform(post("/rpg/games").session(session).with(csrf())
+                        .param("title", "Игра со скрытой анкетой")
+                        .param("description", "Анкета скрыта от игроков.")
+                        .param("system", "DND")
+                        .param("visibility", "OPEN")
+                        .param("status", "RECRUITING")
+                        .param("attributesVisible", "false"))
+                .andExpect(status().is3xxRedirection());
+
+        Game created = gameRepository.findAll().stream()
+                .filter(g -> "Игра со скрытой анкетой".equals(g.getTitle()))
+                .findFirst().orElseThrow();
+        assertThat(created.isAttributesVisible()).isFalse();
+    }
+
+    private boolean columnExists(String table, String column) {
+        Integer count = jdbcTemplate.queryForObject(
+            "SELECT count(*) FROM information_schema.columns WHERE table_name = ? AND column_name = ?",
+            Integer.class, table, column);
+        return count != null && count > 0;
+    }
+
+    /** Карточка системы по её ID в HTML списка библиотеки. */
+    private String cardWithId(String html, Long systemId) {
+        int start = html.indexOf("card h-100", html.indexOf("href=\"/rpg/systems/" + systemId + "\"") - 4000);
+        int end = html.indexOf("</div>\n            </div>", start);
+        return html.substring(Math.max(start, 0), end > start ? end : start + 2000);
+    }
+
+    @Test
+    void positionFieldIsGoneAndOrderComesFromRowSequence() throws Exception {
+        User author = createUser("auto_rpg_master_nopos", UserRole.RESIDENT);
+        MockHttpSession session = login("auto_rpg_master_nopos");
+
+        String form = mockMvc.perform(get("/rpg/systems/new").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        // Автору порядок задавать не нужно: сервер проставляет его по номеру строки.
+        assertThat(form).doesNotContain("Порядок");
+        assertThat(form).doesNotContain("data-attr-position");
+        assertThat(form).doesNotContain("data-new-position");
+        assertThat(form).doesNotContain("templateAttributes[0].position");
+
+        // Значение, присланное вручную, игнорируется: порядок определяется строками.
+        mockMvc.perform(post("/rpg/systems/new").session(session).with(csrf())
+                        .param("name", "Система без поля порядка")
+                        .param("templateAttributes[0].name", "Мана")
+                        .param("templateAttributes[0].type", "NUMERIC")
+                        .param("templateAttributes[0].position", "999")
+                        .param("templateAttributes[1].name", "Заклинания")
+                        .param("templateAttributes[1].type", "LIST")
+                        .param("templateAttributes[1].listKind", "COMPLEX"))
+                .andExpect(status().is3xxRedirection());
+
+        GameSystemDefinition created = definitionRepository.findAll().stream()
+                .filter(sys -> "Система без поля порядка".equals(sys.getName()))
+                .findFirst().orElseThrow();
+        assertThat(created.getTemplateAttributeList()).hasSize(2);
+        assertThat(created.getTemplateAttributeList().get(0).getName()).isEqualTo("Мана");
+        assertThat(created.getTemplateAttributeList().get(0).getPosition()).isZero();
+        assertThat(created.getTemplateAttributeList().get(1).getName()).isEqualTo("Заклинания");
+        assertThat(created.getTemplateAttributeList().get(1).getPosition()).isEqualTo(10);
+
+        // В таблице состава на странице системы колонки порядка тоже нет.
+        Long id = created.getId();
+        String view = mockMvc.perform(get("/rpg/systems/" + id).session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(view).doesNotContain("Порядок");
+        assertThat(view).contains("Мана");
+        assertThat(view).contains("Заклинания");
+    }
+
+    @Test
+    void systemsListLinksToGames() throws Exception {
+        createUser("auto_rpg_master_back", UserRole.RESIDENT);
+        String page = mockMvc.perform(get("/rpg/systems").session(login("auto_rpg_master_back")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(page).contains("href=\"/rpg/games\"");
+        assertThat(page).contains("К играм");
+        assertThat(page).doesNotContain("К созданию игр");
+        assertThat(page).doesNotContain("href=\"/rpg/games/new\" class=\"btn btn-outline-secondary\"");
+    }
+
+    @Test
+    void listEditEndpointsAreNotAvailable() throws Exception {
+        User master = createUser("auto_rpg_master_noep", UserRole.RESIDENT);
+        createUser("auto_rpg_player_noep", UserRole.RESIDENT);
+        Game game = createGame(master, "Эндпоинты", "Правки только через форму.", GameSystem.DND, GameVisibility.OPEN, GameStatus.RECRUITING);
+        Long playerId = applyFor("auto_rpg_player_noep", game, "Герой");
+        acceptFor(game, playerId);
+        Long sheetId = sheetIdFor(game, playerId);
+        MockHttpSession session = login("auto_rpg_player_noep");
+
+        mockMvc.perform(post("/rpg/games/" + game.getId() + "/characters/" + sheetId + "/lists/inventory/add")
+                        .session(session).with(csrf())
+                        .param("header", "Факел"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/rpg/games/" + game.getId() + "/characters/" + sheetId + "/lists/inventory/remove")
+                        .session(session).with(csrf())
+                        .param("itemIndex", "0"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void listJsonFromEditFormIsPersistedAndRenderedGroupedByLevel() throws Exception {
+        User master = createUser("auto_rpg_master_edit", UserRole.RESIDENT);
+        createUser("auto_rpg_player_edit", UserRole.RESIDENT);
+        Game game = createGame(master, "Форма списков", "Сохранение из формы.", GameSystem.DND, GameVisibility.OPEN, GameStatus.RECRUITING);
+        Long playerId = applyFor("auto_rpg_player_edit", game, "Ученик");
+        acceptFor(game, playerId);
+        Long sheetId = sheetIdFor(game, playerId);
+        MockHttpSession session = login("auto_rpg_player_edit");
+        int spellsIndex = attributeIndex(sheetId, "spells");
+
+        String listJson = "[{\"header\":\"Щит\",\"description\":\"AC +2\",\"level\":1},"
+                + "{\"header\":\"Молния\",\"description\":\"Урон 8d6\",\"level\":3}]";
+
+        mockMvc.perform(post("/rpg/games/" + game.getId() + "/characters/" + sheetId + "/edit")
+                        .session(session).with(csrf())
+                        .param("name", "Ученик")
+                        .param("attributes[" + spellsIndex + "].key", "spells")
+                        .param("attributes[" + spellsIndex + "].type", "LIST")
+                        .param("attributes[" + spellsIndex + "].listJson", listJson))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/rpg/games/" + game.getId() + "/characters/" + sheetId));
+
+        String page = sheetPage(game, sheetId, "auto_rpg_player_edit");
+        assertThat(page).contains("Щит").contains("AC +2").contains("Молния").contains("Урон 8d6");
+        assertThat(page.indexOf("Ур. 1")).isLessThan(page.indexOf("Ур. 3"));
+    }
+
+    @Test
+    void spellSlotsCanBeConfiguredForAnyLevelFromEditForm() throws Exception {
+        User master = createUser("auto_rpg_master_cfg", UserRole.RESIDENT);
+        createUser("auto_rpg_player_cfg", UserRole.RESIDENT);
+        Game game = createGame(master, "Настройка ячеек", "Любой уровень 1-9.", GameSystem.DND, GameVisibility.OPEN, GameStatus.RECRUITING);
+        Long playerId = applyFor("auto_rpg_player_cfg", game, "Чародей");
+        acceptFor(game, playerId);
+        Long sheetId = sheetIdFor(game, playerId);
+        MockHttpSession session = login("auto_rpg_player_cfg");
+
+        // Уровня 5 в листе ещё нет (0 / 0) — задаём его из формы редактирования.
+        int maxIdx = attributeIndex(sheetId, "spell_slot_max:5");
+        int curIdx = attributeIndex(sheetId, "spell_slot_current:5");
+
+        mockMvc.perform(post("/rpg/games/" + game.getId() + "/characters/" + sheetId + "/edit")
+                        .session(session).with(csrf())
+                        .param("name", "Чародей")
+                        .param("attributes[" + maxIdx + "].key", "spell_slot_max:5")
+                        .param("attributes[" + maxIdx + "].type", "NUMERIC")
+                        .param("attributes[" + maxIdx + "].numericValue", "2")
+                        .param("attributes[" + curIdx + "].key", "spell_slot_current:5")
+                        .param("attributes[" + curIdx + "].type", "NUMERIC")
+                        .param("attributes[" + curIdx + "].numericValue", "2"))
+                .andExpect(status().is3xxRedirection());
+
+        assertThat(numericOf(sheetId, "spell_slot_max:5")).isEqualTo(2);
+        assertThat(numericOf(sheetId, "spell_slot_current:5")).isEqualTo(2);
+
+        String page = sheetPage(game, sheetId, "auto_rpg_player_cfg");
+        assertThat(page).contains("Ур. 5");
+        assertThat(page).doesNotContain("Ур. 6");
+    }
+
+    @Test
+    void resetSpellSlotsSetsCurrentEqualToMaxAndPersists() throws Exception {
+        User master = createUser("auto_rpg_master_reset", UserRole.RESIDENT);
+        createUser("auto_rpg_player_reset", UserRole.RESIDENT);
+        Game game = createGame(master, "Сброс ячеек", "Текущее = максимальному.", GameSystem.DND, GameVisibility.OPEN, GameStatus.RECRUITING);
+        Long playerId = applyFor("auto_rpg_player_reset", game, "Маг");
+        acceptFor(game, playerId);
+        Long sheetId = sheetIdFor(game, playerId);
+        setNumeric(sheetId, "spell_slot_max:1", 4);
+        setNumeric(sheetId, "spell_slot_current:1", 1);
+        MockHttpSession session = login("auto_rpg_player_reset");
+
+        mockMvc.perform(post("/rpg/games/" + game.getId() + "/characters/" + sheetId + "/spell-slots-reset")
+                        .session(session).with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/rpg/games/" + game.getId() + "/characters/" + sheetId));
+
+        assertThat(numericOf(sheetId, "spell_slot_current:1")).isEqualTo(4);
     }
 
     @Test
@@ -1199,6 +2227,107 @@ class RpgIntegrationTest {
                         .param("kventa", "Квента: короткая история."))
                 .andExpect(status().is3xxRedirection());
         return player.getId();
+    }
+
+    /**
+     * Страница листа персонажа в режиме просмотра.
+     */
+    private String sheetPage(Game game, Long sheetId, String username) throws Exception {
+        return mockMvc.perform(get("/rpg/games/" + game.getId() + "/characters/" + sheetId)
+                        .session(login(username)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    private Long sheetIdFor(Game game, Long playerId) {
+        return applicationRepository.findByGameIdAndUserId(game.getId(), playerId).orElseThrow().getSheetId();
+    }
+
+    /**
+     * Проставляет числовое значение параметра листа напрямую в БД.
+     */
+    private void setNumeric(Long sheetId, String key, int value) {
+        SheetAttribute attr = attributeRepository.findBySheetIdAndKey(sheetId, key).orElseThrow();
+        attr.setNumericValue(value);
+        attributeRepository.save(attr);
+    }
+
+    private void setListKind(Long sheetId, String key, String listKind) {
+        SheetAttribute attr = attributeRepository.findBySheetIdAndKey(sheetId, key).orElseThrow();
+        attr.setListKind(org.corpsman.rpg.model.ListKind.valueOf(listKind));
+        attributeRepository.save(attr);
+    }
+
+    private void setListValues(Long sheetId, String key, String json) {
+        SheetAttribute attr = attributeRepository.findBySheetIdAndKey(sheetId, key).orElseThrow();
+        attr.setListValues(json);
+        attributeRepository.save(attr);
+    }
+
+    private Integer numericOf(Long sheetId, String key) {
+        return attributeRepository.findBySheetIdAndKey(sheetId, key).orElseThrow().getNumericValue();
+    }
+
+    private String listValues(Long sheetId, String key) {
+        return attributeRepository.findBySheetIdAndKey(sheetId, key).orElseThrow().getListValues();
+    }
+
+    private String listKindOf(Long sheetId, String key) {
+        return String.valueOf(attributeRepository.findBySheetIdAndKey(sheetId, key).orElseThrow().getListKind());
+    }
+
+    private Long gameIdByTitle(String title) {
+        return gameRepository.findAll().stream()
+                .filter(g -> title.equals(g.getTitle()))
+                .map(Game::getId)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private Long createLibrarySystemWithTemplate(User author, String name) {
+        GameSystemDefinition system = new GameSystemDefinition();
+        system.setName(name);
+        system.setDescription("Система с составом параметров.");
+        system.setAuthorId(author.getId());
+        system.setPublic(true);
+        List<SystemAttributeDto> template = new ArrayList<>();
+        template.add(attr("Мана", AttributeType.NUMERIC, 0, null));
+        template.add(attr("Заклинания", AttributeType.LIST, 10, ListKind.COMPLEX));
+        template.add(attr("Инвентарь", AttributeType.LIST, 20, ListKind.SIMPLE));
+        system.setTemplateAttributeList(template);
+        return definitionRepository.save(system).getId();
+    }
+
+    private SystemAttributeDto attr(String name, AttributeType type, int position, ListKind listKind) {
+        SystemAttributeDto dto = new SystemAttributeDto();
+        dto.setName(name);
+        dto.setType(type);
+        dto.setPosition(position);
+        dto.setListKind(listKind);
+        return dto;
+    }
+
+    private Long createLibrarySystem(User author, String name) {
+        GameSystemDefinition system = new GameSystemDefinition();
+        system.setName(name);
+        system.setDescription("Описание для теста.");
+        system.setAuthorId(author.getId());
+        system.setPublic(true);
+        return definitionRepository.save(system).getId();
+    }
+
+    /**
+     * Индекс параметра в отсортированном списке атрибутов — он же индекс в
+     * списке attributes формы редактирования.
+     */
+    private int attributeIndex(Long sheetId, String key) {
+        List<SheetAttribute> attrs = attributeRepository.findBySheetIdOrderByPositionAsc(sheetId);
+        for (int i = 0; i < attrs.size(); i++) {
+            if (key.equals(attrs.get(i).getKey())) {
+                return i;
+            }
+        }
+        throw new AssertionError("Атрибут " + key + " не найден");
     }
 
     private void acceptFor(Game game, Long playerId) throws Exception {

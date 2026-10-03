@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.25.xsd">
+
+    <changeSet id="3.1.0-05" author="architect" context="3.1.0">
+        <comment>
+            list_kind больше не имеет значения по умолчанию: вид списка объявляет
+            ролевая система, а не содержимое колонки. Прежний defaultValue='SIMPLE'
+            проставил листам, созданным до changeset 3.1.0-02, значение SIMPLE —
+            из-за чего умения, черты и заклинания D&amp;D отображались простыми
+            списками вместо сложных.
+        </comment>
+        <dropDefaultValue tableName="rpg_character_attributes" columnName="list_kind"/>
+        <dropDefaultValue tableName="rpg_custom_attributes" columnName="list_kind"/>
+    </changeSet>
+
+    <changeSet id="3.1.0-06" author="architect" context="3.1.0">
+        <comment>
+            Восстановление вида списка по данным ролевой системы для листов,
+            созданных до появления list_kind. Сложный список никогда не
+            понижается до простого.
+        </comment>
+        <sql>
+            UPDATE rpg_character_attributes
+               SET list_kind = 'COMPLEX'
+             WHERE attr_type = 'LIST'
+               AND list_kind = 'SIMPLE'
+               AND attr_key IN ('spells', 'feats', 'skills');
+        </sql>
+        <sql>
+            UPDATE rpg_character_attributes a
+               SET list_kind = c.list_kind
+              FROM rpg_custom_attributes c
+             WHERE a.attr_type = 'LIST'
+               AND a.list_kind IS DISTINCT FROM c.list_kind
+               AND a.attr_key = 'custom:' || c.id
+               AND c.list_kind IS NOT NULL
+               AND c.list_kind != 'SIMPLE';
+        </sql>
+        <comment>Инвентарь всегда простой список.</comment>
+        <sql>
+            UPDATE rpg_character_attributes
+               SET list_kind = 'SIMPLE'
+             WHERE attr_type = 'LIST' AND attr_key = 'inventory';
+        </sql>
+    </changeSet>
+</databaseChangeLog>

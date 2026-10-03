@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.25.xsd">
+
+    <changeSet id="3.1" author="architect" context="3.1.0">
+        <comment>Добавить колонку custom_system_definition_id в rpg_games для поддержки кастомных систем из библиотеки</comment>
+        <addColumn tableName="rpg_games">
+            <column name="custom_system_definition_id" type="BIGINT">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        <addForeignKeyConstraint
+            baseTableName="rpg_games"
+            baseColumnNames="custom_system_definition_id"
+            constraintName="fk_rpg_games_custom_system_definition"
+            referencedTableName="rpg_system_definitions"
+            referencedColumnNames="id"
+            onDelete="SET NULL"/>
+    </changeSet>
+</databaseChangeLog>

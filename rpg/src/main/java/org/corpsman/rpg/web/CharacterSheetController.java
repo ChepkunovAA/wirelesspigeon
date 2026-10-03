@@ -1,5 +1,6 @@
 package org.corpsman.rpg.web;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.corpsman.auth.model.UserRole;
 import org.corpsman.auth.repository.UserRepository;
@@ -48,6 +49,8 @@ public class CharacterSheetController {
 
     private final UserRepository userRepository;
 
+    private final ObjectMapper objectMapper;
+
     /**
      * Страница заявки: новый лист (создание) или редактирование своей заявки.
      */
@@ -63,6 +66,7 @@ public class CharacterSheetController {
         model.addAttribute("sheetForm", formFrom(view));
         model.addAttribute("npcMode", false);
         model.addAttribute("editMode", false);
+        model.addAttribute("previewMode", false);
         return "rpg/apply";
     }
 
@@ -117,6 +121,7 @@ public class CharacterSheetController {
         model.addAttribute("sheetForm", formFrom(view));
         model.addAttribute("npcMode", true);
         model.addAttribute("editMode", false);
+        model.addAttribute("previewMode", false);
         return "rpg/apply";
     }
 
@@ -148,6 +153,7 @@ public class CharacterSheetController {
         model.addAttribute("sheetForm", formFrom(view));
         model.addAttribute("editMode", true);
         model.addAttribute("npcMode", false);
+        model.addAttribute("previewMode", false);
         return "rpg/apply";
     }
 
@@ -170,6 +176,7 @@ public class CharacterSheetController {
         model.addAttribute("sheetForm", form);
         model.addAttribute("editMode", true);
         model.addAttribute("npcMode", false);
+        model.addAttribute("previewMode", false);
         return "rpg/apply";
     }
 
@@ -185,6 +192,49 @@ public class CharacterSheetController {
         Game game = gameService.requireMaster(gameId, SecurityUtils.currentUserId());
         applicationService.review(game, appId, false, SecurityUtils.currentUserId());
         return "redirect:/rpg/games/" + gameId;
+    }
+
+    /**
+     * Добавление предмета в инвентарь прямо из режима просмотра.
+     * Инвентарь — простой список, поэтому передаётся одна строка.
+     * Правка остальных списков возможна только в режиме редактирования.
+     */
+    @PostMapping("/characters/{sheetId}/inventory-add")
+    public String addInventoryItem(@PathVariable Long gameId, @PathVariable Long sheetId,
+                                   @RequestParam String itemHeader) {
+        Long uid = SecurityUtils.currentUserId();
+        Game game = gameService.requireVisible(gameId, freshRole(uid), uid);
+        CharacterSheet sheet = characterSheetService.requireSheet(game, sheetId);
+        characterSheetService.requireSheetEdit(game, sheet, uid);
+        characterSheetService.addInventoryItem(sheet, itemHeader, null);
+        return "redirect:/rpg/games/" + gameId + "/characters/" + sheetId;
+    }
+
+    /**
+     * Удаление предмета инвентаря по индексу в списке.
+     */
+    @PostMapping("/characters/{sheetId}/inventory-remove")
+    public String removeInventoryItem(@PathVariable Long gameId, @PathVariable Long sheetId,
+                                      @RequestParam int itemIndex) {
+        Long uid = SecurityUtils.currentUserId();
+        Game game = gameService.requireVisible(gameId, freshRole(uid), uid);
+        CharacterSheet sheet = characterSheetService.requireSheet(game, sheetId);
+        characterSheetService.requireSheetEdit(game, sheet, uid);
+        characterSheetService.removeInventoryItem(sheet, itemIndex);
+        return "redirect:/rpg/games/" + gameId + "/characters/" + sheetId;
+    }
+
+    /**
+     * Сброс ячеек заклинаний: текущее значение приравнивается к максимальному.
+     */
+    @PostMapping("/characters/{sheetId}/spell-slots-reset")
+    public String resetSpellSlots(@PathVariable Long gameId, @PathVariable Long sheetId) {
+        Long uid = SecurityUtils.currentUserId();
+        Game game = gameService.requireVisible(gameId, freshRole(uid), uid);
+        CharacterSheet sheet = characterSheetService.requireSheet(game, sheetId);
+        characterSheetService.requireSheetEdit(game, sheet, uid);
+        characterSheetService.resetSpellSlots(sheet);
+        return "redirect:/rpg/games/" + gameId + "/characters/" + sheetId;
     }
 
     private CharacterSheet ownSheet(Game game, Long uid) {
@@ -214,13 +264,45 @@ public class CharacterSheetController {
             f.setType(a.getType());
             f.setNumericValue(a.getNumericValue());
             f.setTextValue(a.getTextValue());
-            f.setListValues(a.getListValues());
-            f.setListText(a.getListValues() == null ? "" : String.join("\n", a.getListValues()));
+            fillList(f, a);
             f.setFlags(a.getFlags());
             attrs.add(f);
         }
         form.setAttributes(attrs);
         return form;
+    }
+
+    /**
+     * Элементы списка в виде JSON для скрытого поля формы редактирования.
+     */
+    /**
+     * Элементы списка в виде значения формы редактирования: простой список
+     * передаётся построчно в {@code listText}, сложный — JSON в {@code listJson}.
+     */
+    private void fillList(SheetAttributeForm f, AttributeViewDto a) {
+        f.setListKind(a.getListKind());
+        if (a.getListKind() == org.corpsman.rpg.model.ListKind.COMPLEX) {
+            f.setListJson(toListJson(a));
+            f.setListText(null);
+        } else {
+            f.setListText(a.getListItems() == null ? ""
+                    : a.getListItems().stream()
+                    .map(org.corpsman.rpg.model.ListItem::getHeader)
+                    .filter(h -> h != null && !h.isBlank())
+                    .collect(java.util.stream.Collectors.joining("\n")));
+            f.setListJson("[]");
+        }
+    }
+
+    private String toListJson(AttributeViewDto a) {
+        if (a.getListItems() == null || a.getListItems().isEmpty()) {
+            return "[]";
+        }
+        try {
+            return objectMapper.writeValueAsString(a.getListItems());
+        } catch (Exception e) {
+            return "[]";
+        }
     }
 
     private UserRole freshRole(Long uid) {

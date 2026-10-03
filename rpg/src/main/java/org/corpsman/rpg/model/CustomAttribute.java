@@ -28,4 +28,17 @@ public class CustomAttribute extends BaseEntity {
 
     @Column(nullable = false)
     private int position;
+
+    /**
+     * Тип списка для параметров типа {@link AttributeType#LIST}:
+     * {@code SIMPLE} («Простой список») или {@code COMPLEX} («Сложный список»).
+     * Для числовых и текстовых параметров не используется.
+     */
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @Column(name = "list_kind", length = 16)
+    private ListKind listKind = ListKind.SIMPLE;
+
+    public ListKind listKindOrDefault() {
+        return listKind == null ? ListKind.SIMPLE : listKind;
+    }
 }

@@ -25,6 +25,11 @@ public class GameForm {
 
     private GameSystem system = GameSystem.VERBAL;
 
+    /**
+     * ID кастомной системы из библиотеки (если выбрана CUSTOM).
+     */
+    private Long customSystemId;
+
     private GameVisibility visibility = GameVisibility.OPEN;
 
     private GameStatus status = GameStatus.RECRUITING;

@@ -33,4 +33,22 @@ public class CharacterSheetViewDto {
      * Список вспомогательных модификаторов для popup-подстановки в комментарий к броску.
      */
     private List<CharacterModifierDto> modifiers = new ArrayList<>();
+
+    /**
+     * Ячейки заклинаний по уровням (текущее/максимальное) для блока «Ячейки».
+     * Уровни, у которых и текущее, и максимальное равны нулю, не попадают в список.
+     */
+    private List<SpellSlotDto> spellSlots = new ArrayList<>();
+
+    /**
+     * Заклинания, сгруппированные по уровню (по возрастанию) для блока
+     * «Заклинания». Уровни без элементов отсутствуют.
+     */
+    private List<SpellGroupDto> spellGroups = new ArrayList<>();
+
+    /**
+     * Ячейки заклинаний для формы редактирования: текущее и максимальное
+     * редактируются рядом в одном блоке «Ячейки».
+     */
+    private List<SpellSlotEditDto> spellSlotEdits = new ArrayList<>();
 }

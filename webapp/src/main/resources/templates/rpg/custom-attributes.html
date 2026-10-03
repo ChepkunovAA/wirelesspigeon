@@ -38,11 +38,15 @@
                 </thead>
                 <tbody>
                 <tr th:if="${#lists.isEmpty(attributes)}">
-                    <td colspan="3" class="text-muted small">Список пуст. Добавьте первый параметр ниже.</td>
+                    <td colspan="4" class="text-muted small">Список пуст. Добавьте первый параметр ниже.</td>
                 </tr>
                 <tr th:each="a, s : ${attributes}">
                     <td th:text="${a.name}">Параметр</td>
-                    <td><span class="badge text-bg-secondary" th:text="${a.type.name()}">TEXT</span></td>
+                    <td>
+                        <span class="badge text-bg-secondary" th:text="${a.type.name()}">TEXT</span>
+                        <span th:if="${a.type.name() == 'LIST'}" class="badge text-bg-info"
+                              th:text="${a.listKind != null and a.listKind.name() == 'COMPLEX'} ? 'Сложный' : 'Простой'">Простой</span>
+                    </td>
                     <td class="d-flex gap-1">
                         <form th:action="@{/rpg/games/{gid}/attributes/{aid}/move(gid=${game.id}, aid=${a.id})}"
                               method="post" class="d-inline">
@@ -86,12 +90,19 @@
                     <input type="text" name="name" class="form-control" required maxlength="200"
                            placeholder="Например: Слава, Ремесло, Архетип...">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label">Тип</label>
-                    <select name="attributeType" class="form-select">
+                    <select name="attributeType" class="form-select" id="attr-type">
                         <option value="TEXT">Текст</option>
                         <option value="NUMERIC">Число</option>
                         <option value="LIST">Список</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-none" id="attr-list-kind">
+                    <label class="form-label">Вид списка</label>
+                    <select name="listKind" class="form-select">
+                        <option value="SIMPLE">Простой список</option>
+                        <option value="COMPLEX">Сложный список</option>
                     </select>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
@@ -103,5 +114,17 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    (function () {
+        var type = document.getElementById('attr-type');
+        var kind = document.getElementById('attr-list-kind');
+        if (!type || !kind) return;
+        function sync() {
+            kind.classList.toggle('d-none', type.value !== 'LIST');
+        }
+        type.addEventListener('change', sync);
+        sync();
+    })();
+</script>
 </body>
 </html>

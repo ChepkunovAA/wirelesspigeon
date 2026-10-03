@@ -10,6 +10,7 @@ import org.corpsman.rpg.dto.GameForm;
 import org.corpsman.rpg.dto.GameSummaryDto;
 import org.corpsman.rpg.dto.RoomDto;
 import org.corpsman.rpg.model.Game;
+import org.corpsman.rpg.model.CharacterSheet;
 import org.corpsman.rpg.model.GameVisibility;
 import org.corpsman.rpg.model.GameWhitelistEntry;
 import org.corpsman.rpg.repository.GameRepository;
@@ -17,6 +18,12 @@ import org.corpsman.rpg.repository.GameWhitelistRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.corpsman.rpg.dto.SystemAttributeDto;
+import org.corpsman.rpg.model.AttributeType;
+import org.corpsman.rpg.model.CustomAttribute;
+import org.corpsman.rpg.repository.CustomAttributeRepository;
+
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -38,7 +45,11 @@ public class GameService {
 
     private final RoomService roomService;
 
+    private final CustomAttributeRepository customAttributeRepository;
+
     private final UserRepository userRepository;
+
+    private final GameSystemLibraryService libraryService;
 
     @Transactional
     public Game create(UserRole role, Long masterId, GameForm form) {
@@ -46,13 +57,56 @@ public class GameService {
         game.setTitle(form.getTitle().trim());
         game.setDescription(form.getDescription().trim());
         game.setMasterId(masterId);
-        game.setSystem(form.getSystem());
+        
+        // Handle custom system from library
+        if (form.getSystem() == org.corpsman.rpg.model.GameSystem.CUSTOM && form.getCustomSystemId() != null) {
+            game.setSystem(org.corpsman.rpg.model.GameSystem.CUSTOM);
+            game.setCustomSystemDefinitionId(form.getCustomSystemId());
+        } else {
+            game.setSystem(form.getSystem());
+        }
+
         game.setVisibility(resolveVisibility(role, form));
         game.setStatus(form.getStatus());
         game.setAttributesVisible(form.isAttributesVisible());
         Game saved = gameRepository.save(game);
         saveWhitelist(saved.getId(), form.getWhitelistItems());
+        // Состав параметров листа берётся из анкеты системы: ведущему не нужно
+        // заполнять его вручную.
+        if (game.getCustomSystemDefinitionId() != null) {
+            applySystemTemplate(saved, game.getCustomSystemDefinitionId());
+        }
         return saved;
+    }
+
+    /**
+     * Переносит типовую анкету системы в параметры листа игры. Параметры,
+     * добавленные ведущим ранее, не трогаются: применяются только недостающие.
+     */
+    private void applySystemTemplate(Game game, Long systemId) {
+        List<CustomAttribute> existing = customAttributeRepository
+                .findByGameIdOrderByPositionAsc(game.getId());
+        if (!existing.isEmpty()) {
+            return;
+        }
+        List<CustomAttribute> created = new ArrayList<>();
+        int position = 0;
+        for (SystemAttributeDto spec : libraryService.getTemplateForGameCreation(systemId, game.getMasterId())) {
+            if (spec == null || spec.getName() == null || spec.getName().isBlank()) {
+                continue;
+            }
+            CustomAttribute attr = new CustomAttribute();
+            attr.setGameId(game.getId());
+            attr.setName(spec.getName().trim());
+            attr.setType(spec.getType() == null ? AttributeType.TEXT : spec.getType());
+            attr.setPosition(spec.getPosition() > 0 ? spec.getPosition() : position);
+            attr.setListKind(attr.getType() == AttributeType.LIST ? spec.listKindOrDefault() : null);
+            created.add(attr);
+            position++;
+        }
+        if (!created.isEmpty()) {
+            customAttributeRepository.saveAll(created);
+        }
     }
 
     @Transactional
@@ -63,7 +117,16 @@ public class GameService {
         }
         game.setTitle(form.getTitle().trim());
         game.setDescription(form.getDescription().trim());
-        game.setSystem(form.getSystem());
+        
+        // Handle custom system from library
+        if (form.getSystem() == org.corpsman.rpg.model.GameSystem.CUSTOM && form.getCustomSystemId() != null) {
+            org.corpsman.rpg.model.GameSystemDefinition systemDef = libraryService.getSystem(form.getCustomSystemId(), -1L);
+            game.setSystem(org.corpsman.rpg.model.GameSystem.CUSTOM);
+            game.setCustomSystemDefinitionId(form.getCustomSystemId());
+        } else {
+            game.setSystem(form.getSystem());
+        }
+        
         game.setVisibility(resolveVisibility(userRepository.findById(masterId).map(u -> u.getRole()).orElse(null), form));
         game.setStatus(form.getStatus());
         game.setAttributesVisible(form.isAttributesVisible());
@@ -153,6 +216,10 @@ public class GameService {
         dto.setMasterViewer(isMaster);
         if (viewerId != null && !isMaster) {
             dto.setViewerApplication(applicationService.statusFor(game, viewerId));
+            // Ссылка «Редактировать лист» должна вести на существующий лист,
+            // а не на форму подачи новой заявки.
+            dto.setViewerSheetId(characterSheetService.resolveSheetByOwnerAndGame(viewerId, game.getId())
+                    .map(CharacterSheet::getId).orElse(null));
         }
         if (isMaster) {
             dto.setApplications(applicationService.applicationsFor(game));

@@ -63,7 +63,6 @@
                 <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                     <div>
                         <h6 class="mb-1"><i class="bi bi-journal-plus"></i> Хотите участвовать?</h6>
-                        <span class="text-muted small">Заполните лист персонажа — ведущий рассмотрит заявку.</span>
                     </div>
                     <a th:href="@{/rpg/games/{id}/apply(id=${game.id})}" class="btn btn-primary btn-sm">
                         <i class="bi bi-person-plus"></i> Подать заявку
@@ -76,7 +75,13 @@
                         <h6 class="mb-1 text-warning"><i class="bi bi-hourglass-split"></i> Заявка на рассмотрении</h6>
                         <span class="text-muted small">Ведущий ещё не ответил. Лист можно отредактировать.</span>
                     </div>
-                    <a th:href="@{/rpg/games/{id}/apply(id=${game.id})}" class="btn btn-outline-secondary btn-sm">
+                    <a th:if="${game.viewerSheetId != null}"
+                       th:href="@{/rpg/games/{gid}/characters/{sid}/edit(gid=${game.id}, sid=${game.viewerSheetId})}"
+                       class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-pencil"></i> Редактировать лист
+                    </a>
+                    <a th:unless="${game.viewerSheetId != null}"
+                       th:href="@{/rpg/games/{id}/apply(id=${game.id})}" class="btn btn-outline-secondary btn-sm">
                         <i class="bi bi-pencil"></i> Редактировать лист
                     </a>
                 </div>
@@ -85,9 +90,14 @@
                 <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                     <div>
                         <h6 class="mb-1 text-success"><i class="bi bi-check-circle"></i> Вы в игре</h6>
-                        <span class="text-muted small">Пишите в комнатах и бросайте кости.</span>
                     </div>
-                    <a th:href="@{/rpg/games/{id}/apply(id=${game.id})}" class="btn btn-outline-secondary btn-sm">
+                    <a th:if="${game.viewerSheetId != null}"
+                       th:href="@{/rpg/games/{gid}/characters/{sid}/edit(gid=${game.id}, sid=${game.viewerSheetId})}"
+                       class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-pencil"></i> Редактировать лист
+                    </a>
+                    <a th:unless="${game.viewerSheetId != null}"
+                       th:href="@{/rpg/games/{id}/apply(id=${game.id})}" class="btn btn-outline-secondary btn-sm">
                         <i class="bi bi-pencil"></i> Редактировать лист
                     </a>
                 </div>

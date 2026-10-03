@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.25.xsd">
+
+    <changeSet id="3.1.0-03" author="architect" context="3.1.0">
+        <comment>
+            Типовая анкета не заполняется публикатором системы, поэтому хранить её
+            негде: колонка удаляется. Пробный лист персонажа строится по правилам
+            системы (параметры настраивает ведущий игры).
+        </comment>
+        <dropColumn tableName="rpg_system_definitions" columnName="template_attributes"/>
+    </changeSet>
+</databaseChangeLog>

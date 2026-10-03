@@ -15,6 +15,7 @@ import org.corpsman.rpg.model.GameStatus;
 import org.corpsman.rpg.model.GameSystem;
 import org.corpsman.rpg.model.GameVisibility;
 import org.corpsman.rpg.service.GameService;
+import org.corpsman.rpg.service.GameSystemLibraryService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -40,6 +41,8 @@ public class GameController {
 
     private final GameService gameService;
 
+    private final GameSystemLibraryService libraryService;
+
     private final UserRepository userRepository;
 
     @GetMapping
@@ -54,14 +57,37 @@ public class GameController {
         return "rpg/games";
     }
 
+    /**
+     * Идентификатор текущего пользователя или -1 для анонимного: библиотека
+     * систем отдаёт и публичные, и собственные приватные.
+     */
+    private Long effectiveUid() {
+        Long uid = SecurityUtils.currentUserId();
+        return uid != null ? uid : -1L;
+    }
+
     @GetMapping("/new")
-    public String createForm(Model model) {
+    public String createForm(@RequestParam(value = "system", required = false) String system,
+                             @RequestParam(value = "customSystemId", required = false) Long customSystemId,
+                             Model model) {
         GameForm form = new GameForm();
         if (isGuest()) {
             form.setVisibility(GameVisibility.GUEST);
         }
+        // Предвыбор из ссылки «Создать игру на этой системе».
+        if (system != null && !system.isBlank()) {
+            try {
+                form.setSystem(GameSystem.valueOf(system));
+            } catch (IllegalArgumentException ignored) {
+                // неизвестная система — остаётся значение по умолчанию
+            }
+        }
+        if (customSystemId != null) {
+            form.setCustomSystemId(customSystemId);
+        }
         model.addAttribute("gameForm", form);
         model.addAttribute("systems", GameSystem.values());
+        model.addAttribute("librarySystems", libraryService.getAvailableSystems(effectiveUid()));
         model.addAttribute("visibilities", GameVisibility.values());
         model.addAttribute("statuses", GameStatus.values());
         model.addAttribute("isGuest", isGuest());
@@ -74,6 +100,7 @@ public class GameController {
     public String create(@Validated @ModelAttribute("gameForm") GameForm form, BindingResult binding, Model model) {
         if (binding.hasErrors()) {
             model.addAttribute("systems", GameSystem.values());
+            model.addAttribute("librarySystems", libraryService.getAvailableSystems(effectiveUid()));
             model.addAttribute("visibilities", GameVisibility.values());
             model.addAttribute("statuses", GameStatus.values());
             model.addAttribute("isGuest", isGuest());
@@ -132,6 +159,7 @@ public class GameController {
         model.addAttribute("allUsers", otherActiveUsers());
         model.addAttribute("gameWhitelist", gameService.whitelistUserIds(game.getId()));
         model.addAttribute("systems", GameSystem.values());
+        model.addAttribute("librarySystems", libraryService.getAvailableSystems(effectiveUid()));
         model.addAttribute("visibilities", GameVisibility.values());
         model.addAttribute("statuses", GameStatus.values());
         model.addAttribute("isGuest", isGuest());

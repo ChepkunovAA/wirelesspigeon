@@ -14,8 +14,10 @@ import org.corpsman.common.model.BaseEntity;
  * Параметр листа персонажа.
  * <p>
  * Типизированная модель: числовой / текстовый / список. Списки хранятся как JSON-массив
- * строк в {@code listValues}. Флаги ({@code flags}, битовая маска) используются ролевой
- * системой: для D&amp;D — владение спасброском (бит 0) и владение навыком (тернарный флаг).
+ * строк в {@code listValues}. Для элементов списка (type=LIST) можно хранить
+ * заголовок и описание каждого элемента в JSON: [{"header":"...", "description":"..."}, ...].
+ * Флаги ({@code flags}, битовая маска) используются ролевой
+ * системой: для D&D — владение спасброском (бит 0) и владение навыком (тернарный флаг).
  * Каждый параметр имеет собственную видимость.
  */
 @Entity
@@ -49,10 +51,22 @@ public class SheetAttribute extends BaseEntity {
     private String textValue;
 
     /**
-     * JSON-массив строк для списков.
+     * JSON-массив для списков (type=LIST).
+     * Формат определяется {@link #listKind}: для {@code SIMPLE} — массив строк
+     * {@code ["Факел", "Хлеб"]}, для {@code COMPLEX} — массив объектов
+     * {@code [{"header":"...","description":"...","level":1}, ...]}.
+     * Старые данные читаются в обоих форматах независимо от listKind.
      */
     @Column(name = "list_values", length = 1000000)
     private String listValues;
+
+    /**
+     * Тип списка: {@code SIMPLE} или {@code COMPLEX}. null — старый лист,
+     * формат определяется по фактическому JSON.
+     */
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @Column(name = "list_kind", length = 16)
+    private ListKind listKind;
 
     /**
      * Битовая маска флагов ролевой системы.

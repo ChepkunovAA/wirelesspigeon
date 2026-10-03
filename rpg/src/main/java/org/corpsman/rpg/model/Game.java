@@ -40,6 +40,12 @@ public class Game extends BaseEntity {
     @Column(nullable = false, length = 20)
     private GameSystem system = GameSystem.VERBAL;
 
+    /**
+     * ID кастомной системы из библиотеки (если system == CUSTOM).
+     */
+    @Column(name = "custom_system_definition_id")
+    private Long customSystemDefinitionId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private GameVisibility visibility = GameVisibility.OPEN;

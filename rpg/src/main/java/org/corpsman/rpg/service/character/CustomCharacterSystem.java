@@ -5,6 +5,7 @@ import org.corpsman.rpg.model.CharacterSheet;
 import org.corpsman.rpg.model.CustomAttribute;
 import org.corpsman.rpg.model.Game;
 import org.corpsman.rpg.model.GameSystem;
+import org.corpsman.rpg.model.ListKind;
 import org.corpsman.rpg.model.SheetAttribute;
 import org.corpsman.rpg.repository.CustomAttributeRepository;
 import org.springframework.stereotype.Component;
@@ -43,6 +44,8 @@ public class CustomCharacterSystem implements CharacterSystem {
     }
 
     private AttributeSpec toSpec(CustomAttribute a) {
-        return new AttributeSpec("custom:" + a.getId(), a.getName(), a.getType(), 400 + a.getPosition());
+        ListKind listKind = a.getType() == AttributeType.LIST ? a.listKindOrDefault() : null;
+        return new AttributeSpec("custom:" + a.getId(), a.getName(), a.getType(), 400 + a.getPosition(),
+                null, listKind);
     }
 }

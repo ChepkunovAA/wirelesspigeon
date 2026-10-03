@@ -200,3 +200,15 @@
    (Liquibase применит смены автоматически при старте).
 5. Если нужно пересоздать БД с нуля: `docker compose down -v && docker compose up -d --build`
    (удалит том с данными).
+
+
+## RPG: список `rpg_character_attributes.list_kind` (релиз 3.1.0)
+- `list_kind VARCHAR(16)` — вид списка: `SIMPLE` (элемент-строка) или
+  `COMPLEX` (заголовок + описание + уровень).
+- Значения по умолчанию **нет** (`v3.1/05`): вид объявляет ролевая система.
+  Прежний `defaultValue='SIMPLE'` помечал сложные списки D&D как простые.
+- `v3.1/06` восстанавливает вид по данным системы: `spells`, `feats`, `skills`
+  → `COMPLEX`; `custom:*` берётся из `rpg_custom_attributes.list_kind`;
+  `inventory` всегда `SIMPLE`.
+- `list_values` хранит либо `["строка"]`, либо
+  `[{"header":"...","description":"...","level":1}]`.

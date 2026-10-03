@@ -76,7 +76,11 @@ public enum ErrorCode {
     APPLICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "Заявка не найдена"),
     CANNOT_APPLY_SELF(HttpStatus.BAD_REQUEST, "Нельзя подать заявку на свою игру"),
     INVALID_DICE(HttpStatus.BAD_REQUEST, "Некорректный бросок костей"),
-    SAVED_ROLL_NOT_FOUND(HttpStatus.NOT_FOUND, "Сохранённый бросок не найден");
+    SAVED_ROLL_NOT_FOUND(HttpStatus.NOT_FOUND, "Сохранённый бросок не найден"),
+
+    SYSTEM_DEFINITION_NOT_FOUND(HttpStatus.NOT_FOUND, "Ролевая система не найдена"),
+    SYSTEM_DEFINITION_ACCESS_DENIED(HttpStatus.FORBIDDEN, "Нет доступа к ролевой системе"),
+    SYSTEM_DEFINITION_NAME_EXISTS(HttpStatus.CONFLICT, "Система с таким именем уже существует");
 
     private final HttpStatus httpStatus;
     private final String message;

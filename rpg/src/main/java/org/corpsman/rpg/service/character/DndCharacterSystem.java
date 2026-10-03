@@ -1,6 +1,7 @@
 package org.corpsman.rpg.service.character;
 
 import org.corpsman.rpg.model.AttributeType;
+import org.corpsman.rpg.model.ListKind;
 import org.corpsman.rpg.model.CharacterSheet;
 import org.corpsman.rpg.model.Game;
 import org.corpsman.rpg.model.GameSystem;
@@ -28,10 +29,14 @@ public class DndCharacterSystem implements CharacterSystem {
     public static final String KEY_HIT_POINTS = "hit_points";
     public static final String KEY_CLASS = "class";
     public static final String KEY_RACE = "race";
+    public static final String KEY_BACKGROUND = "background";
+    public static final String KEY_ARMOR_CLASS = "armor_class";
     public static final String KEY_SPELLS = "spells";
     public static final String KEY_FEATS = "feats";
     public static final String KEY_SKILLS_LIST = "skills";
     public static final String KEY_PROFICIENCY_BONUS = "proficiency_bonus";
+    public static final String PREFIX_SPELL_SLOT_MAX = "spell_slot_max:";
+    public static final String PREFIX_SPELL_SLOT_CURRENT = "spell_slot_current:";
 
     public static final String PREFIX_ABILITY = "ability:";
     public static final String PREFIX_SAVE = "save:";
@@ -52,6 +57,10 @@ public class DndCharacterSystem implements CharacterSystem {
     private static final List<String> RACE_OPTIONS = List.of(
             "Человек", "Эльф", "Полуэльф", "Гном", "Полурослик", "Дварф",
             "Полуорк", "Драконорождённый", "Тифлинг");
+    private static final List<String> BACKGROUND_OPTIONS = List.of(
+            "Артист", "Беспризорник", "Благородный", "Гильдейский ремесленник", "Моряк",
+            "Мудрец", "Народный герой", "Отшельник", "Пират", "Преступник",
+            "Прислужник", "Солдат", "Чужеземец", "Шарлатан");
 
     static {
         ABILITY_NAMES.put("strength", "Сила");
@@ -104,7 +113,9 @@ public class DndCharacterSystem implements CharacterSystem {
         specs.add(new AttributeSpec(KEY_LEVEL, "Уровень", AttributeType.NUMERIC, 10, 1));
         specs.add(new AttributeSpec(KEY_CLASS, "Класс", AttributeType.TEXT, 20));
         specs.add(new AttributeSpec(KEY_RACE, "Раса", AttributeType.TEXT, 30));
+        specs.add(new AttributeSpec(KEY_BACKGROUND, "Предыстория", AttributeType.TEXT, 35));
         specs.add(new AttributeSpec(KEY_HIT_POINTS, "Хиты", AttributeType.NUMERIC, 40, 20));
+        specs.add(new AttributeSpec(KEY_ARMOR_CLASS, "Класс доспеха", AttributeType.NUMERIC, 45, 10));
         int pos = 100;
         for (String ability : abilityKeys()) {
             specs.add(new AttributeSpec(PREFIX_ABILITY + ability, abilityName(ability), AttributeType.NUMERIC, pos, 10));
@@ -122,9 +133,15 @@ public class DndCharacterSystem implements CharacterSystem {
                 pos += 1;
             }
         }
-        specs.add(new AttributeSpec(KEY_FEATS, "Черты", AttributeType.LIST, 510));
-        specs.add(new AttributeSpec(KEY_SKILLS_LIST, "Умения", AttributeType.LIST, 520));
-        specs.add(new AttributeSpec(KEY_SPELLS, "Заклинания", AttributeType.LIST, 530));
+        // Spell slots (levels 1-9): max and current
+        for (int level = 1; level <= 9; level++) {
+            specs.add(new AttributeSpec(PREFIX_SPELL_SLOT_MAX + level, "Ячейки " + level + " ур. (макс.)", AttributeType.NUMERIC, 550 + level * 10, 0));
+            specs.add(new AttributeSpec(PREFIX_SPELL_SLOT_CURRENT + level, "Ячейки " + level + " ур. (текущ.)", AttributeType.NUMERIC, 550 + level * 10 + 5, 0));
+        }
+        // Списки D&D — «сложные»: элемент имеет заголовок, описание и уровень.
+        specs.add(new AttributeSpec(KEY_FEATS, "Черты", AttributeType.LIST, 510, null, ListKind.COMPLEX));
+        specs.add(new AttributeSpec(KEY_SKILLS_LIST, "Умения", AttributeType.LIST, 520, null, ListKind.COMPLEX));
+        specs.add(new AttributeSpec(KEY_SPELLS, "Заклинания", AttributeType.LIST, 530, null, ListKind.COMPLEX));
         return specs;
     }
 
@@ -136,6 +153,9 @@ public class DndCharacterSystem implements CharacterSystem {
         if (KEY_RACE.equals(key)) {
             return RACE_OPTIONS;
         }
+        if (KEY_BACKGROUND.equals(key)) {
+            return BACKGROUND_OPTIONS;
+        }
         return List.of();
     }
 
@@ -145,6 +165,9 @@ public class DndCharacterSystem implements CharacterSystem {
             return "Другой";
         }
         if (KEY_RACE.equals(key)) {
+            return "Другая";
+        }
+        if (KEY_BACKGROUND.equals(key)) {
             return "Другая";
         }
         return "";

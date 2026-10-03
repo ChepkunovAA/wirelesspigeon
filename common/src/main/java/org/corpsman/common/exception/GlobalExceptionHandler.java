@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.ModelAndView;
@@ -67,6 +68,21 @@ public class GlobalExceptionHandler {
         log.warn("Ресурс не найден: {}", request.getRequestURI());
         ErrorDto error = new ErrorDto("NOT_FOUND", "Страница не найдена", LocalDateTime.now());
         return buildErrorView(error, HttpStatus.NOT_FOUND);
+    }
+
+    /**
+     * Обрабатывает неверный HTTP-метод (например, GET на POST-эндпоинт):
+     * это ошибка клиента, а не внутренняя ошибка сервера.
+     *
+     * @param ex      исключение метода
+     * @param request текущий запрос
+     * @return представление ошибки со статусом 405
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ModelAndView handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
+        log.warn("Метод {} не поддерживается для {}", request.getMethod(), request.getRequestURI());
+        ErrorDto error = new ErrorDto("METHOD_NOT_ALLOWED", "Метод не поддерживается", LocalDateTime.now());
+        return buildErrorView(error, HttpStatus.METHOD_NOT_ALLOWED);
     }
 
     /**
