@@ -13,7 +13,7 @@
 
     <groupId>org.corpsman</groupId>
 <artifactId>corpsman-backend</artifactId>
-        <version>3.0.1</version>
+        <version>3.2.0</version>
         <packaging>pom</packaging>
 
     <name>Corpsman Backend</name>

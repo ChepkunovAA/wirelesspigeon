@@ -23,21 +23,40 @@
         <div>
             <h1 class="h3 mb-1">
                 <span th:text="${game.title}">Название</span>
-                <span class="badge text-bg-secondary align-middle" th:if="${game.status.name() == 'RECRUITING'}">
-                    <i class="bi bi-megaphone"></i> Набор
-                </span>
             </h1>
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-                <span class="badge text-bg-dark" th:text="${game.system.label()}">система</span>
-                <span class="badge" th:classappend="${game.visibility.name() == 'CLOSED'} ? 'text-bg-warning' : 'text-bg-info'"
-                      th:text="${game.visibility.label()}">видимость</span>
+            <div class="mb-1">
+                <small class="text-muted"><i class="bi bi-megaphone"></i>
+                    <span th:text="${game.status.label()}">статус</span>
+                </small>
+            </div>
+            <div class="mb-1">
                 <small class="text-muted"><i class="bi bi-person"></i> Ведущий:
                     <a th:href="@{/profile/{id}(id=${game.masterId})}" class="text-decoration-none"
                        th:text="${game.masterName}">ведущий</a>
                 </small>
             </div>
+            <div class="mb-1">
+                <small class="text-muted"><i class="bi bi-book"></i>
+                    <span th:if="${game.customSystemName != null}" th:text="${game.customSystemName}">система</span>
+                    <span th:unless="${game.customSystemName != null}" th:text="${game.system.label()}">система</span>
+                </small>
+            </div>
         </div>
         <div class="d-flex gap-2 flex-shrink-0">
+            <form th:if="${game.viewerApplication == 'PENDING'}" th:action="@{/rpg/games/{id}/applications/{aid}/withdraw(id=${game.id}, aid=${game.viewerApplicationId})}"
+                  method="post">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <button class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-x-circle"></i> Отозвать заявку
+                </button>
+            </form>
+            <form th:if="${game.viewerApplication == 'ACCEPTED'}" th:action="@{/rpg/games/{id}/leave(id=${game.id})}"
+                  method="post">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <button class="btn btn-outline-danger btn-sm">
+                    <i class="bi bi-box-arrow-right"></i> Покинуть игру
+                </button>
+            </form>
             <a th:if="${game.masterViewer and game.system.name() == 'CUSTOM'}"
                th:href="@{/rpg/games/{id}/attributes(id=${game.id})}"
                class="btn btn-outline-secondary btn-sm">
@@ -149,9 +168,9 @@
         </div>
     </div>
 
-    <!-- Заявки (ведущему) -->
-    <div th:if="${game.masterViewer}" class="card shadow-sm mb-4">
-        <div class="card-header"><i class="bi bi-inbox"></i> Заявки ведущему</div>
+    <!-- Заявки на рассмотрении видит любой, кто открыл игру -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header"><i class="bi bi-inbox"></i> Заявки на рассмотрение</div>
         <div class="card-body p-0">
             <ul class="list-group list-group-flush">
                 <li th:each="app : ${game.applications}"
@@ -169,7 +188,7 @@
                                   class="ms-2"><time th:replace="~{fragments/time-format :: clock(${app.reviewedAt}, 'dd.MM.yyyy HH:mm')}"></time></span>
                         </div>
                     </div>
-                    <div class="d-flex gap-1 flex-shrink-0" th:if="${app.status.name() == 'PENDING'}">
+                    <div class="d-flex gap-1 flex-shrink-0" th:if="${game.masterViewer and app.status.name() == 'PENDING'}">
                         <form th:action="@{/rpg/games/{gid}/applications/{aid}/accept(gid=${game.id}, aid=${app.id})}"
                               method="post" class="d-inline">
                             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
@@ -187,7 +206,7 @@
                 </li>
             </ul>
         </div>
-        <div class="card-footer d-flex gap-2">
+        <div class="card-footer d-flex gap-2" th:if="${game.masterViewer}">
             <a th:href="@{/rpg/games/{id}/npc/new(id=${game.id})}" class="btn btn-outline-danger btn-sm">
                 <i class="bi bi-robot"></i> Создать NPC
             </a>
@@ -265,6 +284,15 @@
                         <small class="text-muted" th:text="${p.ownerName}">игрок</small>
                     </div>
                 </a>
+                <div class="card-footer d-flex justify-content-end" th:if="${game.masterViewer}">
+                    <form th:action="@{/rpg/games/{gid}/characters/{sid}/remove(gid=${game.id}, sid=${p.id})}"
+                          method="post">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                        <button class="btn btn-outline-danger btn-sm">
+                            <i class="bi bi-person-dash"></i> Удалить из игры
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
         <div th:if="${#lists.isEmpty(game.players)}" class="col-12">

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.25.xsd">
+
+    <changeSet id="3.2.0-01" author="architect" context="3.2.0">
+        <comment>Ограничения кастомных параметров: значение по умолчанию, границы, шаг, варианты и флаг ручного ввода</comment>
+        <addColumn tableName="rpg_custom_attributes">
+            <column name="default_value" type="INT">
+                <constraints nullable="true"/>
+            </column>
+            <column name="default_text" type="VARCHAR(200)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="min_value" type="INT">
+                <constraints nullable="true"/>
+            </column>
+            <column name="max_value" type="INT">
+                <constraints nullable="true"/>
+            </column>
+            <column name="step_value" type="INT" defaultValueNumeric="1">
+                <constraints nullable="true"/>
+            </column>
+            <column name="options_text" type="VARCHAR(1000000)">
+                <constraints nullable="true"/>
+            </column>
+            <column name="manual_input_allowed" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        <comment>
+            manual_input_allowed по умолчанию снят: без него числовой параметр
+            редактируется только стрелками, а текстовый — только выбором из
+            options_text. Поле options_text — список вариантов, по строке на
+            значение.
+        </comment>
+    </changeSet>
+
+    <changeSet id="3.2.0-01-legacy-text" author="architect" context="3.2.0">
+        <comment>
+            До 3.2.0 текстовые параметры кастомной системы были свободным
+            текстом, а вариантов у них не было. С новым правилом такой параметр
+            без ручного ввода не заполнить, поэтому существующим текстовым
+            параметрам ручной ввод разрешается: их поведение сохраняется.
+            Числовые параметры остаются со стрелками, как раньше.
+        </comment>
+        <update tableName="rpg_custom_attributes">
+            <column name="manual_input_allowed" valueBoolean="true"/>
+            <where>attr_type = 'TEXT'</where>
+        </update>
+    </changeSet>
+</databaseChangeLog>

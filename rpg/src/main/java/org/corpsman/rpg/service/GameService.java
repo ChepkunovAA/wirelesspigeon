@@ -10,11 +10,17 @@ import org.corpsman.rpg.dto.GameForm;
 import org.corpsman.rpg.dto.GameSummaryDto;
 import org.corpsman.rpg.dto.RoomDto;
 import org.corpsman.rpg.model.Game;
+import org.corpsman.rpg.model.GameStatus;
 import org.corpsman.rpg.model.CharacterSheet;
 import org.corpsman.rpg.model.GameVisibility;
+import org.corpsman.rpg.model.GameSystem;
+import org.corpsman.rpg.model.GameSystemDefinition;
 import org.corpsman.rpg.model.GameWhitelistEntry;
 import org.corpsman.rpg.repository.GameRepository;
 import org.corpsman.rpg.repository.GameWhitelistRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,9 +28,11 @@ import org.corpsman.rpg.dto.SystemAttributeDto;
 import org.corpsman.rpg.model.AttributeType;
 import org.corpsman.rpg.model.CustomAttribute;
 import org.corpsman.rpg.repository.CustomAttributeRepository;
+import org.corpsman.rpg.repository.GameSystemDefinitionRepository;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Сервис игр: CRUD, список по видимости, белый список, сборка страницы игры.
@@ -51,6 +59,10 @@ public class GameService {
 
     private final GameSystemLibraryService libraryService;
 
+    private final GameSystemDefinitionRepository definitionRepository;
+
+    private final GameNotificationPublisher notificationPublisher;
+
     @Transactional
     public Game create(UserRole role, Long masterId, GameForm form) {
         Game game = new Game();
@@ -76,6 +88,7 @@ public class GameService {
         if (game.getCustomSystemDefinitionId() != null) {
             applySystemTemplate(saved, game.getCustomSystemDefinitionId());
         }
+        notificationPublisher.gameCreated(saved);
         return saved;
     }
 
@@ -101,11 +114,36 @@ public class GameService {
             attr.setType(spec.getType() == null ? AttributeType.TEXT : spec.getType());
             attr.setPosition(spec.getPosition() > 0 ? spec.getPosition() : position);
             attr.setListKind(attr.getType() == AttributeType.LIST ? spec.listKindOrDefault() : null);
+            applyTemplateConstraints(attr, spec);
             created.add(attr);
             position++;
         }
         if (!created.isEmpty()) {
             customAttributeRepository.saveAll(created);
+        }
+    }
+
+    /**
+     * Переносит ограничения параметра, заданные автором системы: числовому
+     * полю — значение по умолчанию, границы и шаг, текстовому — значение по
+     * умолчанию и варианты. Флаг ручного ввода общий для всех типов.
+     */
+    private void applyTemplateConstraints(CustomAttribute attr, SystemAttributeDto spec) {
+        attr.setManualInputAllowed(spec.isManualInputAllowed());
+        if (attr.getType() == AttributeType.NUMERIC) {
+            attr.setDefaultValue(spec.getDefaultValue());
+            attr.setMinValue(spec.getMinValue());
+            attr.setMaxValue(spec.getMaxValue());
+            attr.setStepValue(spec.stepOrDefault());
+        } else if (attr.getType() == AttributeType.TEXT) {
+            List<String> options = spec.optionsOrEmpty();
+            String defaultText = spec.getDefaultText() == null || spec.getDefaultText().isBlank()
+                    ? null : spec.getDefaultText().trim();
+            // Если варианты заданы, значение по умолчанию должно быть одним из
+            // них; без вариантов поле свободное и значение сохраняется как есть.
+            attr.setDefaultText(defaultText == null || options.isEmpty() || options.contains(defaultText)
+                    ? defaultText : null);
+            attr.setOptions(options);
         }
     }
 
@@ -128,10 +166,14 @@ public class GameService {
         }
         
         game.setVisibility(resolveVisibility(userRepository.findById(masterId).map(u -> u.getRole()).orElse(null), form));
+        GameStatus previousStatus = game.getStatus();
         game.setStatus(form.getStatus());
         game.setAttributesVisible(form.isAttributesVisible());
         Game saved = gameRepository.save(game);
         saveWhitelist(saved.getId(), form.getWhitelistItems());
+        if (previousStatus != saved.getStatus()) {
+            notificationPublisher.statusChanged(saved, previousStatus, saved.getStatus());
+        }
         return saved;
     }
 
@@ -175,28 +217,68 @@ public class GameService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.GAME_NOT_FOUND));
     }
 
+    /** Размер страницы списка игр. */
+    public static final int GAMES_PAGE_SIZE = 10;
+
+    /**
+     * Раздел «Мои игры»: игры, которые зритель ведёт либо в которых участвует.
+     * <p>
+     * Выборка отдельная от общего списка и постраничная сама по себе: свои
+     * игры показываются на первой странице списка игр независимо от того, на
+     * какой странице общего списка находится зритель. Анонимному зрителю таких
+     * игр нет.
+     */
     @Transactional(readOnly = true)
-    public List<GameSummaryDto> summaryList(String search, Long viewerId, boolean viewerGuest) {
-        return summaryList(search, viewerId, viewerGuest, false);
+    public Page<GameSummaryDto> ownGamesPage(String search, Long viewerId, int pageNumber) {
+        if (viewerId == null) {
+            return Page.empty();
+        }
+        Page<Game> page = gameRepository.ownGamesPage(normalize(search), viewerId,
+                PageRequest.of(Math.max(pageNumber, 0), GAMES_PAGE_SIZE));
+        Set<Long> joined = applicationService.acceptedGameIds(viewerId);
+        return new PageImpl<>(page.map(g -> toSummary(g, viewerId, joined)).getContent(),
+                page.getPageable(), page.getTotalElements());
     }
 
+    /**
+     * Общий список игр постранично для страницы /rpg/games: видимые игры без
+     * своих (они вынесены в раздел «Мои игры»). Сортировка задана в запросе:
+     * статус (набор → идёт → завершена), затем свежие сверху.
+     */
     @Transactional(readOnly = true)
-    public List<GameSummaryDto> summaryList(String search, Long viewerId, boolean viewerGuest, boolean anonymous) {
-        return gameRepository.search(search == null ? "" : search.trim(), viewerId, viewerGuest).stream()
+    public Page<GameSummaryDto> otherGamesPage(String search, Long viewerId, boolean viewerGuest,
+                                               boolean anonymous, int pageNumber) {
+        // Свои игры отсекаются сравнением с идентификатором: анонимному зрителя
+        // в базе нет, поэтому подставляется заведомо отсутствующий идентификатор.
+        Long effectiveUid = viewerId == null ? -1L : viewerId;
+        Page<Game> page = gameRepository.otherGamesPage(normalize(search), effectiveUid, viewerGuest,
+                PageRequest.of(Math.max(pageNumber, 0), GAMES_PAGE_SIZE));
+        Set<Long> joined = viewerId == null ? Set.of() : applicationService.acceptedGameIds(viewerId);
+        List<GameSummaryDto> content = page.map(g -> toSummary(g, viewerId, joined)).getContent().stream()
+                // Анонимному доступны только публичные игры.
                 .filter(g -> !anonymous || g.getVisibility() == GameVisibility.PUBLIC)
-                .map(g -> {
-                    GameSummaryDto dto = new GameSummaryDto();
-                    dto.setId(g.getId());
-                    dto.setTitle(g.getTitle());
-                    dto.setDescription(g.getDescription());
-                    dto.setMasterId(g.getMasterId());
-                    dto.setMasterName(userRepository.findById(g.getMasterId()).map(u -> u.getUsername()).orElse("—"));
-                    dto.setVisibility(g.getVisibility());
-                    dto.setSystem(g.getSystem());
-                    dto.setStatus(g.getStatus());
-                    dto.setParticipantCount(applicationService.acceptedPlayersCount(g.getId()));
-                    return dto;
-                }).toList();
+                .toList();
+        return new PageImpl<>(content, page.getPageable(), page.getTotalElements());
+    }
+
+    private String normalize(String search) {
+        return search == null ? "" : search.trim();
+    }
+
+    private GameSummaryDto toSummary(Game g, Long viewerId, Set<Long> joined) {
+        GameSummaryDto dto = new GameSummaryDto();
+        dto.setId(g.getId());
+        dto.setTitle(g.getTitle());
+        dto.setDescription(g.getDescription());
+        dto.setMasterId(g.getMasterId());
+        dto.setMasterName(userRepository.findById(g.getMasterId()).map(u -> u.getUsername()).orElse("—"));
+        dto.setVisibility(g.getVisibility());
+        dto.setSystem(g.getSystem());
+        dto.setStatus(g.getStatus());
+        dto.setParticipantCount(applicationService.acceptedPlayersCount(g.getId()));
+        dto.setMastered(viewerId != null && viewerId.equals(g.getMasterId()));
+        dto.setParticipating(!dto.isMastered() && joined.contains(g.getId()));
+        return dto;
     }
 
     @Transactional(readOnly = true)
@@ -213,16 +295,19 @@ public class GameService {
         dto.setVisibility(game.getVisibility());
         dto.setSystem(game.getSystem());
         dto.setStatus(game.getStatus());
+        dto.setCustomSystemName(customSystemName(game));
         dto.setMasterViewer(isMaster);
         if (viewerId != null && !isMaster) {
             dto.setViewerApplication(applicationService.statusFor(game, viewerId));
+            dto.setViewerApplicationId(applicationService.applicationIdFor(game, viewerId));
             // Ссылка «Редактировать лист» должна вести на существующий лист,
             // а не на форму подачи новой заявки.
             dto.setViewerSheetId(characterSheetService.resolveSheetByOwnerAndGame(viewerId, game.getId())
                     .map(CharacterSheet::getId).orElse(null));
         }
+        // Нерассмотренные заявки видит любой, кто открыл игру, а не только ведущий.
+        dto.setApplications(applicationService.applicationsFor(game));
         if (isMaster) {
-            dto.setApplications(applicationService.applicationsFor(game));
             dto.setWhitelistNames(whitelistRepository.findByGameIdOrderByCreatedAtDesc(game.getId()).stream()
                     .map(w -> userRepository.findById(w.getUserId()).map(u -> u.getUsername()).orElse("—"))
                     .toList());
@@ -232,6 +317,20 @@ public class GameService {
         List<RoomDto> rooms = roomService.roomsFor(game, role, viewerId);
         dto.setRooms(rooms);
         return dto;
+    }
+
+    /**
+     * Название системы из библиотеки для кастомной игры.
+     * Для обычных систем возвращается null — там работает подпись из перечисления.
+     */
+    @Transactional(readOnly = true)
+    public String customSystemName(Game game) {
+        if (game.getSystem() != GameSystem.CUSTOM || game.getCustomSystemDefinitionId() == null) {
+            return null;
+        }
+        return definitionRepository.findById(game.getCustomSystemDefinitionId())
+                .map(GameSystemDefinition::getName)
+                .orElse(null);
     }
 
     /**

@@ -35,6 +35,21 @@ public class DndCharacterSystem implements CharacterSystem {
     public static final String KEY_FEATS = "feats";
     public static final String KEY_SKILLS_LIST = "skills";
     public static final String KEY_PROFICIENCY_BONUS = "proficiency_bonus";
+    /** Монеты хранятся тремя числовыми параметрами листа. */
+    public static final String PREFIX_MONEY = "money:";
+
+    public static final String MONEY_GOLD = "money:gold";
+
+    public static final String MONEY_SILVER = "money:silver";
+
+    public static final String MONEY_COPPER = "money:copper";
+
+    /** Сколько монет младшего разряда даёт одна монета старшего. */
+    public static final int MONEY_RATE = 10;
+
+    /** Разряды от старшего к младшему. */
+    public static final List<String> MONEY_KINDS = List.of(MONEY_GOLD, MONEY_SILVER, MONEY_COPPER);
+
     public static final String PREFIX_SPELL_SLOT_MAX = "spell_slot_max:";
     public static final String PREFIX_SPELL_SLOT_CURRENT = "spell_slot_current:";
 
@@ -138,11 +153,34 @@ public class DndCharacterSystem implements CharacterSystem {
             specs.add(new AttributeSpec(PREFIX_SPELL_SLOT_MAX + level, "Ячейки " + level + " ур. (макс.)", AttributeType.NUMERIC, 550 + level * 10, 0));
             specs.add(new AttributeSpec(PREFIX_SPELL_SLOT_CURRENT + level, "Ячейки " + level + " ур. (текущ.)", AttributeType.NUMERIC, 550 + level * 10 + 5, 0));
         }
+        // Деньги выводятся отдельным блоком, в общем списке параметров их нет.
+        specs.add(new AttributeSpec(MONEY_GOLD, "Золотые", AttributeType.NUMERIC, 545, 0));
+        specs.add(new AttributeSpec(MONEY_SILVER, "Серебряные", AttributeType.NUMERIC, 546, 0));
+        specs.add(new AttributeSpec(MONEY_COPPER, "Медные", AttributeType.NUMERIC, 547, 0));
         // Списки D&D — «сложные»: элемент имеет заголовок, описание и уровень.
         specs.add(new AttributeSpec(KEY_FEATS, "Черты", AttributeType.LIST, 510, null, ListKind.COMPLEX));
         specs.add(new AttributeSpec(KEY_SKILLS_LIST, "Умения", AttributeType.LIST, 520, null, ListKind.COMPLEX));
         specs.add(new AttributeSpec(KEY_SPELLS, "Заклинания", AttributeType.LIST, 530, null, ListKind.COMPLEX));
         return specs;
+    }
+
+    /**
+     * Является ли параметр одним из видов монет.
+     */
+    public static boolean isMoneyKey(String key) {
+        return key != null && key.startsWith(PREFIX_MONEY);
+    }
+
+    /**
+     * Человеческое название вида монет.
+     */
+    public static String moneyLabel(String key) {
+        return switch (key) {
+            case MONEY_GOLD -> "Золотые";
+            case MONEY_SILVER -> "Серебряные";
+            case MONEY_COPPER -> "Медные";
+            default -> key;
+        };
     }
 
     @Override
@@ -171,6 +209,42 @@ public class DndCharacterSystem implements CharacterSystem {
             return "Другая";
         }
         return "";
+    }
+
+    /**
+     * Ограничения параметров D&amp;D.
+     * <p>
+     * Виды монет: количество не ниже нуля, ввод вручную разрешён — сумма
+     * задаётся сразу по всем разрядам. Остальные числа (уровень, хиты, класс
+     * доспеха, характеристики, спасброски, навыки, ячейки) правятся только
+     * стрелками: ручной ввод в D&amp;D есть лишь у денег.
+     */
+    @Override
+    public FieldConstraints constraints(String key) {
+        if (key == null) {
+            return FieldConstraints.empty();
+        }
+        if (isMoneyKey(key)) {
+            return new FieldConstraints(null, null, 0, null, 1, List.of(), true);
+        }
+        if (isArrowNumericKey(key)) {
+            return new FieldConstraints(null, null, null, null, 1, List.of(), false);
+        }
+        return FieldConstraints.empty();
+    }
+
+    /**
+     * Числовой параметр D&amp;D, который меняют только стрелками.
+     */
+    private static boolean isArrowNumericKey(String key) {
+        return KEY_LEVEL.equals(key)
+                || KEY_HIT_POINTS.equals(key)
+                || KEY_ARMOR_CLASS.equals(key)
+                || key.startsWith(PREFIX_ABILITY)
+                || key.startsWith(PREFIX_SAVE)
+                || key.startsWith(PREFIX_SKILL)
+                || key.startsWith(PREFIX_SPELL_SLOT_MAX)
+                || key.startsWith(PREFIX_SPELL_SLOT_CURRENT);
     }
 
     @Override

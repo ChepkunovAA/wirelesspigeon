@@ -19,5 +19,8 @@ public interface GameApplicationRepository extends JpaRepository<GameApplication
 
     boolean existsByGameIdAndUserId(Long gameId, Long userId);
 
+    List<GameApplication> findByUserIdAndStatusOrderByCreatedAtDesc(Long userId,
+                                                                    org.corpsman.rpg.model.ApplicationStatus status);
+
     boolean existsByGameIdAndUserIdAndStatus(Long gameId, Long userId, org.corpsman.rpg.model.ApplicationStatus status);
 }

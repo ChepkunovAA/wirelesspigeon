@@ -16,6 +16,7 @@ import org.corpsman.rpg.model.GameSystem;
 import org.corpsman.rpg.model.GameVisibility;
 import org.corpsman.rpg.service.GameService;
 import org.corpsman.rpg.service.GameSystemLibraryService;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -46,12 +47,21 @@ public class GameController {
     private final UserRepository userRepository;
 
     @GetMapping
-    public String games(@RequestParam(value = "search", required = false) String search, Model model) {
+    public String games(@RequestParam(value = "search", required = false) String search,
+                        @RequestParam(value = "page", required = false, defaultValue = "0") int page,
+                        @RequestParam(value = "myPage", required = false, defaultValue = "0") int myPage,
+                        Model model) {
         Long uid = SecurityUtils.currentUserId();
         boolean anonymous = uid == null;
         boolean guest = !anonymous && userRepository.findById(uid).map(u -> u.getRole() == UserRole.GUEST).orElse(true);
-        List<GameSummaryDto> games = gameService.summaryList(search, uid, guest, anonymous);
-        model.addAttribute("games", games);
+        // Два раздела с собственной пагинацией: «Мои игры» (веду или участвую)
+        // показывается на первой странице, общий список — всё остальное видимое.
+        Page<GameSummaryDto> myGames = gameService.ownGamesPage(search, uid, myPage);
+        Page<GameSummaryDto> otherGames = gameService.otherGamesPage(search, uid, guest, anonymous, page);
+        model.addAttribute("myGames", myGames.getContent());
+        model.addAttribute("myPage", myGames);
+        model.addAttribute("otherGames", otherGames.getContent());
+        model.addAttribute("page", otherGames);
         model.addAttribute("search", search == null ? "" : search);
         model.addAttribute("canCreate", !anonymous);
         return "rpg/games";

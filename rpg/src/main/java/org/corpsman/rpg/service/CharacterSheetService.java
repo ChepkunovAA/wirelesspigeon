@@ -12,6 +12,9 @@ import org.corpsman.common.service.FileStorageService;
 import org.corpsman.rpg.dto.AttributeViewDto;
 import org.corpsman.rpg.dto.CharacterModifierDto;
 import org.corpsman.rpg.dto.CharacterSheetViewDto;
+import org.corpsman.rpg.dto.MoneyDto;
+import org.corpsman.rpg.dto.MoneyEditDto;
+import org.corpsman.rpg.dto.MoneyKindDto;
 import org.corpsman.rpg.dto.SheetAttributeForm;
 import org.corpsman.rpg.dto.SheetForm;
 import org.corpsman.rpg.dto.SpellGroupDto;
@@ -23,6 +26,7 @@ import org.corpsman.rpg.model.AttributeType;
 import org.corpsman.rpg.model.CharacterSheet;
 import org.corpsman.rpg.model.Game;
 import org.corpsman.rpg.model.GameApplication;
+import org.corpsman.rpg.model.GameSystem;
 import org.corpsman.rpg.model.ListItem;
 import org.corpsman.rpg.model.ListKind;
 import org.corpsman.rpg.model.SheetAttribute;
@@ -32,8 +36,9 @@ import org.corpsman.rpg.repository.GameRepository;
 import org.corpsman.rpg.repository.SheetAttributeRepository;
 import org.corpsman.rpg.service.character.AttributeSpec;
 import org.corpsman.rpg.service.character.CharacterSystem;
-import org.corpsman.rpg.service.character.DndCharacterSystem;
 import org.corpsman.rpg.service.character.CharacterSystemRegistry;
+import org.corpsman.rpg.service.character.DndCharacterSystem;
+import org.corpsman.rpg.service.character.FieldConstraints;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -57,11 +62,17 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CharacterSheetService {
 
+    /** Подпись пункта «Другое» в списке с ручным вводом. */
+    public static final String OTHER_OPTION_LABEL = "Другое";
+
     public static final String KEY_INVENTORY = "inventory";
 
     public static final String KEY_SPELLS = "spells";
 
     private static final int INVENTORY_POSITION = 540;
+
+    /** Позиция блока денег: между инвентарём и ячейками заклинаний. */
+    private static final int MONEY_POSITION = 545;
 
     private static final Map<String, String> LIST_NAMES = Map.of(
             KEY_INVENTORY, "Инвентарь",
@@ -155,7 +166,10 @@ public class CharacterSheetService {
                 applyListKind(attr, spec);
             }
             refreshListKind(attr, system, game);
-            applyForm(attr, formByKey.get(spec.key()));
+            SheetAttributeForm submitted = formByKey.get(spec.key());
+            applyDefault(attr, spec, system, submitted);
+            validate(attr, spec, system, submitted);
+            applyForm(attr, submitted);
             attributeRepository.save(attr);
         }
         // Существующие параметры, отсутствующие в шаблоне (например, ключи удалённых
@@ -324,7 +338,16 @@ public class CharacterSheetService {
             if (!seeAll) {
                 break;
             }
+            // Деньги выводятся отдельным блоком — в общем списке параметров их нет.
+            if (DndCharacterSystem.isMoneyKey(a.getKey())) {
+                continue;
+            }
             AttributeViewDto view = toView(a, system, modifiers.get(a.getKey()), specKinds);
+            // Инвентарь, как и ячейки, остаётся в списке параметров, но
+            // выводится отдельным подразделом — ссылка на него для шаблона.
+            if (KEY_INVENTORY.equals(a.getKey())) {
+                dto.setInventory(view);
+            }
             Integer pos = canonicalPos.get(a.getKey());
             if (pos != null) {
                 view.setPosition(pos);
@@ -343,6 +366,11 @@ public class CharacterSheetService {
         dto.setAttributes(views);
         dto.setModifiers(modifierList);
         dto.setSpellSlots(buildSpellSlots(attrs));
+        // Деньги — только в системе D&D: у остальных блока «Деньги» на листе нет.
+        if (game.getSystem() == GameSystem.DND) {
+            dto.setMoney(buildMoney(attrs));
+            dto.setMoneyKinds(buildMoneyKinds(dto.getMoney()));
+        }
         dto.setSpellGroups(buildSpellGroups(views));
         return dto;
     }
@@ -559,11 +587,7 @@ public class CharacterSheetService {
                 if (spec.type() == AttributeType.LIST) {
                     view.setListKind(spec.listKindOrDefault());
                 }
-                List<String> options = system.optionsFor(spec.key());
-                if (options != null && !options.isEmpty()) {
-                    view.setOptions(options);
-                    view.setOtherOptionLabel(system.otherOptionLabel(spec.key()));
-                }
+                applyConstraints(system, spec.key(), view, spec.defaultValue());
             }
             // Порядок показа берём из актуального шаблона системы, а не из
             // сохранённых значений (после смены шаблона могли остаться старые).
@@ -577,7 +601,119 @@ public class CharacterSheetService {
         markGroups(views);
         dto.setAttributes(views);
         dto.setSpellSlotEdits(buildSpellSlotEdits(views));
+        dto.setMoneyEdits(buildMoneyEdits(views));
+        dto.setInventoryAttrIndex(indexOfKey(views, KEY_INVENTORY));
         return dto;
+    }
+
+    private Integer indexOfKey(List<AttributeViewDto> views, String key) {
+        for (int i = 0; i < views.size(); i++) {
+            if (key.equals(views.get(i).getKey())) {
+                return i;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Разряды монет для формы редактирования.
+     * <p>
+     * Количество монет ограничено снизу нулём, поэтому у каждого разряда своя
+     * нижняя граница и шаг; обмен доступен между соседними разрядами по курсу
+     * 1:10 — у младшего разряда («медные») младше ничего нет.
+     */
+    private List<MoneyEditDto> buildMoneyEdits(List<AttributeViewDto> views) {
+        Map<String, Integer> indexByKey = new HashMap<>();
+        Map<String, Integer> valueByKey = new HashMap<>();
+        for (int i = 0; i < views.size(); i++) {
+            String key = views.get(i).getKey();
+            if (key == null || !DndCharacterSystem.isMoneyKey(key)) {
+                continue;
+            }
+            indexByKey.put(key, i);
+            valueByKey.put(key, nonNegative(views.get(i).getNumericValue()));
+        }
+        List<String> kinds = DndCharacterSystem.MONEY_KINDS;
+        List<MoneyEditDto> result = new ArrayList<>();
+        for (int i = 0; i < kinds.size(); i++) {
+            String key = kinds.get(i);
+            Integer index = indexByKey.get(key);
+            if (index == null) {
+                continue;
+            }
+            String lower = i + 1 < kinds.size() ? kinds.get(i + 1) : null;
+            result.add(new MoneyEditDto(key,
+                    DndCharacterSystem.moneyLabel(key),
+                    moneyAbbr(key),
+                    valueByKey.getOrDefault(key, 0),
+                    index,
+                    0,
+                    1,
+                    lower,
+                    lower == null ? null : moneyAbbr(lower)));
+        }
+        return result;
+    }
+
+    /** Сокращение вида монет: зм, см, мм. */
+    private String moneyAbbr(String key) {
+        return switch (key) {
+            case DndCharacterSystem.MONEY_GOLD -> "зм";
+            case DndCharacterSystem.MONEY_SILVER -> "см";
+            case DndCharacterSystem.MONEY_COPPER -> "мм";
+            default -> key;
+        };
+    }
+
+    /**
+     * Значение по умолчанию из шаблона системы или ограничений параметра.
+     * Заполняется, только если игрок ничего не прислал: иначе выбранное им
+     * значение сохранялось бы перезаписано.
+     */
+    private void applyDefault(SheetAttribute attr, AttributeSpec spec, CharacterSystem system,
+                              SheetAttributeForm submitted) {
+        FieldConstraints constraints = orEmpty(system.constraints(spec.key()));
+        if (submitted != null) {
+            return;
+        }
+        if (attr.getType() == AttributeType.NUMERIC && attr.getNumericValue() == null) {
+            Integer fallback = spec.defaultValue() != null ? spec.defaultValue() : constraints.defaultValue();
+            if (fallback != null) {
+                attr.setNumericValue(fallback);
+            }
+        }
+        if (attr.getType() == AttributeType.TEXT
+                && (attr.getTextValue() == null || attr.getTextValue().isBlank())
+                && constraints.defaultText() != null) {
+            attr.setTextValue(constraints.defaultText());
+        }
+    }
+
+    /**
+     * Серверная проверка значения по ограничениям кастомной системы: число вне
+     * границ и текст не из списка при запрещённом ручном вводе отклоняются.
+     */
+    private void validate(SheetAttribute attr, AttributeSpec spec, CharacterSystem system,
+                          SheetAttributeForm submitted) {
+        if (submitted == null) {
+            return;
+        }
+        FieldConstraints constraints = orEmpty(system.constraints(spec.key()));
+        if (attr.getType() == AttributeType.NUMERIC && constraints.outOfRange(submitted.getNumericValue())) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, "Значение «" + spec.name() + "» вне границ");
+        }
+        if (attr.getType() == AttributeType.TEXT && constraints.notInOptions(submitted.getTextValue())) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT,
+                    "Значение «" + spec.name() + "» выберите из списка");
+        }
+    }
+
+    /**
+     * Система без ограничений (в том числе заглушка в тестах) — пустые
+     * ограничения.
+     */
+    private FieldConstraints orEmpty(FieldConstraints constraints) {
+        return constraints == null ? FieldConstraints.empty() : constraints;
     }
 
     /**
@@ -727,12 +863,45 @@ if (a.getKey().startsWith("skill:")) {
             } else if (a.getKey().startsWith("save:")) {
                 v.setAbilityKey(a.getKey().substring("save:".length()));
             }
-        List<String> options = system.optionsFor(a.getKey());
-        if (options != null && !options.isEmpty()) {
-            v.setOptions(options);
-            v.setOtherOptionLabel(system.otherOptionLabel(a.getKey()));
-        }
+        applyConstraints(system, a.getKey(), v, null);
         return v;
+    }
+
+    /**
+     * Переносит ограничения параметра в вид для формы.
+     * <p>
+     * Варианты выбора берутся из ограничений кастомной системы, а у фиксированных
+     * систем — из шаблона. Пункт «Другое» показывается только вместе со
+     * списком вариантов и только при разрешённом ручном вводе.
+     */
+    private void applyConstraints(CharacterSystem system, String key, AttributeViewDto view,
+                                  Integer systemDefault) {
+        FieldConstraints constraints = orEmpty(system.constraints(key));
+        List<String> options = constraints.hasOptions()
+                ? constraints.options() : system.optionsFor(key);
+        if (options != null && !options.isEmpty()) {
+            view.setOptions(options);
+            view.setOtherOptionLabel(constraints.hasOptions()
+                    ? (constraints.manualInputAllowed() ? OTHER_OPTION_LABEL : "")
+                    : system.otherOptionLabel(key));
+        }
+        if (constraints.min() != null || constraints.max() != null || constraints.step() != null) {
+            view.setMinValue(constraints.min());
+            view.setMaxValue(constraints.max());
+            view.setStep(constraints.stepOrDefault());
+            view.setManualInputAllowed(constraints.manualInputAllowed());
+        }
+        // Значение по умолчанию: сначала система, затем ограничения.
+        if (view.getNumericValue() == null) {
+            Integer fallback = systemDefault != null ? systemDefault : constraints.defaultValue();
+            if (fallback != null) {
+                view.setNumericValue(fallback);
+            }
+        }
+        if ((view.getTextValue() == null || view.getTextValue().isBlank())
+                && constraints.defaultText() != null) {
+            view.setTextValue(constraints.defaultText());
+        }
     }
 
     /**
@@ -954,6 +1123,19 @@ if (a.getKey().startsWith("skill:")) {
      * имя и позиция берутся из шаблона ролевой системы, иначе используется
      * безопасное значение по умолчанию.
      */
+    /**
+     * Параметр-монета создаётся числовым и получает позицию блока денег.
+     */
+    private SheetAttribute newMoneyAttribute(CharacterSheet sheet, String key) {
+        SheetAttribute a = new SheetAttribute();
+        a.setSheetId(sheet.getId());
+        a.setKey(key);
+        a.setType(AttributeType.NUMERIC);
+        a.setName(DndCharacterSystem.moneyLabel(key));
+        a.setPosition(MONEY_POSITION + DndCharacterSystem.MONEY_KINDS.indexOf(key));
+        return a;
+    }
+
     private SheetAttribute newListAttribute(CharacterSheet sheet, String attrKey) {
         SheetAttribute a = new SheetAttribute();
         a.setSheetId(sheet.getId());
@@ -981,6 +1163,127 @@ if (a.getKey().startsWith("skill:")) {
     }
 
     @Transactional
+    /**
+     * Сумма монет листа по трём числовым параметрам.
+     */
+    private MoneyDto buildMoney(List<SheetAttribute> attrs) {
+        Map<String, Integer> values = new HashMap<>();
+        for (SheetAttribute attr : attrs) {
+            if (DndCharacterSystem.isMoneyKey(attr.getKey()) && attr.getNumericValue() != null) {
+                values.put(attr.getKey(), attr.getNumericValue());
+            }
+        }
+        return new MoneyDto(
+                values.getOrDefault(DndCharacterSystem.MONEY_GOLD, 0),
+                values.getOrDefault(DndCharacterSystem.MONEY_SILVER, 0),
+                values.getOrDefault(DndCharacterSystem.MONEY_COPPER, 0));
+    }
+
+    /**
+     * Разряды монет для блока «Деньги»: от старшего к младшему, с ключами
+     * соседей для кнопок обмена.
+     */
+    private List<MoneyKindDto> buildMoneyKinds(MoneyDto money) {
+        List<String> keys = DndCharacterSystem.MONEY_KINDS;
+        List<String> shorts = List.of("зм", "см", "мм");
+        List<String> params = List.of("gold", "silver", "copper");
+        List<Integer> values = List.of(money.gold(), money.silver(), money.copper());
+        List<MoneyKindDto> kinds = new ArrayList<>();
+        for (int i = 0; i < keys.size(); i++) {
+            String lower = i + 1 < keys.size() ? keys.get(i + 1) : null;
+            String upper = i > 0 ? keys.get(i - 1) : null;
+            kinds.add(new MoneyKindDto(keys.get(i), DndCharacterSystem.moneyLabel(keys.get(i)),
+                    shorts.get(i), params.get(i), values.get(i), lower,
+                    lower == null ? null : shorts.get(i + 1), upper));
+        }
+        return kinds;
+    }
+
+    /**
+     * Кнопки увеличения и уменьшения: одно нажатие — одна монета выбранного
+     * вида. Сумма не уходит в минус.
+     */
+    @Transactional
+    public void changeMoney(CharacterSheet sheet, String kind, Integer delta) {
+        kind = moneyKind(kind);
+        if (kind == null || delta == null) {
+            return;
+        }
+        ensureMoneyAttribute(sheet, kind);
+        attributeRepository.addMoney(sheet.getId(), kind, delta);
+    }
+
+    /**
+     * Создаёт параметр вида монет, если его ещё нет: атомарному обновлению нечего
+     * менять, а лист без разрядов монет встречается у старых листов.
+     */
+    private void ensureMoneyAttribute(CharacterSheet sheet, String kind) {
+        attributeRepository.findBySheetIdAndKey(sheet.getId(), kind)
+                .orElseGet(() -> {
+                    SheetAttribute attr = newMoneyAttribute(sheet, kind);
+                    attr.setNumericValue(0);
+                    return attributeRepository.save(attr);
+                });
+    }
+
+    /**
+     * Конвертация по курсу 1:10. Одно нажатие — один обмен: одна монета
+     * старшего разряда превращается в десять младшего. Обратное направление
+     * требует десяти монет младшего разряда и даёт одну монету старшего;
+     * некратное десяти остаётся в младшем разряде.
+     */
+    @Transactional
+    public void convertMoney(CharacterSheet sheet, String kind, String direction) {
+        kind = moneyKind(kind);
+        if (kind == null) {
+            return;
+        }
+        List<String> kinds = DndCharacterSystem.MONEY_KINDS;
+        int index = kinds.indexOf(kind);
+        // Медь — младший разряд: обменять её не на что, поэтому у неё нет
+        // пары «младше».
+        String lower = index + 1 < kinds.size() ? kinds.get(index + 1) : null;
+        boolean up = "up".equals(direction);
+        // Вверх — из kind в десять монет младшего разряда, вниз — наоборот:
+        // десять монет младшего разряда в одну монету kind.
+        String source = up ? kind : lower;
+        String target = up ? lower : kind;
+        if (source == null || target == null) {
+            return;
+        }
+        ensureMoneyAttribute(sheet, source);
+        ensureMoneyAttribute(sheet, target);
+        // Одно нажатие — один обмен: вверх одна монета, вниз десять монет.
+        int spent = up ? 1 : DndCharacterSystem.MONEY_RATE;
+        int gained = up ? DndCharacterSystem.MONEY_RATE : 1;
+        // Списание выполняет сама база и только если монет хватает: две
+        // одновременные кнопки не спишут больше, чем есть.
+        if (attributeRepository.spendMoney(sheet.getId(), source, spent) == 0) {
+            return;
+        }
+        attributeRepository.addMoney(sheet.getId(), target, gained);
+    }
+
+    /**
+     * Принимает и полный ключ параметра («money:gold»), и короткое имя вида
+     * монет («gold»), которым называется поле ручного ввода.
+     * <p>
+     * null и неизвестное имя — не вид монет: запрос без вида монет (например,
+     * от клиента без JS или с неполной формой) ничего не меняет и не роняет
+     * страницу. Список видов — {@code List.of(...)} и на {@code null} отвечает
+     * исключением, поэтому проверка обязательна.
+     */
+    private String moneyKind(String kind) {
+        if (kind == null || kind.isBlank()) {
+            return null;
+        }
+        if (DndCharacterSystem.MONEY_KINDS.contains(kind)) {
+            return kind;
+        }
+        String full = DndCharacterSystem.PREFIX_MONEY + kind;
+        return DndCharacterSystem.MONEY_KINDS.contains(full) ? full : null;
+    }
+
     public void resetSpellSlots(CharacterSheet sheet) {
         // Для каждого уровня (1-9) устанавливаем текущее = макс.
         List<SheetAttribute> attrs = attributeRepository.findBySheetIdOrderByPositionAsc(sheet.getId());

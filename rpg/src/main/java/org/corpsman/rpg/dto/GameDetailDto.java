@@ -30,6 +30,8 @@ public class GameDetailDto {
 
     private GameStatus status;
 
+    private String customSystemName;
+
     /**
      * Зритель — ведущий игры.
      */
@@ -39,6 +41,8 @@ public class GameDetailDto {
      * Статус заявки зрителя (null — заявки нет).
      */
     private String viewerApplication;
+
+    private Long viewerApplicationId;
 
     /**
      * Лист персонажа зрителя (нужен для ссылки «Редактировать лист»).

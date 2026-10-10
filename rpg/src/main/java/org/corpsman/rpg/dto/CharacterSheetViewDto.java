@@ -41,6 +41,18 @@ public class CharacterSheetViewDto {
     private List<SpellSlotDto> spellSlots = new ArrayList<>();
 
     /**
+     * Деньги выводятся отдельным блоком; в списке параметров их нет.
+     * null — система без денег (в D&D монеты есть, в остальных нет).
+     */
+    private MoneyDto money;
+
+    /** Разряды монет для блока «Деньги»; пусто у систем без денег. */
+    private List<MoneyKindDto> moneyKinds = new ArrayList<>();
+
+    /** Инвентарь вынесен из общего списка параметров в отдельный подраздел. */
+    private AttributeViewDto inventory;
+
+    /**
      * Заклинания, сгруппированные по уровню (по возрастанию) для блока
      * «Заклинания». Уровни без элементов отсутствуют.
      */
@@ -51,4 +63,16 @@ public class CharacterSheetViewDto {
      * редактируются рядом в одном блоке «Ячейки».
      */
     private List<SpellSlotEditDto> spellSlotEdits = new ArrayList<>();
+
+    /**
+     * Разряды монет для формы редактирования: значение, стрелки и обмен
+     * по курсу 1:10 в отдельном блоке «Деньги».
+     */
+    private List<MoneyEditDto> moneyEdits = new ArrayList<>();
+
+    /**
+     * Индекс параметра инвентаря в списке атрибутов формы — отдельный раздел
+     * «Инвентарь» (null у систем без инвентаря).
+     */
+    private Integer inventoryAttrIndex;
 }

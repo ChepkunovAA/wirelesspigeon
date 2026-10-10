@@ -27,5 +27,39 @@ public interface GameSystemDefinitionRepository extends JpaRepository<GameSystem
     @Query("SELECT g FROM GameSystemDefinition g WHERE g.isPublic = true OR g.authorId = :userId")
     Page<GameSystemDefinition> findAvailableForUser(@Param("userId") Long userId, org.springframework.data.domain.Pageable pageable);
 
+    /**
+     * Публичные системы, кроме собственных, с поиском по названию.
+     */
+    @Query(value = """
+            SELECT g FROM GameSystemDefinition g
+            WHERE g.isPublic = true
+              AND g.authorId <> :userId
+              AND (:search = '' OR LOWER(g.name) LIKE LOWER(CONCAT('%', CAST(:search AS text), '%')))
+            ORDER BY g.createdAt DESC""",
+            countQuery = """
+            SELECT count(g) FROM GameSystemDefinition g
+            WHERE g.isPublic = true
+              AND g.authorId <> :userId
+              AND (:search = '' OR LOWER(g.name) LIKE LOWER(CONCAT('%', CAST(:search AS text), '%')))""")
+    Page<GameSystemDefinition> findPublicForOthers(@Param("userId") Long userId,
+                                                   @Param("search") String search,
+                                                   org.springframework.data.domain.Pageable pageable);
+
+    /**
+     * Собственные системы автора с поиском по названию.
+     */
+    @Query(value = """
+            SELECT g FROM GameSystemDefinition g
+            WHERE g.authorId = :userId
+              AND (:search = '' OR LOWER(g.name) LIKE LOWER(CONCAT('%', CAST(:search AS text), '%')))
+            ORDER BY g.createdAt DESC""",
+            countQuery = """
+            SELECT count(g) FROM GameSystemDefinition g
+            WHERE g.authorId = :userId
+              AND (:search = '' OR LOWER(g.name) LIKE LOWER(CONCAT('%', CAST(:search AS text), '%')))""")
+    Page<GameSystemDefinition> findOwn(@Param("userId") Long userId,
+                                       @Param("search") String search,
+                                       org.springframework.data.domain.Pageable pageable);
+
     boolean existsByNameIgnoreCase(String name);
 }

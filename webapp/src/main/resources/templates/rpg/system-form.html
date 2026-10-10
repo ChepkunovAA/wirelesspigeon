@@ -20,6 +20,27 @@
         .list-kind-block.visible {
             display: block;
         }
+        .numeric-constraints, .text-constraints {
+            display: none;
+        }
+        .numeric-constraints.visible, .text-constraints.visible {
+            display: flex;
+        }
+        /* Флаг ручного ввода есть только у числового и текстового параметра */
+        .manual-input-block {
+            display: none;
+        }
+        .manual-input-block.visible {
+            display: block;
+        }
+        /* У текстового параметра со списком вариантов: подтип, список и флаг.
+           Вид «Свободный» — обычный текст без списка. */
+        .text-selectable-block {
+            display: none;
+        }
+        .text-selectable-block.visible {
+            display: block;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -82,7 +103,7 @@
                             Параметров пока нет. Добавьте первый ниже.
                         </div>
 
-                        <div id="attrs-container">
+<div id="attrs-container">
                             <th:block th:each="attr, stat : ${form.templateAttributes}">
                                 <div class="attr-row mb-2" data-attr-row>
                                     <div class="row g-2 align-items-end">
@@ -94,7 +115,7 @@
                                         </div>
                                         <div class="col-md-2">
                                             <label class="form-label mb-0 fw-semibold small">Тип</label>
-                                            <select class="form-select form-control-sm"
+                                            <select class="form-select form-select-sm"
                                                     th:field="*{templateAttributes[__${stat.index}__].type}"
                                                     data-attr-type>
                                                 <option value="NUMERIC">Числовой</option>
@@ -105,7 +126,7 @@
                                         <div class="col-md-2 list-kind-block"
                                              th:classappend="${attr.type.name() == 'LIST'} ? 'visible'">
                                             <label class="form-label mb-0 fw-semibold small">Вид списка</label>
-                                            <select class="form-select form-control-sm"
+                                            <select class="form-select form-select-sm"
                                                     th:field="*{templateAttributes[__${stat.index}__].listKind}"
                                                     data-attr-list-kind>
                                                 <option value="SIMPLE">Простой</option>
@@ -118,6 +139,97 @@
                                                 <i class="bi bi-trash"></i> Удалить
                                             </button>
                                         </div>
+                                    </div>
+
+                                    <!-- Ограничения числового параметра -->
+                                    <div class="row g-2 mt-2 numeric-constraints"
+                                         th:classappend="${attr.type.name() == 'NUMERIC'} ? 'visible'">
+                                        <div class="col-md-2">
+                                            <label class="form-label mb-0 small">По умолчанию</label>
+                                            <input type="number" class="form-control form-control-sm"
+                                                   th:field="*{templateAttributes[__${stat.index}__].defaultValue}"
+                                                   data-attr-default-value min="0" step="1" placeholder="—">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label mb-0 small">Нижняя граница</label>
+                                            <input type="number" class="form-control form-control-sm"
+                                                   th:field="*{templateAttributes[__${stat.index}__].minValue}"
+                                                   data-attr-min-value step="1" placeholder="—">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label mb-0 small">Верхняя граница</label>
+                                            <input type="number" class="form-control form-control-sm"
+                                                   th:field="*{templateAttributes[__${stat.index}__].maxValue}"
+                                                   data-attr-max-value step="1" placeholder="—">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label mb-0 small">Шаг</label>
+                                            <input type="number" class="form-control form-control-sm"
+                                                   th:field="*{templateAttributes[__${stat.index}__].stepValue}"
+                                                   data-attr-step-value min="1" step="1" placeholder="1">
+                                        </div>
+                                    </div>
+
+                                    <!-- Ограничения текстового параметра -->
+                                    <div class="text-constraints flex-column mt-2"
+                                         th:classappend="${attr.type.name() == 'TEXT'} ? 'visible'">
+                                        <div class="row g-2">
+                                            <div class="col-md-4">
+                                                <label class="form-label mb-0 small">По умолчанию</label>
+                                                <div class="input-group input-group-sm">
+                                                    <input type="text" class="form-control form-control-sm" maxlength="200"
+                                                           th:field="*{templateAttributes[__${stat.index}__].defaultText}"
+                                                           data-attr-default-text placeholder="—">
+                                                    <button type="button" class="btn btn-outline-secondary d-none"
+                                                            data-default-warning
+                                                            title="Значения нет в списке вариантов — при сохранении оно добавится в список">
+                                                        <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <!--/* Вид текстового поля: список вариантов и флаг
+                                                         ручного ввода есть только у выбираемого */-->
+                                                <label class="form-label mb-0 small">Вид</label>
+                                                <select class="form-select form-select-sm"
+                                                        th:id="'attr-text-mode-' + ${stat.index}"
+                                                        data-attr-text-mode data-attr-mode-select
+                                                        th:field="*{templateAttributes[__${stat.index}__].textMode}">
+                                                    <option value="FREE">Свободный</option>
+                                                    <option value="SELECT">Выбираемый</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="row g-2 mt-2 text-selectable-block" data-attr-selectable
+                                             th:classappend="${!#strings.isEmpty(attr.optionsText)} ? 'visible'">
+                                            <div class="col-md-8">
+                                                <label class="form-label mb-0 small">Варианты, по одному в строке</label>
+                                                <textarea class="form-control form-control-sm" rows="2"
+                                                          th:field="*{templateAttributes[__${stat.index}__].optionsText}"
+                                                          data-attr-options-text></textarea>
+                                            </div>
+                                        </div>
+                                        <div class="form-check mt-2 manual-input-block" data-attr-selectable data-manual-scope="text"
+                                             th:classappend="${!#strings.isEmpty(attr.optionsText)} ? 'visible'">
+                                            <input class="form-check-input" type="checkbox"
+                                                   th:field="*{templateAttributes[__${stat.index}__].manualInputAllowed}"
+                                                   data-attr-manual-input th:id="'manual-text-' + ${stat.index}">
+                                            <label class="form-check-label small" th:for="'manual-text-' + ${stat.index}"
+                                                   data-attr-manual-label>
+                                                Разрешить ручной ввод
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-check mt-2 manual-input-block" data-manual-scope="numeric"
+                                         th:classappend="${attr.type.name() != 'LIST'} ? 'visible'">
+                                        <input class="form-check-input" type="checkbox"
+                                               th:field="*{templateAttributes[__${stat.index}__].manualInputAllowed}"
+                                               data-attr-manual-input th:id="'manual-' + ${stat.index}">
+                                        <label class="form-check-label small" th:for="'manual-' + ${stat.index}"
+                                               data-attr-manual-label>
+                                            Разрешить ручной ввод
+                                        </label>
                                     </div>
                                 </div>
                             </th:block>
@@ -133,7 +245,7 @@
                                     </div>
                                     <div class="col-md-2">
                                         <label class="form-label mb-0 fw-semibold small">Тип</label>
-                                        <select class="form-select form-control-sm" data-new-type>
+                                        <select class="form-select form-select-sm" data-new-type>
                                             <option value="NUMERIC">Числовой</option>
                                             <option value="TEXT">Текстовый</option>
                                             <option value="LIST">Список</option>
@@ -141,7 +253,7 @@
                                     </div>
                                     <div class="col-md-2 list-kind-block" data-new-kind-block>
                                         <label class="form-label mb-0 fw-semibold small">Вид списка</label>
-                                        <select class="form-select form-control-sm" data-new-list-kind>
+                                        <select class="form-select form-select-sm" data-new-list-kind>
                                             <option value="SIMPLE">Простой</option>
                                             <option value="COMPLEX">Сложный</option>
                                         </select>
@@ -152,6 +264,69 @@
                                             <i class="bi bi-trash"></i> Удалить
                                         </button>
                                     </div>
+                                </div>
+
+                                <div class="row g-2 mt-2 numeric-constraints">
+                                    <div class="col-md-2">
+                                        <label class="form-label mb-0 small">По умолчанию</label>
+                                        <input type="number" class="form-control form-control-sm"
+                                               data-new-default-value min="0" step="1" placeholder="—">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label mb-0 small">Нижняя граница</label>
+                                        <input type="number" class="form-control form-control-sm"
+                                               data-new-min-value step="1" placeholder="—">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label mb-0 small">Верхняя граница</label>
+                                        <input type="number" class="form-control form-control-sm"
+                                               data-new-max-value step="1" placeholder="—">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label mb-0 small">Шаг</label>
+                                        <input type="number" class="form-control form-control-sm"
+                                               data-new-step-value min="1" step="1" placeholder="1">
+                                    </div>
+                                </div>
+
+                                <div class="text-constraints flex-column mt-2">
+                                    <div class="row g-2">
+                                        <div class="col-md-4">
+                                            <label class="form-label mb-0 small">По умолчанию</label>
+                                            <div class="input-group input-group-sm">
+                                                <input type="text" class="form-control form-control-sm" maxlength="200"
+                                                       data-new-default-text placeholder="—">
+                                                <button type="button" class="btn btn-outline-secondary d-none"
+                                                        data-default-warning
+                                                        title="Значения нет в списке вариантов — при сохранении оно добавится в список">
+                                                    <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label mb-0 small">Вид</label>
+                                            <select class="form-select form-select-sm" data-attr-text-mode data-new-mode-select>
+                                                <option value="FREE">Свободный</option>
+                                                <option value="SELECT">Выбираемый</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="row g-2 mt-2 text-selectable-block" data-attr-selectable>
+                                        <div class="col-md-8">
+                                            <label class="form-label mb-0 small">Варианты, по одному в строке</label>
+                                            <textarea class="form-control form-control-sm" rows="2"
+                                                      data-new-options-text></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="form-check mt-2 manual-input-block" data-attr-selectable data-manual-scope="text">
+                                        <input class="form-check-input" type="checkbox" data-new-manual-input>
+                                        <label class="form-check-label small">Разрешить ручной ввод</label>
+                                    </div>
+                                </div>
+
+                                <div class="form-check mt-2 manual-input-block" data-manual-scope="numeric">
+                                    <input class="form-check-input" type="checkbox" data-new-manual-input-numeric>
+                                    <label class="form-check-label small">Разрешить ручной ввод</label>
                                 </div>
                             </div>
                         </template>
@@ -192,7 +367,23 @@
             ['data-attr-type', 'type'],
             ['data-new-type', 'type'],
             ['data-attr-list-kind', 'listKind'],
-            ['data-new-list-kind', 'listKind']
+            ['data-new-list-kind', 'listKind'],
+            ['data-attr-default-value', 'defaultValue'],
+            ['data-new-default-value', 'defaultValue'],
+            ['data-attr-min-value', 'minValue'],
+            ['data-new-min-value', 'minValue'],
+            ['data-attr-max-value', 'maxValue'],
+            ['data-new-max-value', 'maxValue'],
+            ['data-attr-step-value', 'stepValue'],
+            ['data-new-step-value', 'stepValue'],
+            ['data-attr-default-text', 'defaultText'],
+            ['data-new-default-text', 'defaultText'],
+            ['data-attr-options-text', 'optionsText'],
+            ['data-new-options-text', 'optionsText'],
+            ['data-attr-manual-input', 'manualInputAllowed'],
+            ['data-new-manual-input', 'manualInputAllowed'],
+            ['data-new-manual-input-numeric', 'manualInputAllowed'],
+            ['data-new-mode-select', 'textMode']
         ];
 
         function assignNames(row, index) {
@@ -212,6 +403,89 @@
             emptyHint.classList.toggle('d-none', rows().length > 0);
         }
 
+        /**
+         * Показывает только ограничения своего типа: числовому полю — границы и
+         * шаг, текстовому — варианты значения. Флаг ручного ввода нужен обоим.
+         */
+        function syncConstraints(row) {
+            const type = row.querySelector('[data-attr-type], [data-new-type]');
+            if (!type) {
+                return;
+            }
+            row.querySelectorAll('.numeric-constraints').forEach(function (block) {
+                block.classList.toggle('visible', type.value === 'NUMERIC');
+            });
+            row.querySelectorAll('.text-constraints').forEach(function (block) {
+                block.classList.toggle('visible', type.value === 'TEXT');
+            });
+            // Флаг ручного ввода: у списка значения нет, у текста он есть
+            // только у выбираемого подтипа.
+            const selectable = textMode(row) === 'SELECT';
+            row.querySelectorAll('.manual-input-block').forEach(function (block) {
+                const scope = block.dataset.manualScope;
+                if (scope === 'text') {
+                    block.classList.toggle('visible', type.value === 'TEXT' && selectable);
+                } else {
+                    block.classList.toggle('visible', type.value === 'NUMERIC');
+                }
+            });
+            row.querySelectorAll('.text-selectable-block').forEach(function (block) {
+                block.classList.toggle('visible', type.value === 'TEXT' && selectable);
+            });
+            syncDefaultWarning(row);
+        }
+
+        /**
+         * Предупреждает, когда у поля «По выбору» значения по умолчанию нет в
+         * списке вариантов: само значение при сохранении в список добавится,
+         * но автор должен знать об этом до сохранения.
+         */
+        function syncDefaultWarning(row) {
+            const warning = row.querySelector('[data-default-warning]');
+            if (!warning) {
+                return;
+            }
+            const defaultInput = row.querySelector('[data-attr-default-text], [data-new-default-text]');
+            const optionsInput = row.querySelector('[data-attr-options-text], [data-new-options-text]');
+            const value = (defaultInput && defaultInput.value || '').trim();
+            const options = ((optionsInput && optionsInput.value) || '')
+                .split(/\r?\n/)
+                .map(function (o) { return o.trim(); })
+                .filter(function (o) { return o.length > 0; });
+            const missing = value.length > 0 && textMode(row) === 'SELECT'
+                && options.indexOf(value) < 0;
+            warning.classList.toggle('d-none', !missing);
+        }
+
+        function textMode(row) {
+            const select = row.querySelector('[data-attr-mode-select], [data-new-mode-select]');
+            return select ? select.value : 'FREE';
+        }
+
+        /**
+         * Вид «Свободный»: список вариантов неприменим, а значение поля
+         * всегда вводится руками — иначе текстовое поле останется пустым и
+         * заполнить его будет нечем.
+         */
+        function syncTextMode(row) {
+            const select = row.querySelector('[data-attr-mode-select], [data-new-mode-select]');
+            const manual = row.querySelector('[data-manual-scope="text"] input[type="checkbox"]');
+            if (!select) {
+                return;
+            }
+            if (select.value === 'FREE') {
+                const area = row.querySelector('[data-attr-options-text]')
+                    || row.querySelector('[data-new-options-text]');
+                if (area) {
+                    area.value = '';
+                }
+                if (manual) {
+                    manual.checked = true;
+                }
+            }
+            syncConstraints(row);
+        }
+
         function syncListKind(row) {
             const type = row.querySelector('[data-attr-type], [data-new-type]');
             const block = row.querySelector('.list-kind-block');
@@ -227,8 +501,22 @@
         }
 
         function bindRow(row) {
+            row.querySelectorAll('[data-attr-mode-select], [data-new-mode-select]').forEach(function (select) {
+                select.addEventListener('change', function () {
+                    syncTextMode(row);
+                });
+            });
             row.querySelectorAll('[data-attr-type], [data-new-type]').forEach(function (select) {
-                select.addEventListener('change', function () { syncListKind(row); });
+                select.addEventListener('change', function () {
+                    syncListKind(row);
+                    syncConstraints(row);
+                });
+            });
+            row.querySelectorAll('[data-attr-default-text], [data-new-default-text],'
+                + ' [data-attr-options-text], [data-new-options-text]').forEach(function (area) {
+                area.addEventListener('input', function () {
+                    syncDefaultWarning(row);
+                });
             });
             const removeBtn = row.querySelector('[data-attr-remove]');
             if (removeBtn) {
@@ -238,6 +526,7 @@
                 });
             }
             syncListKind(row);
+            syncConstraints(row);
         }
 
         rows().forEach(bindRow);

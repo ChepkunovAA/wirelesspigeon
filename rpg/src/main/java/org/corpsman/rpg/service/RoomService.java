@@ -59,6 +59,8 @@ public class RoomService {
 
     private final DiceService diceService;
 
+    private final GameNotificationPublisher notificationPublisher;
+
     @Transactional
     public Room createRoom(Game game, Long masterId, RoomForm form) {
         if (!accessService.isMaster(game, masterId)) {
@@ -151,6 +153,7 @@ public class RoomService {
             diceRollRepository.save(roll);
         }
         attachFiles(files, post.getId());
+        notificationPublisher.roomPostCreated(game, room, authorId, accessService.isMaster(game, authorId));
         return post;
     }
 

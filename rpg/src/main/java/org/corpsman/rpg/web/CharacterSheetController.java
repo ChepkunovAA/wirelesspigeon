@@ -12,7 +12,9 @@ import org.corpsman.rpg.dto.CharacterSheetViewDto;
 import org.corpsman.rpg.dto.SheetAttributeForm;
 import org.corpsman.rpg.dto.SheetForm;
 import org.corpsman.rpg.model.CharacterSheet;
+import org.corpsman.rpg.model.ApplicationStatus;
 import org.corpsman.rpg.model.Game;
+import org.corpsman.rpg.model.GameSystem;
 import org.corpsman.rpg.model.GameVisibility;
 import org.corpsman.rpg.service.ApplicationService;
 import org.corpsman.rpg.service.CharacterSheetService;
@@ -88,9 +90,13 @@ public class CharacterSheetController {
             return "rpg/apply";
         }
         CharacterSheet existing = ownSheet(game, uid);
-        if (existing != null) {
+        ApplicationStatus status = applicationService.statusOf(game, uid);
+        if (status != null && status.canResubmit()) {
+            // Отозванная или отклонённая заявка подаётся заново и снова ждёт рассмотрения.
+            applicationService.apply(game, uid, form, avatar);
+        } else if (existing != null) {
             characterSheetService.update(game, existing, form, avatar);
-        } else if (applicationService.statusFor(game, uid) == null) {
+        } else if (status == null) {
             applicationService.apply(game, uid, form, avatar);
         }
         return "redirect:/rpg/games/" + gameId;
@@ -187,10 +193,39 @@ public class CharacterSheetController {
         return "redirect:/rpg/games/" + gameId;
     }
 
+    @PostMapping("/applications/{appId}/withdraw")
+    public String withdraw(@PathVariable Long gameId, @PathVariable Long appId) {
+        Long uid = SecurityUtils.currentUserId();
+        Game game = gameService.requireVisible(gameId, freshRole(uid), uid);
+        applicationService.withdraw(game, appId, uid);
+        return "redirect:/rpg/games/" + gameId;
+    }
+
     @PostMapping("/applications/{appId}/reject")
     public String reject(@PathVariable Long gameId, @PathVariable Long appId) {
         Game game = gameService.requireMaster(gameId, SecurityUtils.currentUserId());
         applicationService.review(game, appId, false, SecurityUtils.currentUserId());
+        return "redirect:/rpg/games/" + gameId;
+    }
+
+    /**
+     * Уход из игры: игрок удаляет свой лист, заявка переходит в статус LEFT.
+     */
+    @PostMapping("/leave")
+    public String leave(@PathVariable Long gameId) {
+        Long uid = SecurityUtils.currentUserId();
+        Game game = gameService.requireVisible(gameId, freshRole(uid), uid);
+        applicationService.leave(game, uid);
+        return "redirect:/rpg/games/" + gameId;
+    }
+
+    /**
+     * Ведущий удаляет принятого игрока из игры.
+     */
+    @PostMapping("/characters/{sheetId}/remove")
+    public String removePlayer(@PathVariable Long gameId, @PathVariable Long sheetId) {
+        Game game = gameService.requireMaster(gameId, SecurityUtils.currentUserId());
+        applicationService.removePlayer(game, sheetId, SecurityUtils.currentUserId());
         return "redirect:/rpg/games/" + gameId;
     }
 
@@ -222,6 +257,46 @@ public class CharacterSheetController {
         characterSheetService.requireSheetEdit(game, sheet, uid);
         characterSheetService.removeInventoryItem(sheet, itemIndex);
         return "redirect:/rpg/games/" + gameId + "/characters/" + sheetId;
+    }
+
+    /**
+     * Кнопки +/- по видам монет: одно нажатие — одна монета.
+     */
+    @PostMapping("/characters/{sheetId}/money/change")
+    public String changeMoney(@PathVariable Long gameId, @PathVariable Long sheetId,
+                              @RequestParam(required = false) String kind,
+                              @RequestParam(required = false) Integer delta) {
+        Long uid = SecurityUtils.currentUserId();
+        Game game = gameService.requireVisible(gameId, freshRole(uid), uid);
+        CharacterSheet sheet = dndSheet(game, sheetId, uid);
+        characterSheetService.changeMoney(sheet, kind, delta);
+        return "redirect:/rpg/games/" + gameId + "/characters/" + sheetId;
+    }
+
+    /**
+     * Конвертация по курсу 1:10: одно нажатие — один обмен.
+     */
+    @PostMapping("/characters/{sheetId}/money/convert")
+    public String convertMoney(@PathVariable Long gameId, @PathVariable Long sheetId,
+                               @RequestParam(required = false) String kind,
+                               @RequestParam(required = false) String direction) {
+        Long uid = SecurityUtils.currentUserId();
+        Game game = gameService.requireVisible(gameId, freshRole(uid), uid);
+        CharacterSheet sheet = dndSheet(game, sheetId, uid);
+        characterSheetService.convertMoney(sheet, kind, direction);
+        return "redirect:/rpg/games/" + gameId + "/characters/" + sheetId;
+    }
+
+    /**
+     * Деньги есть только в системе D&D: остальные листы их не показывают.
+     */
+    private CharacterSheet dndSheet(Game game, Long sheetId, Long uid) {
+        if (game.getSystem() != GameSystem.DND) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+        CharacterSheet sheet = characterSheetService.requireSheet(game, sheetId);
+        characterSheetService.requireSheetEdit(game, sheet, uid);
+        return sheet;
     }
 
     /**

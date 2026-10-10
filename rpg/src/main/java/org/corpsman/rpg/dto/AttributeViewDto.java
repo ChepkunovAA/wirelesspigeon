@@ -67,6 +67,22 @@ public class AttributeViewDto {
     private String otherOptionLabel;
 
     /**
+     * Ограничения значения параметра, заданные кастомной системой.
+     * null или 1 — шаг по умолчанию, границы не заданы.
+     */
+    private Integer step;
+
+    private Integer minValue;
+
+    private Integer maxValue;
+
+    /**
+     * Разрешён ли ручной ввод. Числовое поле без ручного ввода
+     * редактируется только стрелками, текстовое — только выбором.
+     */
+    private boolean manualInputAllowed = true;
+
+    /**
      * Заголовок группы, внутри которой начинается параметр (null — продолжение группы).
      */
     private String groupHeader;

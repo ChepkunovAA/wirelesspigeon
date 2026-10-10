@@ -7,6 +7,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
+import java.util.Objects;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -146,5 +150,111 @@ class DesignStyleIntegrationTest {
         mockMvc.perform(get("/css/app.css"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString(".scroll-bottom-btn")));
+    }
+
+    @Test
+    void appCssDefinesCardTextColorsForBothThemes() throws Exception {
+        // Текст карточек (описания, статусы) задаётся переменными темы: иначе
+        // в тёмной теме он сливается с фоном карточки.
+        mockMvc.perform(get("/css/app.css"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("--app-card-text:")))
+                .andExpect(content().string(containsString("--app-card-muted:")))
+                .andExpect(content().string(containsString("var(--app-card-muted)")));
+    }
+
+@Test
+    void appCssDefinesDarkGameRowColorsPerTheme() throws Exception {
+        // Фон строк списка игр задаётся переменными темы: в тёмной теме
+        // «набор игроков» и «идёт игра» — тёмные зелёный и синий,
+        // «завершена» — чёрный, в светлой — белый.
+        mockMvc.perform(get("/css/app.css"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("--app-game-recruiting:")))
+                .andExpect(content().string(containsString("--app-game-active:")))
+                .andExpect(content().string(containsString("--app-game-closed:")))
+                .andExpect(content().string(containsString(".game-row--recruiting {")))
+                .andExpect(content().string(containsString(".game-row--active {")))
+                .andExpect(content().string(containsString(".game-row--closed {")));
+    }
+
+    @Test
+    void closedGamesUseCardSurfaceInDarkTheme() throws Exception {
+        // Завершённые игры в тёмной теме — оттенок карточки форума: тот же
+        // --app-surface, которым красятся карточки.
+        String css = mockMvc.perform(get("/css/app.css"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        assertThat(darkVariable(css, "--app-game-closed"))
+                .as("цвет завершённых игр в тёмной теме")
+                .isEqualTo(darkVariable(css, "--app-surface"));
+    }
+
+    /** Значение переменной в блоке тёмной темы. */
+    private String darkVariable(String css, String name) {
+        int dark = css.indexOf("html[data-bs-theme=\"dark\"] {");
+        assertThat(dark).as("блок тёмной темы").isPositive();
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("(?m)^\\s*" + java.util.regex.Pattern.quote(name) + ":\\s*([^;]+);")
+                .matcher(css.substring(dark));
+        assertThat(matcher.find()).as("переменная %s в тёмной теме", name).isTrue();
+        return matcher.group(1).trim();
+    }
+
+    @Test
+    void gameRowColorIsSetThroughBootstrapTableVariable() throws Exception {
+        // Bootstrap красит фон ячеек таблицы через --bs-table-bg, поэтому цвет
+        // строки задаётся этой переменной: иначе ячейки закрашивают фон строки
+        // и все строки выглядят одинаковыми.
+        String css = mockMvc.perform(get("/css/app.css"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+
+        for (String rowClass : List.of("game-row--recruiting", "game-row--active", "game-row--closed")) {
+            int start = css.indexOf("." + rowClass + " {");
+            assertThat(start).as("класс %s", rowClass).isPositive();
+            String rule = css.substring(start, css.indexOf('}', start));
+            assertThat(rule).as("правило %s", rowClass)
+                    .contains("--bs-table-bg: var(--app-game-")
+                    .doesNotContain("background-color:");
+        }
+    }
+
+    @Test
+    void renderedPagesHaveNoUnprocessedInlineJs() throws Exception {
+        // Thymeleaf вырезает /*[[...]]*/ вместе с окружающим кодом, поэтому
+        // два таких подстановки в одной строке JS дают синтаксическую ошибку и
+        // страница теряет весь клиентский скрипт. Необработанная подстановка на
+        // странице — признак того, что скрипт не был разобран.
+        for (String path : List.of("/", "/rpg/games", "/login")) {
+            String page = mockMvc.perform(get(path))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+            assertThat(page).as(path).doesNotContain("/*[[");
+        }
+    }
+
+    @Test
+    void appCssAlignsMoneySteppersInOneColumn() throws Exception {
+        // Кнопки ± у всех разрядов монет одной ширины — иначе числа в строках
+        // разъезжаются.
+        mockMvc.perform(get("/css/app.css"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(".money-step {")))
+                .andExpect(content().string(containsString(".money-convert {")));
+    }
+
+    @Test
+    void rpgTemplatesHaveNoHardcodedLightTextOnCards() throws Exception {
+        // В шаблонах листа и системы нет захардкоженных светлых цветов текста:
+        // описание элемента и шеврон переезжают на переменные темы, иначе в
+        // тёмной теме карточки нечитаемы.
+        for (String template : List.of("rpg/character.html", "rpg/system-form.html", "rpg/apply.html")) {
+            String html = new String(Objects.requireNonNull(getClass().getClassLoader()
+                    .getResourceAsStream("templates/" + template)).readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            assertThat(html).as(template).doesNotContain("color: #495057").doesNotContain("color: #6c757d");
+        }
     }
 }

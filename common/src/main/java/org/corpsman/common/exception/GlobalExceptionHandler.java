@@ -99,9 +99,15 @@ public class GlobalExceptionHandler {
         return buildErrorView(error, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
+    /**
+     * Страница ошибки. Сообщение кладётся отдельной строкой {@code errorMessage}:
+     * атрибут {@code error} в других шаблонах приложения — обычный текст, и
+     * разбор {@code ${error.message}} на строке ронял саму страницу ошибки.
+     */
     private ModelAndView buildErrorView(ErrorDto error, HttpStatus status) {
         ModelAndView mav = new ModelAndView("error");
         mav.addObject("error", error);
+        mav.addObject("errorMessage", error.getMessage());
         mav.addObject("status", status.value());
         mav.setStatus(status);
         return mav;

@@ -28,4 +28,10 @@ public class GameSummaryDto {
     private GameStatus status;
 
     private int participantCount;
+
+    /** Игру ведёт текущий пользователь. */
+    private boolean mastered;
+
+    /** Пользователь участвует в игре как игрок. */
+    private boolean participating;
 }

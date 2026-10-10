@@ -10,6 +10,7 @@ import org.corpsman.rpg.dto.GameSystemDefinitionDto;
 import org.corpsman.rpg.dto.GameSystemDefinitionForm;
 import org.corpsman.rpg.model.GameSystemDefinition;
 import org.corpsman.rpg.service.GameSystemLibraryService;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -50,25 +51,26 @@ public class GameSystemLibraryController {
     private final UserRepository userRepository;
 
     @GetMapping
-    public String listSystems(Model model) {
+    public String listSystems(@RequestParam(value = "search", required = false) String search,
+                              @RequestParam(value = "page", required = false, defaultValue = "0") int page,
+                              Model model) {
         Long uid = SecurityUtils.currentUserId();
         UserRole role = uid != null ? userRepository.findById(uid).map(u -> u.getRole()).orElse(null) : null;
-        
-        Long effectiveUid = uid != null ? uid : -1L;
-        List<GameSystemDefinition> systems = libraryService.getAvailableSystems(effectiveUid);
-        
-        model.addAttribute("systems", systems.stream()
-            .map(this::toDto)
-            .toList());
+
+        // Чужие публичные и собственные системы показываются отдельными
+        // списками, у каждого своя пагинация.
+        Page<GameSystemDefinition> mine = libraryService.ownSystemsPage(uid, search, page);
+        Page<GameSystemDefinition> publicSystems = libraryService.publicSystemsPage(
+                uid == null ? -1L : uid, search, page);
+
+        model.addAttribute("mine", mine.getContent().stream().map(this::toDto).toList());
+        model.addAttribute("publicSystems", publicSystems.getContent().stream().map(this::toDto).toList());
+        model.addAttribute("minePage", mine);
+        model.addAttribute("publicPage", publicSystems);
+        model.addAttribute("search", search == null ? "" : search);
         model.addAttribute("currentUserRole", role);
         // Кнопку форка показываем любому вошедшему: сделать копию может кто угодно.
         model.addAttribute("currentUserId", uid);
-        // Кнопки правки показываем только автору: сравнение с principal ломает
-        // страницу для неавторизованного посетителя.
-        model.addAttribute("authorIds", systems.stream()
-            .filter(system -> uid != null && system.getAuthorId().equals(uid))
-            .map(GameSystemDefinition::getId)
-            .collect(java.util.stream.Collectors.toSet()));
         return "rpg/systems-list";
     }
 
@@ -228,12 +230,18 @@ public class GameSystemLibraryController {
             v.setKey(key);
             v.setPosition(400 + position * 10);
             v.setListItems(List.of());
+            applyPreviewConstraints(v, spec);
             views.add(v);
 
             f.setKey(key);
             f.setName(v.getName());
             f.setType(v.getType());
             f.setListKind(v.getListKind());
+            // Значения по умолчанию обязаны попасть и в форму: поля страницы
+            // биндятся по sheetForm, поэтому без этого стрелки числового поля
+            // считали бы пустое значение и ничего не меняли.
+            f.setNumericValue(v.getNumericValue());
+            f.setTextValue(v.getTextValue());
             f.setListText("");
             f.setListJson("[]");
             attrForms.add(f);
@@ -264,6 +272,37 @@ public class GameSystemLibraryController {
     public String deleteSystem(@PathVariable Long systemId) {
         libraryService.deleteSystem(systemId, SecurityUtils.currentUserId());
         return "redirect:/rpg/systems";
+    }
+
+    /**
+     * Ограничения параметра в пробном листе — те же, что игрок увидит в игре:
+     * границы и шаг числовому полю, варианты и значение по умолчанию — текстовому.
+     */
+    private void applyPreviewConstraints(AttributeViewDto view, SystemAttributeDto spec) {
+        if (spec == null) {
+            return;
+        }
+        view.setManualInputAllowed(spec.isManualInputAllowed());
+        if (view.getType() == AttributeType.NUMERIC) {
+            view.setMinValue(spec.getMinValue());
+            view.setMaxValue(spec.getMaxValue());
+            view.setStep(spec.stepOrDefault());
+            view.setNumericValue(spec.getDefaultValue());
+        } else if (view.getType() == AttributeType.TEXT) {
+            List<String> options = spec.optionsOrEmpty();
+            if (!options.isEmpty()) {
+                view.setOptions(options);
+                // Пункт «Другое» открывает ручной ввод. Без него поле с белым
+                // списком в пробном листе не заполнить, если автор его разрешил.
+                if (spec.isManualInputAllowed()) {
+                    view.setOtherOptionLabel(CharacterSheetService.OTHER_OPTION_LABEL);
+                }
+            }
+            String defaultText = spec.getDefaultText();
+            if (defaultText != null && !defaultText.isBlank()) {
+                view.setTextValue(defaultText);
+            }
+        }
     }
 
     private GameSystemDefinitionDto toDto(GameSystemDefinition system) {

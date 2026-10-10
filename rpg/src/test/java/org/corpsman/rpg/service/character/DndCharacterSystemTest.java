@@ -223,6 +223,60 @@ class DndCharacterSystemTest {
     }
 
     @Test
+    void moneyIsLimitedFromBelowByZero() {
+        for (String key : DndCharacterSystem.MONEY_KINDS) {
+            FieldConstraints constraints = system.constraints(key);
+
+            assertThat(constraints).as("ограничения вида монет %s", key).isNotNull();
+            assertThat(constraints.min()).as("нижняя граница %s", key).isZero();
+            assertThat(constraints.stepOrDefault()).isEqualTo(1);
+            assertThat(constraints.manualInputAllowed())
+                    .as("ручной ввод денег разрешён").isTrue();
+            assertThat(constraints.outOfRange(-1)).as("отрицательное число отклоняется").isTrue();
+            assertThat(constraints.outOfRange(0)).isFalse();
+            assertThat(constraints.outOfRange(10_000)).isFalse();
+        }
+    }
+
+    @Test
+    void dndNumbersAreChangedByArrowsWithoutManualInput() {
+        // Ручной ввод в D&D есть только у денег: остальные числа правятся стрелками.
+        List<String> numericKeys = List.of(
+                DndCharacterSystem.KEY_LEVEL,
+                DndCharacterSystem.KEY_HIT_POINTS,
+                DndCharacterSystem.KEY_ARMOR_CLASS,
+                DndCharacterSystem.PREFIX_ABILITY + "strength",
+                DndCharacterSystem.PREFIX_SAVE + "strength",
+                DndCharacterSystem.PREFIX_SKILL + "athletics",
+                DndCharacterSystem.PREFIX_SPELL_SLOT_MAX + "1",
+                DndCharacterSystem.PREFIX_SPELL_SLOT_CURRENT + "1");
+
+        for (String key : numericKeys) {
+            FieldConstraints constraints = system.constraints(key);
+
+            assertThat(constraints).as("ограничения параметра %s", key).isNotNull();
+            assertThat(constraints.manualInputAllowed())
+                    .as("ручной ввод параметра %s закрыт", key).isFalse();
+            assertThat(constraints.stepOrDefault()).isEqualTo(1);
+        }
+    }
+
+    @Test
+    void textAndListParametersKeepUnlimitedInput() {
+        for (String key : List.of(DndCharacterSystem.KEY_CLASS, DndCharacterSystem.KEY_RACE,
+                DndCharacterSystem.KEY_SPELLS, "feats", "skills")) {
+            assertThat(system.constraints(key).manualInputAllowed())
+                    .as("ручной ввод параметра %s не ограничен", key).isTrue();
+        }
+    }
+
+    @Test
+    void systemAttributesHaveNoBounds() {
+        assertThat(system.constraints("class").min()).isNull();
+        assertThat(system.constraints("level").min()).isNull();
+    }
+
+    @Test
     void abilityForSkillReturnsCorrectAbility() {
         assertThat(DndCharacterSystem.abilityForSkill("athletics")).isEqualTo("strength");
         assertThat(DndCharacterSystem.abilityForSkill("acrobatics")).isEqualTo("dexterity");

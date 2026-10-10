@@ -5,8 +5,11 @@ import org.corpsman.common.exception.BusinessException;
 import org.corpsman.common.exception.ErrorCode;
 import org.corpsman.rpg.dto.SystemAttributeDto;
 import org.corpsman.rpg.dto.GameSystemDefinitionForm;
+import org.corpsman.rpg.model.AttributeType;
 import org.corpsman.rpg.model.GameSystemDefinition;
 import org.corpsman.rpg.repository.GameSystemDefinitionRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +50,34 @@ public class GameSystemLibraryService {
         return definitionRepository.findByAuthorIdOrderByCreatedAtDesc(userId);
     }
 
+    /** Размер страницы библиотеки систем. */
+    public static final int SYSTEMS_PAGE_SIZE = 10;
+
+    /**
+     * Страница публичных систем, чужих для зрителя.
+     */
+    @Transactional(readOnly = true)
+    public Page<GameSystemDefinition> publicSystemsPage(Long userId, String search, int pageNumber) {
+        return definitionRepository.findPublicForOthers(userId, normalize(search),
+                PageRequest.of(Math.max(pageNumber, 0), SYSTEMS_PAGE_SIZE));
+    }
+
+    /**
+     * Страница собственных систем автора.
+     */
+    @Transactional(readOnly = true)
+    public Page<GameSystemDefinition> ownSystemsPage(Long userId, String search, int pageNumber) {
+        if (userId == null) {
+            return Page.empty();
+        }
+        return definitionRepository.findOwn(userId, normalize(search),
+                PageRequest.of(Math.max(pageNumber, 0), SYSTEMS_PAGE_SIZE));
+    }
+
+    private String normalize(String search) {
+        return search == null ? "" : search.trim();
+    }
+
     /**
      * Найти систему по ID с проверкой доступа.
      */
@@ -70,6 +101,8 @@ public class GameSystemLibraryService {
         if (definitionRepository.existsByNameIgnoreCase(name)) {
             throw new BusinessException(ErrorCode.SYSTEM_DEFINITION_NAME_EXISTS);
         }
+        normalizeTextKinds(templateAttributes);
+        validateTemplateAttributes(templateAttributes);
 
         GameSystemDefinition system = new GameSystemDefinition();
         system.setName(name);
@@ -107,6 +140,8 @@ public class GameSystemLibraryService {
         }
         
         if (templateAttributes != null) {
+            normalizeTextKinds(templateAttributes);
+            validateTemplateAttributes(templateAttributes);
             system.setTemplateAttributes(writeTemplateAttributes(templateAttributes));
             system.setVersion(system.getVersion() + 1);
         } else if (name != null || description != null) {
@@ -173,6 +208,42 @@ system.setPublic(isPublic);
     }
 
     /**
+     * Приводит вид текстового параметра к тому, что из него следует.
+     * <ul>
+     *   <li>«Свободный»: список вариантов неприменим, а поле обязано быть
+     *       заполняемым — иначе игрок его не заполнит.</li>
+     *   <li>«По выбору»: значение по умолчанию само становится вариантом.
+     *       Автору показывается предупреждение, но отказ с ошибкой был бы
+     *       неудобен: правильный список получается сам.</li>
+     * </ul>
+     */
+    private void normalizeTextKinds(List<SystemAttributeDto> attributes) {
+        for (SystemAttributeDto attr : attributes) {
+            if (attr == null || attr.getType() != AttributeType.TEXT) {
+                continue;
+            }
+            if (!attr.isSelectable()) {
+                attr.setOptions(new ArrayList<>());
+                attr.setTextMode(SystemAttributeDto.TextMode.FREE);
+                attr.setManualInputAllowed(true);
+                continue;
+            }
+            attr.setTextMode(SystemAttributeDto.TextMode.SELECT);
+            String defaultText = attr.getDefaultText();
+            if (defaultText == null || defaultText.isBlank()) {
+                continue;
+            }
+            String value = defaultText.trim();
+            List<String> options = new ArrayList<>(attr.optionsOrEmpty());
+            if (!options.contains(value)) {
+                options.add(value);
+            }
+            attr.setOptions(options);
+            attr.setDefaultText(value);
+        }
+    }
+
+    /**
      * Сериализует состав параметров, проставляя порядок по номеру строки формы.
      * <p>
      * Поля «Порядок» в интерфейсе нет: автор задаёт только последовательность
@@ -182,10 +253,70 @@ system.setPublic(isPublic);
     private String writeTemplateAttributes(List<SystemAttributeDto> attributes) {
         List<SystemAttributeDto> normalized = new ArrayList<>(attributes);
         for (int i = 0; i < normalized.size(); i++) {
-            normalized.get(i).setPosition(i * 10);
+            SystemAttributeDto attr = normalized.get(i);
+            attr.setPosition(i * 10);
+            // Ограничения относятся только к своему типу: числовые границы у
+            // текстового параметра и варианты у числового в анкету не попадают.
+            if (attr.getType() != AttributeType.NUMERIC) {
+                attr.setDefaultValue(null);
+                attr.setMinValue(null);
+                attr.setMaxValue(null);
+                attr.setStepValue(null);
+            }
+            if (attr.getType() != AttributeType.TEXT) {
+                attr.setDefaultText(null);
+                attr.setOptions(new ArrayList<>());
+            }
+            // У списка нет значения параметра: флаг ручного ввода неприменим.
+            if (attr.getType() == AttributeType.LIST) {
+                attr.setManualInputAllowed(false);
+            }
         }
         GameSystemDefinition holder = new GameSystemDefinition();
         holder.setTemplateAttributeList(normalized);
         return holder.getTemplateAttributes();
+    }
+
+    /**
+     * Проверяет ограничения параметров анкеты кастомной системы.
+     * <p>
+     * Числовому полю нельзя задать противоречащие друг другу границы или шаг
+     * меньше единицы, значение по умолчанию обязано быть в границах. Текстовому
+     * полю без ручного ввода нужен хотя бы один предустановленный вариант:
+     * выбирать будет не из чего.
+     */
+    private void validateTemplateAttributes(List<SystemAttributeDto> attributes) {
+        for (SystemAttributeDto attr : attributes) {
+            if (attr == null) {
+                continue;
+            }
+            // Параметр без имени в анкете не нужен: игрок не поймёт, что заполнять.
+            if (attr.getName() == null || attr.getName().isBlank()) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT, "У параметра должно быть название");
+            }
+            if (attr.getType() == AttributeType.NUMERIC) {
+                if (attr.getMinValue() != null && attr.getMaxValue() != null
+                        && attr.getMinValue() > attr.getMaxValue()) {
+                    throw new BusinessException(ErrorCode.INVALID_INPUT,
+                            "Нижняя граница больше верхней");
+                }
+                if (attr.getStepValue() != null && attr.getStepValue() < 1) {
+                    throw new BusinessException(ErrorCode.INVALID_INPUT, "Шаг меньше единицы");
+                }
+                if (attr.getDefaultValue() != null
+                        && (attr.getMinValue() != null && attr.getDefaultValue() < attr.getMinValue()
+                        || attr.getMaxValue() != null && attr.getDefaultValue() > attr.getMaxValue())) {
+                    throw new BusinessException(ErrorCode.INVALID_INPUT,
+                            "Значение по умолчанию вне границ");
+                }
+            }
+            if (attr.getType() == AttributeType.TEXT) {
+                List<String> options = attr.optionsOrEmpty();
+                if (!attr.isManualInputAllowed() && options.isEmpty()) {
+                    throw new BusinessException(ErrorCode.INVALID_INPUT,
+                            "Без ручного ввода нужен хотя бы один вариант значения");
+                }
+            }
+        }
     }
 }

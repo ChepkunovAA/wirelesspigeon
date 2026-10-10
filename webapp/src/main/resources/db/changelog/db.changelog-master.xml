@@ -44,4 +44,5 @@
     <include file="v3.1/04-rpg-system-template-attributes.xml" relativeToChangelogFile="true"/>
     <include file="v3.1/05-rpg-list-kind-source-of-truth.xml" relativeToChangelogFile="true"/>
     <include file="v3.1/06-rpg-drop-system-version.xml" relativeToChangelogFile="true"/>
+    <include file="v3.2/01-rpg-custom-attribute-constraints.xml" relativeToChangelogFile="true"/>
 </databaseChangeLog>

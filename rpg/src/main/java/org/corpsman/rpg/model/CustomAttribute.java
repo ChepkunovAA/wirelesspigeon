@@ -7,6 +7,8 @@ import lombok.Getter;
 import lombok.Setter;
 import org.corpsman.common.model.BaseEntity;
 
+import java.util.List;
+
 /**
  * Определение кастомного параметра листа для системы «Кастомная».
  */
@@ -40,5 +42,73 @@ public class CustomAttribute extends BaseEntity {
 
     public ListKind listKindOrDefault() {
         return listKind == null ? ListKind.SIMPLE : listKind;
+    }
+
+    /**
+     * Значение по умолчанию числового параметра.
+     */
+    @Column(name = "default_value")
+    private Integer defaultValue;
+
+    /**
+     * Значение по умолчанию текстового параметра.
+     */
+    @Column(name = "default_text", length = 200)
+    private String defaultText;
+
+    /**
+     * Нижняя граница числового параметра (null — не ограничена).
+     */
+    @Column(name = "min_value")
+    private Integer minValue;
+
+    /**
+     * Верхняя граница числового параметра (null — не ограничена).
+     */
+    @Column(name = "max_value")
+    private Integer maxValue;
+
+    /**
+     * Шаг стрелок числового параметра.
+     */
+    @Column(name = "step_value")
+    private Integer stepValue = 1;
+
+    /**
+     * Предустановленные значения текстового параметра, по строке на вариант.
+     */
+    @Column(name = "options_text", length = 1000000)
+    private String optionsText;
+
+    /**
+     * Разрешён ли ручной ввод. По умолчанию снят: числовой параметр
+     * редактируется только стрелками, текстовый — только выбором из списка.
+     */
+    @Column(name = "manual_input_allowed")
+    private boolean manualInputAllowed;
+
+    /**
+     * Предустановленные значения текстового параметра.
+     */
+    public List<String> getOptions() {
+        if (optionsText == null || optionsText.isBlank()) {
+            return List.of();
+        }
+        return java.util.Arrays.stream(optionsText.split("\\R"))
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .toList();
+    }
+
+    public void setOptions(List<String> options) {
+        this.optionsText = options == null || options.isEmpty()
+                ? null : String.join("\n", options);
+    }
+
+    /**
+     * Шаг стрелок; по умолчанию единица.
+     */
+    public int stepOrDefault() {
+        return stepValue == null || stepValue < 1 ? 1 : stepValue;
     }
 }

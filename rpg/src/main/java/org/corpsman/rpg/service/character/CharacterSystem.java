@@ -87,4 +87,16 @@ public interface CharacterSystem {
     default String otherOptionLabel(String key) {
         return "";
     }
+
+    /**
+     * Ограничения значения параметра: значение по умолчанию, границы, шаг,
+     * предустановленные варианты и флаг ручного ввода. Для фиксированных
+     * систем ограничений нет.
+     *
+     * @param key ключ параметра
+     * @return ограничения параметра (по умолчанию пустые)
+     */
+    default FieldConstraints constraints(String key) {
+        return FieldConstraints.empty();
+    }
 }
