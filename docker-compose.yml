@@ -16,7 +16,7 @@ services:
       timeout: 5s
       retries: 10
     networks:
-      - app-network 
+      - app-network
 
   app:
     build: .
@@ -28,6 +28,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/appdb
       SPRING_DATASOURCE_USERNAME: app_user
       SPRING_DATASOURCE_PASSWORD: secret
+      COOKIE_SECURE: "false"
     ports:
       - "8080:8080"
     volumes:
