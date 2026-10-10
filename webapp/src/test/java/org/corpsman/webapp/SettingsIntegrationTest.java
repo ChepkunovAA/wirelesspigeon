@@ -63,8 +63,8 @@ class SettingsIntegrationTest {
 
     @Test
     void ownProfileShowsSettingsLinkAndRating() throws Exception {
-        User u = createUser("set_user_1");
-        MockHttpSession session = login("set_user_1");
+        User u = createUser("auto_set_user_1");
+        MockHttpSession session = login("auto_set_user_1");
 
         mockMvc.perform(get("/profile").session(session))
                 .andExpect(status().isOk())
@@ -74,8 +74,8 @@ class SettingsIntegrationTest {
 
     @Test
     void settingsPageRendersAllControls() throws Exception {
-        createUser("set_user_2");
-        MockHttpSession session = login("set_user_2");
+        createUser("auto_set_user_2");
+        MockHttpSession session = login("auto_set_user_2");
 
         String page = mockMvc.perform(get("/settings").session(session))
                 .andExpect(status().isOk())
@@ -92,10 +92,10 @@ class SettingsIntegrationTest {
 
     @Test
     void hidingPublicPostsRemovesThemFromForumList() throws Exception {
-        User author = createUser("set_author_3");
-        User reader = createUser("set_reader_3");
+        User author = createUser("auto_set_author_3");
+        User reader = createUser("auto_set_reader_3");
         ForumTopic publicTopic = createPublicTopic(author, "Секретный публичный тред set_pub_3");
-        MockHttpSession session = login("set_reader_3");
+        MockHttpSession session = login("auto_set_reader_3");
 
         mockMvc.perform(get("/forum").session(session))
                 .andExpect(status().isOk())
@@ -113,8 +113,8 @@ class SettingsIntegrationTest {
 
     @Test
     void createFormPrefilledWithDefaultAnonymousAndPublic() throws Exception {
-        createUser("set_user_4");
-        MockHttpSession session = login("set_user_4");
+        createUser("auto_set_user_4");
+        MockHttpSession session = login("auto_set_user_4");
 
         mockMvc.perform(get("/forum/topic/create").session(session))
                 .andExpect(status().isOk())
@@ -132,8 +132,8 @@ class SettingsIntegrationTest {
 
     @Test
     void changePasswordMakesOldInvalidAndNewValid() throws Exception {
-        createUser("set_user_5");
-        MockHttpSession session = login("set_user_5");
+        createUser("auto_set_user_5");
+        MockHttpSession session = login("auto_set_user_5");
 
         mockMvc.perform(post("/settings/password").session(session).with(csrf())
                         .param("oldPassword", PASSWORD)
@@ -141,14 +141,14 @@ class SettingsIntegrationTest {
                 .andExpect(status().is3xxRedirection());
 
         MvcResult oldLogin = mockMvc.perform(post("/login").with(csrf())
-                        .param("username", "set_user_5")
+                        .param("username", "auto_set_user_5")
                         .param("password", PASSWORD))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/login?error"))
                 .andReturn();
 
         mockMvc.perform(post("/login").with(csrf())
-                        .param("username", "set_user_5")
+                        .param("username", "auto_set_user_5")
                         .param("password", "newpass123"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/"));
@@ -156,11 +156,11 @@ class SettingsIntegrationTest {
 
     @Test
     void foreignProfileShowsGivenAndReceivedRating() throws Exception {
-        User chief = createUser("set_chief_6");
-        User reader = createUser("set_reader_6");
+        User chief = createUser("auto_set_chief_6");
+        User reader = createUser("auto_set_reader_6");
         ForumTopic topic = createPublicTopic(chief, "Тред для реакций set_rate_6");
         topicLikeRepository.save(topicLike(topic.getId(), reader.getId()));
-        MockHttpSession session = login("set_reader_6");
+        MockHttpSession session = login("auto_set_reader_6");
 
         mockMvc.perform(get("/profile/" + chief.getId()).session(session))
                 .andExpect(status().isOk())
@@ -172,9 +172,9 @@ class SettingsIntegrationTest {
 
     @Test
     void hidingPublicPostsKeepsOwnPublicThreadInForumList() throws Exception {
-        User author = createUser("set_author_11");
+        User author = createUser("auto_set_author_11");
         ForumTopic myPublic = createPublicTopic(author, "Мой публичный тред set_pub_11");
-        MockHttpSession session = login("set_author_11");
+        MockHttpSession session = login("auto_set_author_11");
 
         mockMvc.perform(post("/settings/prefs").session(session).with(csrf())
                         .param("showPublicPosts", "false"))
@@ -234,7 +234,7 @@ class SettingsIntegrationTest {
 
     @Test
     void forumListShowsTopicRatingAggregatedAcrossPosts() throws Exception {
-        User author = createUser("set_author_7");
+        User author = createUser("auto_set_author_7");
         ForumTopic topic = createPublicTopic(author, "Тред с реакциями set_rate_7");
         // лайки OP хранятся на треде
         topic.setLikes(50);
@@ -249,7 +249,7 @@ class SettingsIntegrationTest {
         continuation.setDislikes(3);
         continuation.setContinuation(true);
         postRepository.save(continuation);
-        MockHttpSession session = login("set_author_7");
+        MockHttpSession session = login("auto_set_author_7");
 
         String page = mockMvc.perform(get("/forum").session(session))
                 .andExpect(status().isOk())
@@ -260,9 +260,9 @@ class SettingsIntegrationTest {
 
     @Test
     void adminCanResetForeignPasswordWithGeneratedValue() throws Exception {
-        User chief = createUser("set_chief_9", UserRole.MASTER);
-        User victim = createUser("set_victim_9");
-        MockHttpSession session = login("set_chief_9");
+        User chief = createUser("auto_set_chief_9", UserRole.MASTER);
+        User victim = createUser("auto_set_victim_9");
+        MockHttpSession session = login("auto_set_chief_9");
 
         mockMvc.perform(post("/users/" + victim.getId() + "/reset-password").session(session).with(csrf()))
                 .andExpect(status().is3xxRedirection());
@@ -274,7 +274,7 @@ class SettingsIntegrationTest {
         String generated = m.group(1);
 
         mockMvc.perform(post("/login").with(csrf())
-                        .param("username", "set_victim_9")
+                        .param("username", "auto_set_victim_9")
                         .param("password", generated))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/"));
@@ -282,11 +282,11 @@ class SettingsIntegrationTest {
 
     @Test
     void foreignProfileUsesRenamedLabelsWithTooltipsAndDivider() throws Exception {
-        User chief = createUser("set_chief_11", UserRole.MASTER);
-        User reader = createUser("set_reader_11");
+        User chief = createUser("auto_set_chief_11", UserRole.MASTER);
+        User reader = createUser("auto_set_reader_11");
         ForumTopic topic = createPublicTopic(chief, "Тред подписей set_lbl_11");
         topicLikeRepository.save(topicLike(topic.getId(), reader.getId()));
-        MockHttpSession session = login("set_reader_11");
+        MockHttpSession session = login("auto_set_reader_11");
 
         String page = mockMvc.perform(get("/profile/" + chief.getId()).session(session))
                 .andExpect(status().isOk())
@@ -306,9 +306,9 @@ class SettingsIntegrationTest {
 
     @Test
     void resetPasswordRequiresAdminRole() throws Exception {
-        User regular = createUser("set_user_10");
-        User target = createUser("set_target_10");
-        MockHttpSession session = login("set_user_10");
+        User regular = createUser("auto_set_user_10");
+        User target = createUser("auto_set_target_10");
+        MockHttpSession session = login("auto_set_user_10");
 
         mockMvc.perform(post("/users/" + target.getId() + "/reset-password").session(session).with(csrf())
                         .param("newPassword", "freshpass1"))
@@ -317,8 +317,8 @@ class SettingsIntegrationTest {
 
     @Test
     void uploadAvatarPersistsAndAppearsInSettingsAndProfile() throws Exception {
-        User u = createUser("set_avatar_1");
-        MockHttpSession session = login("set_avatar_1");
+        User u = createUser("auto_set_avatar_1");
+        MockHttpSession session = login("auto_set_avatar_1");
 
         MockMultipartFile file = new MockMultipartFile("file", "a.png", "image/png",
                 new byte[]{(byte) 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'});
@@ -341,11 +341,11 @@ class SettingsIntegrationTest {
 
     @Test
     void foreignProfileShowsAvatar() throws Exception {
-        User owner = createUser("set_avatar_2");
+        User owner = createUser("auto_set_avatar_2");
         owner.setAvatarPath("avatar-test-2.png");
         userRepository.save(owner);
-        createUser("set_avatar_viewer_2");
-        MockHttpSession session = login("set_avatar_viewer_2");
+        createUser("auto_set_avatar_viewer_2");
+        MockHttpSession session = login("auto_set_avatar_viewer_2");
 
         String page = mockMvc.perform(get("/profile/" + owner.getId()).session(session))
                 .andExpect(status().isOk())
@@ -355,10 +355,10 @@ class SettingsIntegrationTest {
 
     @Test
     void forumPostRendersAvatarAndAnonymousLogo() throws Exception {
-        User author = createUser("set_avatar_3");
+        User author = createUser("auto_set_avatar_3");
         author.setAvatarPath("avatar-test-3.png");
         userRepository.save(author);
-        User anon = createUser("set_avatar_4");
+        User anon = createUser("auto_set_avatar_4");
         anon.setAvatarPath("avatar-anon-test.png");
         userRepository.save(anon);
         ForumTopic topic = createPublicTopic(author, "Тред аватарок set_avatar_3");
@@ -375,7 +375,7 @@ class SettingsIntegrationTest {
         anonPost.setContent("Анонимный пост");
         anonPost.setAnonymous(true);
         postRepository.save(anonPost);
-        MockHttpSession session = login("set_avatar_3");
+        MockHttpSession session = login("auto_set_avatar_3");
 
         String page = mockMvc.perform(get("/forum/topic/" + topic.getId()).session(session))
                 .andExpect(status().isOk())
@@ -389,10 +389,10 @@ class SettingsIntegrationTest {
 
     @Test
     void deleteAvatarClearsPathAndServing() throws Exception {
-        User u = createUser("set_avatar_5");
+        User u = createUser("auto_set_avatar_5");
         u.setAvatarPath("avatar-test-5.png");
         userRepository.save(u);
-        MockHttpSession session = login("set_avatar_5");
+        MockHttpSession session = login("auto_set_avatar_5");
 
         mockMvc.perform(post("/settings/avatar/delete").session(session).with(csrf()))
                 .andExpect(status().is3xxRedirection());

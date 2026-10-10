@@ -29,4 +29,20 @@
     <include file="v1.0/22-deleted-by-owner.xml" relativeToChangelogFile="true"/>
     <include file="v1.0/23-invite-token-used-by.xml" relativeToChangelogFile="true"/>
     <include file="v1.0/24-avatar-path.xml" relativeToChangelogFile="true"/>
+    <include file="v3.0/01-rpg-games.xml" relativeToChangelogFile="true"/>
+    <include file="v3.0/02-rpg-characters.xml" relativeToChangelogFile="true"/>
+    <include file="v3.0/03-rpg-applications.xml" relativeToChangelogFile="true"/>
+    <include file="v3.0/04-rpg-rooms-posts.xml" relativeToChangelogFile="true"/>
+    <include file="v3.0/05-rpg-saved-rolls.xml" relativeToChangelogFile="true"/>
+    <include file="v3.0/06-rpg-posts-source-attachments.xml" relativeToChangelogFile="true"/>
+    <include file="v3.0/07-rpg-games-attributes-visible.xml" relativeToChangelogFile="true"/>
+    <include file="v3.0/08-rpg-saved-rolls-sheet.xml" relativeToChangelogFile="true"/>
+    <include file="v3.1/00-rpg-system-definitions.xml" relativeToChangelogFile="true"/>
+    <include file="v3.1/01-rpg-games-custom-system.xml" relativeToChangelogFile="true"/>
+    <include file="v3.1/02-rpg-list-kind.xml" relativeToChangelogFile="true"/>
+    <include file="v3.1/03-rpg-drop-system-template.xml" relativeToChangelogFile="true"/>
+    <include file="v3.1/04-rpg-system-template-attributes.xml" relativeToChangelogFile="true"/>
+    <include file="v3.1/05-rpg-list-kind-source-of-truth.xml" relativeToChangelogFile="true"/>
+    <include file="v3.1/06-rpg-drop-system-version.xml" relativeToChangelogFile="true"/>
+    <include file="v3.2/01-rpg-custom-attribute-constraints.xml" relativeToChangelogFile="true"/>
 </databaseChangeLog>

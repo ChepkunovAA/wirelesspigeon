@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${system != null} ? 'Редактирование системы — Corpsman' : 'Новая система — Corpsman'">Система</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link th:href="@{/css/app.css}" rel="stylesheet">
+    <style>
+        .attr-row {
+            border: 1px solid var(--app-border, #dee2e6);
+            border-radius: 0.375rem;
+            padding: 0.75rem;
+            background: var(--app-bg, #fff);
+        }
+        .list-kind-block {
+            display: none;
+        }
+        .list-kind-block.visible {
+            display: block;
+        }
+        .numeric-constraints, .text-constraints {
+            display: none;
+        }
+        .numeric-constraints.visible, .text-constraints.visible {
+            display: flex;
+        }
+        /* Флаг ручного ввода есть только у числового и текстового параметра */
+        .manual-input-block {
+            display: none;
+        }
+        .manual-input-block.visible {
+            display: block;
+        }
+        /* У текстового параметра со списком вариантов: подтип, список и флаг.
+           Вид «Свободный» — обычный текст без списка. */
+        .text-selectable-block {
+            display: none;
+        }
+        .text-selectable-block.visible {
+            display: block;
+        }
+    </style>
+</head>
+<body class="bg-light">
+<nav th:replace="~{fragments/nav :: nav}"></nav>
+
+<main class="container pb-5" style="max-width: 980px;">
+    <div class="mb-3">
+        <a th:href="@{/rpg/systems}" class="text-decoration-none small">
+            <i class="bi bi-arrow-left"></i> К библиотеке систем
+        </a>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <i class="bi bi-gear-wide-connected"></i>
+            <th:block th:text="${system != null} ? 'Редактирование системы' : (${forkSourceName != null} ? 'Форк системы' : 'Публикация новой системы')">Система</th:block>
+        </div>
+        <div class="card-body">
+            <div th:if="${forkSourceName != null}" class="alert alert-info small" data-fork-banner>
+                <i class="bi bi-files"></i>
+                В форму перенесены параметры системы «<span th:text="${forkSourceName}">Исходная система</span>».
+                Измените название и состав под свои правила — исходная система не изменится.
+            </div>
+            <form th:action="${system != null} ? @{/rpg/systems/{id}/edit(id=${system.id})} : @{/rpg/systems/new}"
+                  method="post" th:object="${form}">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-8">
+                        <label class="form-label">Название системы <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" th:field="*{name}" required maxlength="200"
+                               placeholder="Название системы (например, «Моя D&D 5e»)">
+                        <div class="invalid-feedback" th:if="${#fields.hasErrors('name')}"
+                             th:errors="*{name}">Ошибка</div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-check mt-4">
+                            <!-- Снятая галочка не отправляется, поэтому перед ней идёт
+                                 скрытое поле false: без него приватная система сохранилась
+                                 бы публичной (значение по умолчанию в форме — true). -->
+                            <input type="hidden" name="published" value="false"/>
+                            <input type="checkbox" class="form-check-input" th:field="*{published}" id="published">
+                            <label class="form-check-label" for="published">Публичная система</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Описание системы</label>
+                    <textarea class="form-control" th:field="*{description}" rows="4"
+                              placeholder="Краткое описание системы, её особенности, отличия от стандартных..."></textarea>
+                </div>
+
+                <div class="card border-0 bg-transparent mb-3">
+                    <div class="card-body border rounded p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                            <h6 class="mb-0"><i class="bi bi-sliders"></i> Состав параметров листа</h6>
+                        </div>
+                        <div class="alert alert-light border small d-none" id="attrs-empty">
+                            Параметров пока нет. Добавьте первый ниже.
+                        </div>
+
+<div id="attrs-container">
+                            <th:block th:each="attr, stat : ${form.templateAttributes}">
+                                <div class="attr-row mb-2" data-attr-row>
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-md-3">
+                                            <label class="form-label mb-0 fw-semibold small">Название</label>
+                                            <input type="text" class="form-control form-control-sm"
+                                                   th:field="*{templateAttributes[__${stat.index}__].name}"
+                                                   data-attr-name placeholder="Название">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label mb-0 fw-semibold small">Тип</label>
+                                            <select class="form-select form-select-sm"
+                                                    th:field="*{templateAttributes[__${stat.index}__].type}"
+                                                    data-attr-type>
+                                                <option value="NUMERIC">Числовой</option>
+                                                <option value="TEXT">Текстовый</option>
+                                                <option value="LIST">Список</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2 list-kind-block"
+                                             th:classappend="${attr.type.name() == 'LIST'} ? 'visible'">
+                                            <label class="form-label mb-0 fw-semibold small">Вид списка</label>
+                                            <select class="form-select form-select-sm"
+                                                    th:field="*{templateAttributes[__${stat.index}__].listKind}"
+                                                    data-attr-list-kind>
+                                                <option value="SIMPLE">Простой</option>
+                                                <option value="COMPLEX">Сложный</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3 d-flex">
+                                            <button type="button" class="btn btn-outline-danger btn-sm w-100"
+                                                    data-attr-remove>
+                                                <i class="bi bi-trash"></i> Удалить
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <!-- Ограничения числового параметра -->
+                                    <div class="row g-2 mt-2 numeric-constraints"
+                                         th:classappend="${attr.type.name() == 'NUMERIC'} ? 'visible'">
+                                        <div class="col-md-2">
+                                            <label class="form-label mb-0 small">По умолчанию</label>
+                                            <input type="number" class="form-control form-control-sm"
+                                                   th:field="*{templateAttributes[__${stat.index}__].defaultValue}"
+                                                   data-attr-default-value min="0" step="1" placeholder="—">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label mb-0 small">Нижняя граница</label>
+                                            <input type="number" class="form-control form-control-sm"
+                                                   th:field="*{templateAttributes[__${stat.index}__].minValue}"
+                                                   data-attr-min-value step="1" placeholder="—">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label mb-0 small">Верхняя граница</label>
+                                            <input type="number" class="form-control form-control-sm"
+                                                   th:field="*{templateAttributes[__${stat.index}__].maxValue}"
+                                                   data-attr-max-value step="1" placeholder="—">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label mb-0 small">Шаг</label>
+                                            <input type="number" class="form-control form-control-sm"
+                                                   th:field="*{templateAttributes[__${stat.index}__].stepValue}"
+                                                   data-attr-step-value min="1" step="1" placeholder="1">
+                                        </div>
+                                    </div>
+
+                                    <!-- Ограничения текстового параметра -->
+                                    <div class="text-constraints flex-column mt-2"
+                                         th:classappend="${attr.type.name() == 'TEXT'} ? 'visible'">
+                                        <div class="row g-2">
+                                            <div class="col-md-4">
+                                                <label class="form-label mb-0 small">По умолчанию</label>
+                                                <div class="input-group input-group-sm">
+                                                    <input type="text" class="form-control form-control-sm" maxlength="200"
+                                                           th:field="*{templateAttributes[__${stat.index}__].defaultText}"
+                                                           data-attr-default-text placeholder="—">
+                                                    <button type="button" class="btn btn-outline-secondary d-none"
+                                                            data-default-warning
+                                                            title="Значения нет в списке вариантов — при сохранении оно добавится в список">
+                                                        <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <!--/* Вид текстового поля: список вариантов и флаг
+                                                         ручного ввода есть только у выбираемого */-->
+                                                <label class="form-label mb-0 small">Вид</label>
+                                                <select class="form-select form-select-sm"
+                                                        th:id="'attr-text-mode-' + ${stat.index}"
+                                                        data-attr-text-mode data-attr-mode-select
+                                                        th:field="*{templateAttributes[__${stat.index}__].textMode}">
+                                                    <option value="FREE">Свободный</option>
+                                                    <option value="SELECT">Выбираемый</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="row g-2 mt-2 text-selectable-block" data-attr-selectable
+                                             th:classappend="${!#strings.isEmpty(attr.optionsText)} ? 'visible'">
+                                            <div class="col-md-8">
+                                                <label class="form-label mb-0 small">Варианты, по одному в строке</label>
+                                                <textarea class="form-control form-control-sm" rows="2"
+                                                          th:field="*{templateAttributes[__${stat.index}__].optionsText}"
+                                                          data-attr-options-text></textarea>
+                                            </div>
+                                        </div>
+                                        <div class="form-check mt-2 manual-input-block" data-attr-selectable data-manual-scope="text"
+                                             th:classappend="${!#strings.isEmpty(attr.optionsText)} ? 'visible'">
+                                            <input class="form-check-input" type="checkbox"
+                                                   th:field="*{templateAttributes[__${stat.index}__].manualInputAllowed}"
+                                                   data-attr-manual-input th:id="'manual-text-' + ${stat.index}">
+                                            <label class="form-check-label small" th:for="'manual-text-' + ${stat.index}"
+                                                   data-attr-manual-label>
+                                                Разрешить ручной ввод
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-check mt-2 manual-input-block" data-manual-scope="numeric"
+                                         th:classappend="${attr.type.name() != 'LIST'} ? 'visible'">
+                                        <input class="form-check-input" type="checkbox"
+                                               th:field="*{templateAttributes[__${stat.index}__].manualInputAllowed}"
+                                               data-attr-manual-input th:id="'manual-' + ${stat.index}">
+                                        <label class="form-check-label small" th:for="'manual-' + ${stat.index}"
+                                               data-attr-manual-label>
+                                            Разрешить ручной ввод
+                                        </label>
+                                    </div>
+                                </div>
+                            </th:block>
+                        </div>
+
+                        <template id="attr-template">
+                            <div class="attr-row mb-2" data-attr-row>
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-md-3">
+                                        <label class="form-label mb-0 fw-semibold small">Название</label>
+                                        <input type="text" class="form-control form-control-sm"
+                                               data-new-name placeholder="Название">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label mb-0 fw-semibold small">Тип</label>
+                                        <select class="form-select form-select-sm" data-new-type>
+                                            <option value="NUMERIC">Числовой</option>
+                                            <option value="TEXT">Текстовый</option>
+                                            <option value="LIST">Список</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2 list-kind-block" data-new-kind-block>
+                                        <label class="form-label mb-0 fw-semibold small">Вид списка</label>
+                                        <select class="form-select form-select-sm" data-new-list-kind>
+                                            <option value="SIMPLE">Простой</option>
+                                            <option value="COMPLEX">Сложный</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3 d-flex">
+                                        <button type="button" class="btn btn-outline-danger btn-sm w-100"
+                                                data-attr-remove>
+                                            <i class="bi bi-trash"></i> Удалить
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="row g-2 mt-2 numeric-constraints">
+                                    <div class="col-md-2">
+                                        <label class="form-label mb-0 small">По умолчанию</label>
+                                        <input type="number" class="form-control form-control-sm"
+                                               data-new-default-value min="0" step="1" placeholder="—">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label mb-0 small">Нижняя граница</label>
+                                        <input type="number" class="form-control form-control-sm"
+                                               data-new-min-value step="1" placeholder="—">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label mb-0 small">Верхняя граница</label>
+                                        <input type="number" class="form-control form-control-sm"
+                                               data-new-max-value step="1" placeholder="—">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label mb-0 small">Шаг</label>
+                                        <input type="number" class="form-control form-control-sm"
+                                               data-new-step-value min="1" step="1" placeholder="1">
+                                    </div>
+                                </div>
+
+                                <div class="text-constraints flex-column mt-2">
+                                    <div class="row g-2">
+                                        <div class="col-md-4">
+                                            <label class="form-label mb-0 small">По умолчанию</label>
+                                            <div class="input-group input-group-sm">
+                                                <input type="text" class="form-control form-control-sm" maxlength="200"
+                                                       data-new-default-text placeholder="—">
+                                                <button type="button" class="btn btn-outline-secondary d-none"
+                                                        data-default-warning
+                                                        title="Значения нет в списке вариантов — при сохранении оно добавится в список">
+                                                    <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label mb-0 small">Вид</label>
+                                            <select class="form-select form-select-sm" data-attr-text-mode data-new-mode-select>
+                                                <option value="FREE">Свободный</option>
+                                                <option value="SELECT">Выбираемый</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="row g-2 mt-2 text-selectable-block" data-attr-selectable>
+                                        <div class="col-md-8">
+                                            <label class="form-label mb-0 small">Варианты, по одному в строке</label>
+                                            <textarea class="form-control form-control-sm" rows="2"
+                                                      data-new-options-text></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="form-check mt-2 manual-input-block" data-attr-selectable data-manual-scope="text">
+                                        <input class="form-check-input" type="checkbox" data-new-manual-input>
+                                        <label class="form-check-label small">Разрешить ручной ввод</label>
+                                    </div>
+                                </div>
+
+                                <div class="form-check mt-2 manual-input-block" data-manual-scope="numeric">
+                                    <input class="form-check-input" type="checkbox" data-new-manual-input-numeric>
+                                    <label class="form-check-label small">Разрешить ручной ввод</label>
+                                </div>
+                            </div>
+                        </template>
+
+                        <div class="mt-3">
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="add-attr-btn">
+                                <i class="bi bi-plus-lg"></i> Добавить параметр
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end gap-2">
+                    <a th:href="@{/rpg/systems}" class="btn btn-outline-secondary">Отмена</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg"></i>
+                        <th:block th:text="${system != null} ? 'Сохранить' : 'Опубликовать'">Опубликовать</th:block>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script th:inline="javascript">
+    (function () {
+        const container = document.getElementById('attrs-container');
+        const template = document.getElementById('attr-template');
+        const emptyHint = document.getElementById('attrs-empty');
+        const PREFIX = 'templateAttributes[';
+        const SUFFIX = '].';
+        // Поле шаблона -> свойство формы. По этим маркерам name назначается всегда,
+        // в том числе только что добавленным строкам: без name параметр не уйдёт.
+        const FIELDS = [
+            ['data-attr-name', 'name'],
+            ['data-new-name', 'name'],
+            ['data-attr-type', 'type'],
+            ['data-new-type', 'type'],
+            ['data-attr-list-kind', 'listKind'],
+            ['data-new-list-kind', 'listKind'],
+            ['data-attr-default-value', 'defaultValue'],
+            ['data-new-default-value', 'defaultValue'],
+            ['data-attr-min-value', 'minValue'],
+            ['data-new-min-value', 'minValue'],
+            ['data-attr-max-value', 'maxValue'],
+            ['data-new-max-value', 'maxValue'],
+            ['data-attr-step-value', 'stepValue'],
+            ['data-new-step-value', 'stepValue'],
+            ['data-attr-default-text', 'defaultText'],
+            ['data-new-default-text', 'defaultText'],
+            ['data-attr-options-text', 'optionsText'],
+            ['data-new-options-text', 'optionsText'],
+            ['data-attr-manual-input', 'manualInputAllowed'],
+            ['data-new-manual-input', 'manualInputAllowed'],
+            ['data-new-manual-input-numeric', 'manualInputAllowed'],
+            ['data-new-mode-select', 'textMode']
+        ];
+
+        function assignNames(row, index) {
+            FIELDS.forEach(function ([attr, field]) {
+                const input = row.querySelector('[' + attr + ']');
+                if (input) {
+                    input.name = PREFIX + index + SUFFIX + field;
+                }
+            });
+        }
+
+        function rows() {
+            return Array.prototype.slice.call(container.querySelectorAll('[data-attr-row]'));
+        }
+
+        function refreshEmptyHint() {
+            emptyHint.classList.toggle('d-none', rows().length > 0);
+        }
+
+        /**
+         * Показывает только ограничения своего типа: числовому полю — границы и
+         * шаг, текстовому — варианты значения. Флаг ручного ввода нужен обоим.
+         */
+        function syncConstraints(row) {
+            const type = row.querySelector('[data-attr-type], [data-new-type]');
+            if (!type) {
+                return;
+            }
+            row.querySelectorAll('.numeric-constraints').forEach(function (block) {
+                block.classList.toggle('visible', type.value === 'NUMERIC');
+            });
+            row.querySelectorAll('.text-constraints').forEach(function (block) {
+                block.classList.toggle('visible', type.value === 'TEXT');
+            });
+            // Флаг ручного ввода: у списка значения нет, у текста он есть
+            // только у выбираемого подтипа.
+            const selectable = textMode(row) === 'SELECT';
+            row.querySelectorAll('.manual-input-block').forEach(function (block) {
+                const scope = block.dataset.manualScope;
+                if (scope === 'text') {
+                    block.classList.toggle('visible', type.value === 'TEXT' && selectable);
+                } else {
+                    block.classList.toggle('visible', type.value === 'NUMERIC');
+                }
+            });
+            row.querySelectorAll('.text-selectable-block').forEach(function (block) {
+                block.classList.toggle('visible', type.value === 'TEXT' && selectable);
+            });
+            syncDefaultWarning(row);
+        }
+
+        /**
+         * Предупреждает, когда у поля «По выбору» значения по умолчанию нет в
+         * списке вариантов: само значение при сохранении в список добавится,
+         * но автор должен знать об этом до сохранения.
+         */
+        function syncDefaultWarning(row) {
+            const warning = row.querySelector('[data-default-warning]');
+            if (!warning) {
+                return;
+            }
+            const defaultInput = row.querySelector('[data-attr-default-text], [data-new-default-text]');
+            const optionsInput = row.querySelector('[data-attr-options-text], [data-new-options-text]');
+            const value = (defaultInput && defaultInput.value || '').trim();
+            const options = ((optionsInput && optionsInput.value) || '')
+                .split(/\r?\n/)
+                .map(function (o) { return o.trim(); })
+                .filter(function (o) { return o.length > 0; });
+            const missing = value.length > 0 && textMode(row) === 'SELECT'
+                && options.indexOf(value) < 0;
+            warning.classList.toggle('d-none', !missing);
+        }
+
+        function textMode(row) {
+            const select = row.querySelector('[data-attr-mode-select], [data-new-mode-select]');
+            return select ? select.value : 'FREE';
+        }
+
+        /**
+         * Вид «Свободный»: список вариантов неприменим, а значение поля
+         * всегда вводится руками — иначе текстовое поле останется пустым и
+         * заполнить его будет нечем.
+         */
+        function syncTextMode(row) {
+            const select = row.querySelector('[data-attr-mode-select], [data-new-mode-select]');
+            const manual = row.querySelector('[data-manual-scope="text"] input[type="checkbox"]');
+            if (!select) {
+                return;
+            }
+            if (select.value === 'FREE') {
+                const area = row.querySelector('[data-attr-options-text]')
+                    || row.querySelector('[data-new-options-text]');
+                if (area) {
+                    area.value = '';
+                }
+                if (manual) {
+                    manual.checked = true;
+                }
+            }
+            syncConstraints(row);
+        }
+
+        function syncListKind(row) {
+            const type = row.querySelector('[data-attr-type], [data-new-type]');
+            const block = row.querySelector('.list-kind-block');
+            if (type && block) {
+                block.classList.toggle('visible', type.value === 'LIST');
+            }
+        }
+
+        // Перенумеровывает name/id параметров после добавления или удаления строки.
+        function renumber() {
+            rows().forEach(assignNames);
+            refreshEmptyHint();
+        }
+
+        function bindRow(row) {
+            row.querySelectorAll('[data-attr-mode-select], [data-new-mode-select]').forEach(function (select) {
+                select.addEventListener('change', function () {
+                    syncTextMode(row);
+                });
+            });
+            row.querySelectorAll('[data-attr-type], [data-new-type]').forEach(function (select) {
+                select.addEventListener('change', function () {
+                    syncListKind(row);
+                    syncConstraints(row);
+                });
+            });
+            row.querySelectorAll('[data-attr-default-text], [data-new-default-text],'
+                + ' [data-attr-options-text], [data-new-options-text]').forEach(function (area) {
+                area.addEventListener('input', function () {
+                    syncDefaultWarning(row);
+                });
+            });
+            const removeBtn = row.querySelector('[data-attr-remove]');
+            if (removeBtn) {
+                removeBtn.addEventListener('click', function () {
+                    row.remove();
+                    renumber();
+                });
+            }
+            syncListKind(row);
+            syncConstraints(row);
+        }
+
+        rows().forEach(bindRow);
+
+        document.getElementById('add-attr-btn').addEventListener('click', function () {
+            const fragment = template.content.cloneNode(true);
+            const row = fragment.querySelector('[data-attr-row]');
+            container.appendChild(fragment);
+            bindRow(rows()[rows().length - 1]);
+            renumber();
+        });
+
+        refreshEmptyHint();
+    })();
+</script>
+</body>
+</html>

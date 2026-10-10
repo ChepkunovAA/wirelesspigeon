@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="'Настройка анкеты — ' + ${game.title}">Настройка анкеты</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link th:href="@{/css/app.css}" rel="stylesheet">
+</head>
+<body class="bg-light">
+<nav th:replace="~{fragments/nav :: nav}"></nav>
+
+<main class="container pb-5" style="max-width: 760px;">
+    <div class="mb-3">
+        <a th:href="@{/rpg/games/{id}(id=${game.id})}" class="text-decoration-none small">
+            <i class="bi bi-arrow-left"></i> К игре «<span th:text="${game.title}">игра</span>»
+        </a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header">
+            <i class="bi bi-sliders"></i> Настройка анкеты
+            <span class="badge text-bg-secondary" th:text="${game.system.label()}">система</span>
+        </div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">
+                Здесь задаются параметры листа персонажа для игры с кастомными правилами:
+                числовые поля, текст и списки. Игроки увидят их в анкете в этом порядке.
+            </p>
+            <table class="table align-middle">
+                <thead>
+                <tr>
+                    <th>Параметр</th>
+                    <th>Тип и ограничения</th>
+                    <th>Ввод</th>
+                    <th class="text-end">Порядок</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:if="${#lists.isEmpty(attributes)}">
+                    <td colspan="5" class="text-muted small">Список пуст. Добавьте первый параметр ниже.</td>
+                </tr>
+                <tr th:each="a, s : ${attributes}">
+                    <td th:text="${a.name}">Параметр</td>
+                    <td>
+                        <span class="badge text-bg-secondary" th:text="${a.type.name()}">TEXT</span>
+                        <span th:if="${a.type.name() == 'LIST'}" class="badge text-bg-info"
+                              th:text="${a.listKind != null and a.listKind.name() == 'COMPLEX'} ? 'Сложный' : 'Простой'">Простой</span>
+                        <div class="small text-muted mt-1" th:if="${a.type.name() == 'NUMERIC'}">
+                            <span th:text="'по умолчанию: ' + ${a.defaultValue != null ? a.defaultValue : '—'}">по умолчанию: —</span>
+                            <span th:text="'границы: ' + ${a.minValue} + '…' + ${a.maxValue}">границы: —</span>
+                            <span th:text="'шаг: ' + ${a.stepOrDefault()}">шаг: 1</span>
+                        </div>
+                        <div class="small text-muted mt-1" th:if="${a.type.name() == 'TEXT'}">
+                            <span th:if="${!#lists.isEmpty(a.options)}"
+                                  th:text="'варианты: ' + ${#strings.listJoin(a.options, ', ')}">варианты: —</span>
+                            <span th:if="${#lists.isEmpty(a.options)}">вариантов нет</span>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge text-bg-light border"
+                              th:classappend="${a.manualInputAllowed} ? 'text-bg-success' : 'text-bg-light'"
+                              th:text="${a.manualInputAllowed} ? 'ручной ввод' : 'только выбор'">только выбор</span>
+                    </td>
+                    <td class="d-flex gap-1">
+                        <form th:action="@{/rpg/games/{gid}/attributes/{aid}/move(gid=${game.id}, aid=${a.id})}"
+                              method="post" class="d-inline">
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                            <input type="hidden" name="direction" value="up"/>
+                            <button class="btn btn-sm btn-outline-secondary"
+                                    th:disabled="${s.first}" title="Выше">
+                                <i class="bi bi-arrow-up"></i>
+                            </button>
+                        </form>
+                        <form th:action="@{/rpg/games/{gid}/attributes/{aid}/move(gid=${game.id}, aid=${a.id})}"
+                              method="post" class="d-inline">
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                            <input type="hidden" name="direction" value="down"/>
+                            <button class="btn btn-sm btn-outline-secondary"
+                                    th:disabled="${s.last}" title="Ниже">
+                                <i class="bi bi-arrow-down"></i>
+                            </button>
+                        </form>
+                        <form th:action="@{/rpg/games/{gid}/attributes/{aid}/delete(gid=${game.id}, aid=${a.id})}"
+                              method="post" class="d-inline">
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                            <button class="btn btn-sm btn-outline-danger" title="Удалить">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mt-4">
+        <div class="card-header"><i class="bi bi-plus-lg"></i> Новый параметр</div>
+        <div class="card-body">
+            <form th:action="@{/rpg/games/{id}/attributes(id=${game.id})}" method="post" class="row g-2">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <div class="col-md-6">
+                    <label class="form-label">Название</label>
+                    <input type="text" name="name" class="form-control" required maxlength="200"
+                           placeholder="Например: Слава, Ремесло, Архетип...">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Тип</label>
+                    <select name="attributeType" class="form-select" id="attr-type">
+                        <option value="TEXT">Текст</option>
+                        <option value="NUMERIC">Число</option>
+                        <option value="LIST">Список</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-none" id="attr-list-kind">
+                    <label class="form-label">Вид списка</label>
+                    <select name="listKind" class="form-select">
+                        <option value="SIMPLE">Простой список</option>
+                        <option value="COMPLEX">Сложный список</option>
+                    </select>
+                </div>
+                <div class="col-12 d-none" id="attr-numeric">
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <label class="form-label">Значение по умолчанию</label>
+                            <input type="number" name="defaultValue" class="form-control" placeholder="—">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Нижняя граница</label>
+                            <input type="number" name="minValue" class="form-control" placeholder="не ограничена">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Верхняя граница</label>
+                            <input type="number" name="maxValue" class="form-control" placeholder="не ограничена">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Шаг стрелок</label>
+                            <input type="number" name="stepValue" value="1" min="1" class="form-control">
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 d-none" id="attr-text">
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <label class="form-label">Значение по умолчанию</label>
+                            <div class="input-group">
+                                <input type="text" name="defaultText" id="attr-default" class="form-control"
+                                       maxlength="200" placeholder="Будет подставлено в поле листа">
+                                <button class="btn btn-outline-secondary d-none" type="button"
+                                        id="attr-default-warning"
+                                        title="Значения нет в списке вариантов — при сохранении оно добавится в список">
+                                    <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="attr-text-mode">Вид</label>
+                            <select name="textMode" class="form-select" id="attr-text-mode">
+                                <option value="FREE">Свободный</option>
+                                <option value="SELECT">Выбираемый</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="attr-selectable" class="mt-2 d-none">
+                        <label class="form-label" for="attr-options">Предустановленные значения, по одному в строке</label>
+                        <textarea name="optionsText" id="attr-options" class="form-control" rows="3"
+                                  placeholder="Огонь&#10;Вода&#10;Земля"></textarea>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" name="manualInputAllowed" value="true"
+                                   id="attr-manual">
+                            <label class="form-check-label" for="attr-manual">
+                                Разрешить ввод своего значения («Другое»)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 d-none" id="attr-manual-block">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="manualNumericAllowed" value="true"
+                               id="attr-manual-numeric">
+                        <label class="form-check-label" for="attr-manual-numeric">
+                            Разрешить ввод числа вручную (без него — только стрелки)
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary w-100"><i class="bi bi-plus-lg"></i> Добавить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    (function () {
+        var type = document.getElementById('attr-type');
+        var kind = document.getElementById('attr-list-kind');
+        if (!type || !kind) return;
+        var numeric = document.getElementById('attr-numeric');
+        var text = document.getElementById('attr-text');
+        var manual = document.getElementById('attr-manual-block');
+        var mode = document.getElementById('attr-text-mode');
+        var selectable = document.getElementById('attr-selectable');
+        var defaultInput = document.getElementById('attr-default');
+        var optionsArea = document.getElementById('attr-options');
+        var warning = document.getElementById('attr-default-warning');
+
+        // Список вариантов и флаг ручного ввода есть только у выбираемого
+        // подтипа: у свободного поля значения просто вводятся руками.
+        function syncTextMode() {
+            if (!mode || !selectable) {
+                return;
+            }
+            var isSelect = mode.value === 'SELECT';
+            selectable.classList.toggle('d-none', !isSelect);
+            syncDefaultWarning();
+            if (!isSelect) {
+                var area = document.getElementById('attr-options');
+                if (area) {
+                    area.value = '';
+                }
+                var check = document.getElementById('attr-manual');
+                if (check) {
+                    check.checked = true;
+                }
+            }
+        }
+
+        // Предупреждение у значения по умолчанию: при сохранении оно само
+        // добавится в список вариантов, но автор должен знать об этом заранее.
+        function syncDefaultWarning() {
+            if (!mode || !defaultInput || !optionsArea || !warning) {
+                return;
+            }
+            var value = (defaultInput.value || '').trim();
+            var options = (optionsArea.value || '').split(/\r?\n/)
+                .map(function (o) { return o.trim(); })
+                .filter(function (o) { return o.length > 0; });
+            var missing = value.length > 0 && mode.value === 'SELECT'
+                && options.indexOf(value) < 0;
+            warning.classList.toggle('d-none', !missing);
+        }
+
+        function sync() {
+            kind.classList.toggle('d-none', type.value !== 'LIST');
+            numeric.classList.toggle('d-none', type.value !== 'NUMERIC');
+            text.classList.toggle('d-none', type.value !== 'TEXT');
+            manual.classList.toggle('d-none', type.value !== 'NUMERIC');
+            syncTextMode();
+        }
+        type.addEventListener('change', sync);
+        if (mode) {
+            mode.addEventListener('change', syncTextMode);
+        }
+        if (defaultInput) {
+            defaultInput.addEventListener('input', syncDefaultWarning);
+        }
+        if (optionsArea) {
+            optionsArea.addEventListener('input', syncDefaultWarning);
+        }
+        sync();
+    })();
+</script>
+</body>
+</html>

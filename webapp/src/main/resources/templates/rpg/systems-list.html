@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Библиотека ролевых систем — Corpsman</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link th:href="@{/css/app.css}" rel="stylesheet">
+</head>
+<body class="bg-light">
+<nav th:replace="~{fragments/nav :: nav}"></nav>
+
+<main class="container pb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0"><i class="bi bi-gear-wide-connected"></i> Библиотека ролевых систем</h1>
+        <a th:href="@{/rpg/systems/new}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Создать систему
+        </a>
+    </div>
+
+    <form th:action="@{/rpg/systems}" method="get" class="mb-3">
+        <div class="input-group">
+            <input type="text" name="search" class="form-control" placeholder="Поиск по названию системы..."
+                   th:value="${search}">
+            <button class="btn btn-outline-secondary" type="submit">
+                <i class="bi bi-search"></i>
+            </button>
+        </div>
+    </form>
+
+    <div th:if="${#lists.isEmpty(mine) and #lists.isEmpty(publicSystems)}" class="alert alert-info">
+        <i class="bi bi-info-circle"></i> Библиотека систем пуста. Создайте первую систему, нажав кнопку выше.
+    </div>
+
+    <!-- Собственные системы отдельным списком от публичных -->
+    <h2 class="h5 mb-2" th:if="${!#lists.isEmpty(mine)}">
+        <i class="bi bi-person-gear"></i> Мои системы
+    </h2>
+    <div class="table-responsive mb-2" th:if="${!#lists.isEmpty(mine)}" data-section="mine">
+        <table class="table table-hover align-middle">
+            <tbody>
+            <tr th:each="system : ${mine}" th:attr="data-system-row=${system.id}">
+                <td class="fw-semibold">
+                    <a th:href="@{/rpg/systems/{id}(id=${system.id})}" class="text-decoration-none"
+                       th:text="${system.name}">Название системы</a>
+                    <div class="text-muted small" th:text="${#strings.abbreviate(system.description, 140)}">Описание</div>
+                </td>
+                <td class="text-muted small">
+                    <span th:text="${system.isPublic} ? 'Публичная' : 'Приватная'">Публичная</span>
+                </td>
+                <td class="text-end text-nowrap">
+                    <div class="d-inline-flex gap-1">
+                        <a th:href="@{/rpg/systems/{id}(id=${system.id})}" class="btn btn-outline-primary btn-sm"
+                           title="Просмотр"><i class="bi bi-eye"></i></a>
+                        <a th:href="@{/rpg/systems/{id}/edit(id=${system.id})}"
+                           class="btn btn-outline-secondary btn-sm" title="Редактировать">
+                            <i class="bi bi-pencil"></i></a>
+                        <a th:if="${currentUserId != null}"
+                           th:href="@{/rpg/systems/new(forkFrom=${system.id})}"
+                           class="btn btn-outline-info btn-sm" title="Форк">
+                            <i class="bi bi-files"></i></a>
+                        <form th:action="@{/rpg/systems/{id}/delete(id=${system.id})}" method="post"
+                              onsubmit="return confirm('Удалить эту систему? Это действие нельзя отменить.')">
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                            <button type="submit" class="btn btn-outline-danger btn-sm" title="Удалить">
+                                <i class="bi bi-trash"></i></button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+    <nav th:if="${minePage != null and minePage.totalPages > 1}" class="mb-4" aria-label="Пагинация моих систем">
+        <ul class="pagination justify-content-center">
+            <li class="page-item" th:classappend="${minePage.number == 0} ? 'disabled'">
+                <a class="page-link"
+                   th:href="@{/rpg/systems(page=${minePage.number - 1}, search=${search})}">&laquo;</a>
+            </li>
+            <li class="page-item" th:each="i : ${#numbers.sequence(0, minePage.totalPages - 1)}"
+                th:classappend="${i == minePage.number} ? 'active'">
+                <a class="page-link" th:href="@{/rpg/systems(page=${i}, search=${search})}"
+                   th:text="${i + 1}">1</a>
+            </li>
+            <li class="page-item" th:classappend="${minePage.number == minePage.totalPages - 1} ? 'disabled'">
+                <a class="page-link"
+                   th:href="@{/rpg/systems(page=${minePage.number + 1}, search=${search})}">&raquo;</a>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- Публичные системы -->
+    <h2 class="h5 mb-2" th:if="${!#lists.isEmpty(publicSystems)}">
+        <i class="bi bi-globe2"></i> Публичные системы
+    </h2>
+    <div class="table-responsive" th:if="${!#lists.isEmpty(publicSystems)}" data-section="public">
+        <table class="table table-hover align-middle">
+            <tbody>
+            <tr th:each="system : ${publicSystems}" th:attr="data-system-row=${system.id}">
+                <td class="fw-semibold">
+                    <a th:href="@{/rpg/systems/{id}(id=${system.id})}" class="text-decoration-none"
+                       th:text="${system.name}">Название системы</a>
+                    <div class="text-muted small" th:text="${#strings.abbreviate(system.description, 140)}">Описание</div>
+                </td>
+                <td class="text-muted small" th:text="${system.isPublic} ? 'Публичная' : 'Приватная'">Публичная</td>
+                <td class="text-end text-nowrap">
+                    <div class="d-inline-flex gap-1">
+                        <a th:href="@{/rpg/systems/{id}(id=${system.id})}" class="btn btn-outline-primary btn-sm"
+                           title="Просмотр"><i class="bi bi-eye"></i></a>
+                        <!-- Форк доступен любому пользователю, поэтому кнопка не внутри блока автора. -->
+                        <a th:if="${currentUserId != null}"
+                           th:href="@{/rpg/systems/new(forkFrom=${system.id})}"
+                           class="btn btn-outline-info btn-sm" title="Форк">
+                            <i class="bi bi-files"></i></a>
+                    </div>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+    <nav th:if="${publicPage != null and publicPage.totalPages > 1}" class="mt-3" aria-label="Пагинация публичных систем">
+        <ul class="pagination justify-content-center">
+            <li class="page-item" th:classappend="${publicPage.number == 0} ? 'disabled'">
+                <a class="page-link"
+                   th:href="@{/rpg/systems(page=${publicPage.number - 1}, search=${search})}">&laquo;</a>
+            </li>
+            <li class="page-item" th:each="i : ${#numbers.sequence(0, publicPage.totalPages - 1)}"
+                th:classappend="${i == publicPage.number} ? 'active'">
+                <a class="page-link" th:href="@{/rpg/systems(page=${i}, search=${search})}"
+                   th:text="${i + 1}">1</a>
+            </li>
+            <li class="page-item" th:classappend="${publicPage.number == publicPage.totalPages - 1} ? 'disabled'">
+                <a class="page-link"
+                   th:href="@{/rpg/systems(page=${publicPage.number + 1}, search=${search})}">&raquo;</a>
+            </li>
+        </ul>
+    </nav>
+
+    <div class="mt-4">
+        <a th:href="@{/rpg/games}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> К играм
+        </a>
+    </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

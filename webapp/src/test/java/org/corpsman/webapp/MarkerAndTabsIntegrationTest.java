@@ -80,7 +80,7 @@ class MarkerAndTabsIntegrationTest {
 
     @Test
     void anonymousForumListHasNoTabsAndNoOpenBadge() throws Exception {
-        User resident = createUser("mt_resident_1", UserRole.RESIDENT);
+        User resident = createUser("auto_mt_resident_1", UserRole.RESIDENT);
         createTopic(resident, "Публичный mt_a1", TopicVisibility.PUBLIC);
         createTopic(resident, "Открытый mt_a2", TopicVisibility.OPEN);
         createTopic(resident, "Закрытый mt_a3", TopicVisibility.CLOSED);
@@ -100,9 +100,9 @@ class MarkerAndTabsIntegrationTest {
 
     @Test
     void residentForumListKeepsAllTabsAndNoOpenBadge() throws Exception {
-        User resident = createUser("mt_resident_2", UserRole.RESIDENT);
+        User resident = createUser("auto_mt_resident_2", UserRole.RESIDENT);
         createTopic(resident, "Открытый mt_b1", TopicVisibility.OPEN);
-        MockHttpSession session = login("mt_resident_2");
+        MockHttpSession session = login("auto_mt_resident_2");
 
         String page = mockMvc.perform(get("/forum").session(session))
                 .andExpect(status().isOk())
@@ -117,10 +117,10 @@ class MarkerAndTabsIntegrationTest {
 
     @Test
     void openTopicDetailHasNoOpenBadgeGuestTopicKeepsGuestMarker() throws Exception {
-        User resident = createUser("mt_resident_3", UserRole.RESIDENT);
+        User resident = createUser("auto_mt_resident_3", UserRole.RESIDENT);
         ForumTopic open = createTopic(resident, "Открытый mt_d1", TopicVisibility.OPEN);
         ForumTopic guest = createTopic(resident, "Гостевой mt_d2", TopicVisibility.GUEST);
-        MockHttpSession session = login("mt_resident_3");
+        MockHttpSession session = login("auto_mt_resident_3");
 
         String openPage = mockMvc.perform(get("/forum/topic/" + open.getId()).session(session))
                 .andExpect(status().isOk())

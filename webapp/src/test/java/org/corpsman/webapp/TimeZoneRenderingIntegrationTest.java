@@ -64,7 +64,7 @@ class TimeZoneRenderingIntegrationTest {
         ForumTopic topic = new ForumTopic();
         topic.setTitle(title);
         topic.setContent("Содержание: " + title);
-        topic.setAuthorId(createUser("tz_user_" + title.hashCode(), UserRole.RESIDENT).getId());
+        topic.setAuthorId(createUser("auto_tz_user_" + title.hashCode(), UserRole.RESIDENT).getId());
         topic.setVisibility(TopicVisibility.PUBLIC);
         return topicRepository.save(topic);
     }

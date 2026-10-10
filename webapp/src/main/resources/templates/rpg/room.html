@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${room.title} + ' — Corpsman'">Комната</title>
+    <meta name="_csrf" th:content="${_csrf.token}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}"/>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link th:href="@{/css/app.css}" rel="stylesheet">
+    <style>
+        [x-cloak]{display:none!important}
+        .post-master {
+            background: #fff8e1;
+            border-left: 4px solid #f0b429;
+        }
+        .check-pane .list-group-item {
+            white-space: normal;
+        }
+    </style>
+</head>
+<body class="bg-light">
+<nav th:replace="~{fragments/nav :: nav}"></nav>
+
+<main class="container pb-5" style="max-width: 900px;"
+      th:attr="data-save-url=@{/rpg/games/{gid}/rooms/{rid}/saved-rolls(gid=${game.id}, rid=${room.id})},
+               data-remove-kind-url=@{/rpg/games/{gid}/rooms/{rid}/saved-rolls/remove-kind(gid=${game.id}, rid=${room.id})}">
+
+    <!-- Данные композера: персоны (своя/NPC), избранные броски, характеристики -->
+    <script th:inline="javascript">
+        window.__personas = /*[[${personas}]]*/ [];
+        window.__favorites = /*[[${favorites}]]*/ [];
+        window.__npcFavorites = /*[[${npcFavorites}]]*/ {};
+        window.__isMaster = /*[[${room.masterViewer}]]*/ false;
+        window.__abilityNames = /*[[${abilityNames}]]*/ {};
+        window.__skillAbility = /*[[${skillAbility}]]*/ {};
+    </script>
+
+    <div class="mb-3">
+        <a th:href="@{/rpg/games/{id}(id=${game.id})}" class="text-decoration-none small">
+            <i class="bi bi-arrow-left"></i> К игре «<span th:text="${game.title}">игра</span>»
+        </a>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+        <h1 class="h4 mb-0">
+            <i class="bi text-muted" th:classappend="${room.privateRoom} ? 'bi-lock-fill' : 'bi-door-open'"></i>
+            <span th:text="${room.title}">Комната</span>
+        </h1>
+        <span th:if="${room.masterViewer}" class="badge text-bg-warning"><i class="bi bi-star-fill"></i> Ведущий</span>
+    </div>
+
+    <div th:if="${room.masterViewer and room.privateRoom}"
+         class="card shadow-sm mb-4">
+        <div class="card-header"><i class="bi bi-person-check"></i> Участники приватной комнаты</div>
+        <div class="card-body">
+            <form th:action="@{/rpg/games/{gid}/rooms/{rid}/members(gid=${game.id}, rid=${room.id})}"
+                  method="post">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <div th:if="${#lists.isEmpty(playerSheets)}" class="text-muted small mb-2">
+                    В игре пока нет принятых игроков.
+                </div>
+                <label class="form-check" th:each="p : ${playerSheets}">
+                    <input type="checkbox" name="memberIds" th:value="${p.ownerId}" class="form-check-input"
+                           th:checked="${room.memberIds.contains(p.ownerId)}">
+                    <span class="form-check-label" th:text="${p.ownerName}">игрок</span>
+                </label>
+                <div class="mt-2">
+                    <button type="submit" class="btn btn-primary btn-sm">Сохранить доступ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div th:if="${#lists.isEmpty(room.posts)}" class="text-center text-muted py-4">
+        Пока нет постов. Начните игру!
+    </div>
+
+    <div th:each="post : ${room.posts}" class="card shadow-sm mb-3"
+         th:classappend="${post.masterPost} ? 'post-master' : ''">
+        <div class="card-body">
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <div style="width: 32px; height: 32px; border-radius: 50%; overflow: hidden; background: var(--app-bg); border: 1px solid var(--app-border); flex-shrink: 0;">
+                    <img th:if="${post.avatarPath != null}" th:src="@{'/uploads/' + ${post.avatarPath}}"
+                         class="img-fluid rounded-circle" style="width: 100%; height: 100%; object-fit: cover;" alt="аватар">
+                    <i th:unless="${post.avatarPath != null}" class="bi bi-person-circle d-block text-muted"
+                       style="font-size: 32px;"></i>
+                </div>
+                <span class="fw-semibold" th:text="${post.authorName}">автор</span>
+                <small class="text-muted ms-auto">
+                    <time th:replace="~{fragments/time-format :: clock(${post.createdAt}, 'dd.MM.yyyy HH:mm')}"></time>
+                </small>
+            </div>
+            <p class="card-text mb-2" style="white-space: pre-wrap;" th:text="${post.content}">Текст</p>
+            <div th:if="${!#lists.isEmpty(post.rolls)}" class="border rounded p-2 bg-body-secondary">
+                <div th:each="roll : ${post.rolls}" class="small d-flex align-items-center gap-2">
+                    <i class="bi bi-dice-6 me-1"></i>
+                    <span th:if="${roll.comment != null and !roll.comment.isBlank()}">
+                        <strong th:text="${roll.comment}">комментарий</strong>:
+                    </span>
+                    <span>
+                        <span th:text="${roll.count}">1</span><span th:text="${roll.die.label()}">d20</span>
+                        <span th:if="${roll.modifier != 0}"><span th:text="${roll.modifier > 0 ? '+' + roll.modifier : roll.modifier}">+0</span></span>
+                        = (<span th:text="${#strings.listJoin(roll.results, ', ')}">1, 5</span>) <strong th:text="${roll.total}">6</strong>
+                    </span>
+<button th:if="${post.authorId == currentUserId}"
+                        type="button" class="btn btn-link btn-sm p-0 text-warning ms-auto fav-star"
+                        title="Сохранить бросок как избранное игры"
+                        th:attr="data-fav-post-id=${post.id},data-fav-die=${roll.die.label()},data-fav-count=${roll.count},data-fav-modifier=${roll.modifier},data-fav-comment=${roll.comment == null ? '' : roll.comment}"
+                        onclick="saveRollFavorite(this)">
+                        <i class="bi bi-star"></i>
+                    </button>
+                </div>
+            </div>
+            <div th:if="${!#lists.isEmpty(post.attachments)}">
+                <div th:replace="~{forum/attachments :: attachments(${post.attachments}, @{/rpg/games/{gid}/rooms/{rid}/attachments(gid=${room.gameId}, rid=${room.id})})}"></div>
+            </div>
+        </div>
+    </div>
+
+    <div th:if="${room.canPost}" class="card shadow-sm" id="composer">
+        <div class="card-header"><i class="bi bi-pencil-square"></i> Написать пост</div>
+        <div class="card-body">
+            <form th:action="@{/rpg/games/{gid}/rooms/{rid}/posts(gid=${game.id}, rid=${room.id})}"
+                  method="post" enctype="multipart/form-data" x-data="composer()">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <input type="hidden" name="sheetId" :value="personaSheetId()"/>
+                <textarea name="content" x-model="content" rows="3" class="form-control mb-2" required
+                          placeholder="Текст поста..."></textarea>
+
+                <div th:if="${room.masterViewer}" class="mb-2">
+                    <label class="form-label small mb-1">Опубликовать как</label>
+                    <select x-model="personaId" @change="selectPersona(personaId)"
+                            class="form-select form-select-sm" style="max-width: 320px;">
+                        <option th:each="p : ${personas}" th:value="${p.id}" th:text="${p.name}"></option>
+                    </select>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0"><i class="bi bi-dice-6"></i> Броски</h6>
+                    <div class="d-flex gap-2">
+                        <span class="dropdown" @click.outside="open=false">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" @click="openCheck()"
+                                    :disabled="!canCheck()">
+                                <i class="bi bi-magic"></i> Авто
+                            </button>
+                            <div x-show="open" x-cloak class="dropdown-menu shadow-sm show p-2 check-pane"
+                                 style="inset: auto 0 auto auto; width: 260px;">
+                                <div x-show="!isRootLevel()" class="small text-muted mb-2 d-flex align-items-center gap-1">
+                                    <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none"
+                                            @click="backToRoot()">←</button>
+                                    <span x-text="panelLabel()"></span>
+                                </div>
+
+                                <div x-show="!state.cat" class="list-group list-group-flush">
+                                    <template x-for="item in levelOneItems()" :key="item.key">
+                                        <button type="button"
+                                                class="list-group-item list-group-item-action small"
+                                                @click="choose(item)">
+                                            <span x-text="item.label"></span>
+                                        </button>
+                                    </template>
+                                </div>
+
+                                <div x-show="categoryActive() && (state.cat === 'save' || state.cat === 'skill') && !state.ability"
+                                     class="list-group list-group-flush" style="max-height: 260px; overflow: auto;">
+                                    <template x-for="a in subAbilities()" :key="a">
+                                        <button type="button"
+                                                class="list-group-item list-group-item-action small"
+                                                @click="pickAbility(a)">
+                                            <span x-text="abilityName(a)"></span>
+                                        </button>
+                                    </template>
+                                </div>
+
+                                <div x-show="canLeaf()"
+                                     class="list-group list-group-flush" style="max-height: 260px; overflow: auto;">
+                                    <template x-for="m in leafItems()" :key="m.key">
+                                        <div class="list-group-item list-group-item-action small d-flex align-items-center gap-2"
+                                             style="cursor: pointer;" @click="applyCheck(m); open=false">
+                                            <i class="bi bi-dice-6 me-1"></i>
+                                            <span class="flex-grow-1 text-wrap" x-text="m.label"></span>
+                                            <button type="button" x-show="m.favId"
+                                                    class="btn btn-outline-danger btn-sm p-0 px-1"
+                                                    title="Удалить из избранного"
+                                                    @click.stop="deleteFavoriteItem(m)">
+                                                <i class="bi bi-trash3"></i>
+                                            </button>
+                                        </div>
+                                    </template>
+                                    <div x-show="!leafItems().length" class="text-muted small px-2 py-1">
+                                        Нет доступных проверок.
+                                    </div>
+                                </div>
+                            </div>
+                        </span>
+                        <button type="button" class="btn btn-outline-primary btn-sm" @click="addSlot">
+                            <i class="bi bi-plus-lg"></i> Бросок
+                        </button>
+                    </div>
+                </div>
+
+                <template x-for="(slot, i) in slots" :key="i">
+                    <div class="row g-2 align-items-center mb-2 border rounded p-2 bg-body-secondary">
+                        <div class="col-2">
+                            <select class="form-select form-select-sm" :name="'die'"
+                                    x-model="slot.die">
+                                <option th:each="d : ${diceSizes}" th:value="${d.label()}" th:text="${d.label()}"></option>
+                            </select>
+                        </div>
+                        <div class="col-2">
+                            <input type="number" min="1" max="1000" :name="'count'"
+                                   class="form-control form-control-sm" x-model="slot.count">
+                        </div>
+                        <div class="col-2">
+                            <input type="number" :name="'modifier'"
+                                   class="form-control form-control-sm" x-model="slot.modifier"
+                                   placeholder="+N">
+                        </div>
+                        <div class="col-5">
+                            <input type="text" :name="'rollComment'" x-model="slot.comment"
+                                   class="form-control form-control-sm" placeholder="Комментарий (напр., «атака мечом»)">
+                        </div>
+                        <div class="col-1 text-end">
+                            <button type="button" class="btn btn-outline-danger btn-sm"
+                                    @click="removeSlot(i)">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </div>
+                    </div>
+                </template>
+
+                <div class="mb-2">
+                    <label class="form-label small mb-1">Картинки к посту</label>
+                    <input type="file" name="files" multiple accept="image/*"
+                           class="form-control form-control-sm">
+                </div>
+
+                <div class="d-flex justify-content-end">
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi bi-send"></i> Опубликовать
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div th:if="${!room.canPost}" class="alert alert-light border small">
+        Вы не можете писать в этой комнате.
+    </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+<script>
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('composer', () => ({
+            content: '',
+            slots: [],
+            personae: window.__personas || [],
+            personaId: '',
+            persona: null,
+            open: false,
+            navHistory: [],
+            state: {npcId: null, cat: null, ability: null},
+            init() {
+                if (this.personae.length) {
+                    const first = this.personae.find(p => p.modifiers && p.modifiers.length) || this.personae[0];
+                    this.selectPersona(first.id);
+                }
+            },
+            selectPersona(id) {
+                this.personaId = id;
+                this.persona = this.personae.find(p => p.id === id) || null;
+                this.navHistory = [];
+                this.state = {npcId: window.__isMaster ? '__root__' : null, cat: null, ability: null};
+                this.open = false;
+            },
+            personaSheetId() {
+                if (!this.persona || !this.persona.npc) return '';
+                const id = String(this.persona.id || '');
+                return id.indexOf('npc-') === 0 ? id.slice(4) : '';
+            },
+            canCheck() {
+                return !!this.persona;
+            },
+            checkTarget() {
+                const id = this.state.npcId;
+                if (id && id !== '__root__' && id !== 'self') {
+                    return this.personae.find(p => p.id === id) || this.persona;
+                }
+                return this.persona;
+            },
+            activeMods() {
+                const target = this.checkTarget();
+                return (target && target.modifiers) ? target.modifiers : [];
+            },
+            abilityMods() {
+                return this.activeMods().filter(m => m.key && m.key.indexOf('ability:') === 0);
+            },
+            saveMods() {
+                return this.activeMods().filter(m => m.key && m.key.indexOf('save:') === 0);
+            },
+            skillMods() {
+                return this.activeMods().filter(m => m.key && m.key.indexOf('skill:') === 0);
+            },
+            abilityName(key) {
+                return (window.__abilityNames || {})[key] || key || '';
+            },
+            addSlot() {
+                this.slots.push({die: 'd20', count: 1, modifier: 0, comment: ''});
+            },
+            removeSlot(i) {
+                this.slots.splice(i, 1);
+            },
+            isRootLevel() {
+                return !this.state.cat && this.navHistory.length === 0;
+            },
+            categoryActive() {
+                return !!this.state.cat && this.state.cat !== 'favorite';
+            },
+            canLeaf() {
+                const s = this.state;
+                if (s.cat === 'ability' || s.cat === 'favorite') return true;
+                return (s.cat === 'save' || s.cat === 'skill') && !!s.ability;
+            },
+            openCheck() {
+                this.open = !this.open;
+                if (this.open) {
+                    this.navHistory = [];
+                    this.state = {npcId: window.__isMaster ? '__root__' : null, cat: null, ability: null};
+                }
+            },
+            backToRoot() {
+                const prev = this.navHistory.pop();
+                if (prev) this.state = prev;
+            },
+            choose(item) {
+                if (item.kind === 'npc') {
+                    this.navHistory.push(Object.assign({}, this.state));
+                    this.state = {npcId: item.id, cat: null, ability: null};
+                } else if (item.cat === 'favorite') {
+                    this.navHistory.push(Object.assign({}, this.state));
+                    this.state = {npcId: this.state.npcId === '__root__' ? null : this.state.npcId,
+                        cat: 'favorite', ability: null};
+                } else {
+                    this.navHistory.push(Object.assign({}, this.state));
+                    this.state = {npcId: this.state.npcId, cat: item.cat, ability: null};
+                }
+            },
+            pickAbility(a) {
+                this.navHistory.push(Object.assign({}, this.state));
+                this.state = {npcId: this.state.npcId, cat: this.state.cat, ability: a};
+            },
+            levelOneItems() {
+                if (this.state.npcId === '__root__') {
+                    const items = [];
+                    this.personae.filter(p => p.npc)
+                        .forEach(p => items.push({key: p.id, kind: 'npc', id: p.id, label: p.name}));
+                    items.push({key: 'fav-top', kind: 'cat', cat: 'favorite', label: 'Избранное'});
+                    return items;
+                }
+                const items = [];
+                if (this.abilityMods().length) items.push({key: 'cat-ability', kind: 'cat', cat: 'ability', label: 'Характеристики'});
+                if (this.saveMods().length) items.push({key: 'cat-save', kind: 'cat', cat: 'save', label: 'Спасброски'});
+                if (this.skillMods().length) items.push({key: 'cat-skill', kind: 'cat', cat: 'skill', label: 'Навыки'});
+                items.push({key: 'cat-fav', kind: 'cat', cat: 'favorite', label: 'Избранное'});
+                return items;
+            },
+            panelLabel() {
+                const s = this.state;
+                if (s.cat === null) return this.npcName();
+                const labels = {ability: 'Характеристики', save: 'Спасброски', skill: 'Навыки', favorite: 'Избранное'};
+                let label = labels[s.cat] || '';
+                const n = this.npcName();
+                if (n) label = n + ' · ' + label;
+                if (s.ability) label += ' · ' + this.abilityName(s.ability);
+                return label;
+            },
+            npcName() {
+                const id = this.state.npcId;
+                if (id === 'self') return 'Свои проверки';
+                if (id && id !== '__root__') {
+                    const p = this.personae.find(x => x.id === id);
+                    if (p) return p.name;
+                }
+                return '';
+            },
+            subAbilities() {
+                const s = this.state;
+                if (!s || (s.cat !== 'save' && s.cat !== 'skill')) return [];
+                const present = {};
+                if (s.cat === 'skill') {
+                    this.skillMods().forEach(m => {
+                        const ab = (window.__skillAbility || {})[m.key.slice(6)];
+                        if (ab) present[ab] = true;
+                    });
+                } else {
+                    this.saveMods().forEach(m => {
+                        const i = m.key.indexOf(':');
+                        present[m.key.slice(i + 1)] = true;
+                    });
+                }
+                const names = window.__abilityNames || {};
+                return Object.keys(names).filter(k => present[k]);
+            },
+            favScopeSheetId() {
+                const id = this.state.npcId;
+                if (id && id !== '__root__' && id !== 'self' && id.indexOf('npc-') === 0) return id.slice(4);
+                return null;
+            },
+            favoritesForScope() {
+                const sheet = this.favScopeSheetId();
+                if (sheet) return (window.__npcFavorites || {})[sheet] || [];
+                return window.__favorites || [];
+            },
+            leafItems() {
+                const s = this.state;
+                if (s.cat === 'ability') return this.abilityMods();
+                if (s.cat === 'save') return this.saveMods().filter(m => m.key === 'save:' + s.ability);
+                if (s.cat === 'skill') return this.skillMods().filter(m =>
+                    m.key.indexOf('skill:') === 0 && (window.__skillAbility || {})[m.key.slice(6)] === s.ability);
+                if (s.cat === 'favorite') {
+                    return this.favoritesForScope().map(f => {
+                        let die = String(f.die || '').toLowerCase();
+                        if (die.indexOf('d') !== 0) die = 'd20';
+                        const mod = Number(f.modifier) || 0;
+                        let label = (f.comment ? f.comment + ' · ' : '') + f.count + die;
+                        if (mod) label += (mod >= 0 ? '+' : '') + mod;
+                        return {key: 'fav-' + f.id, favId: f.id, label: label, value: mod, die: die,
+                            count: Number(f.count) || 1, comment: f.comment || ''};
+                    });
+                }
+                return [];
+            },
+            deleteFavoriteItem(item) {
+                const main = document.querySelector('main');
+                const url = main.getAttribute('data-save-url') + '/' + item.favId + '/delete';
+                const header = document.querySelector('meta[name="_csrf_header"]').content;
+                const token = document.querySelector('meta[name="_csrf"]').content;
+                fetch(url, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {[header]: token}
+                }).then(r => r.json()).then(data => {
+                    if (data && data.ok) window.location.reload();
+                });
+            },
+            applyCheck(leaf) {
+                if (!leaf) return;
+                if (!this.slots.length) this.addSlot();
+                const slot = this.slots[this.slots.length - 1];
+                slot.die = leaf.die || 'd20';
+                slot.count = leaf.count || 1;
+                slot.modifier = leaf.value != null ? Number(leaf.value) : (Number(leaf.modifier) || 0);
+                if (leaf.comment != null && leaf.comment !== '') slot.comment = leaf.comment;
+            }
+        }));
+    });
+
+    function saveRollFavorite(btn) {
+        const isFilled = !!btn.querySelector('i.bi-star-fill');
+        const params = new URLSearchParams();
+        const postId = btn.getAttribute('data-fav-post-id');
+        if (postId) params.set('postId', postId);
+        params.set('die', btn.getAttribute('data-fav-die') || 'd20');
+        params.set('count', btn.getAttribute('data-fav-count') || '1');
+        params.set('modifier', btn.getAttribute('data-fav-modifier') || '0');
+        params.set('rollComment', btn.getAttribute('data-fav-comment') || '');
+        const main = document.querySelector('main');
+        const url = isFilled ? main.getAttribute('data-remove-kind-url')
+                             : main.getAttribute('data-save-url');
+        const header = document.querySelector('meta[name="_csrf_header"]').content;
+        const token = document.querySelector('meta[name="_csrf"]').content;
+        fetch(url, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: Object.assign({'Content-Type': 'application/x-www-form-urlencoded'}, {[header]: token}),
+            body: params
+        }).then(r => r.json()).then(data => {
+            if (data && data.ok) window.location.reload();
+        });
+    }
+
+    function fillFavoriteStars() {
+        const all = (window.__favorites || []).slice();
+        Object.values(window.__npcFavorites || {}).forEach(list => all.push(...list));
+        const norm = s => (s == null ? '' : String(s).trim());
+        const num = v => (v == null || v === '' ? 0 : Number(v));
+        document.querySelectorAll('.fav-star').forEach(btn => {
+            const die = String(btn.getAttribute('data-fav-die') || 'd20').toLowerCase();
+            const count = num(btn.getAttribute('data-fav-count'));
+            const mod = num(btn.getAttribute('data-fav-modifier'));
+            const comment = norm(btn.getAttribute('data-fav-comment'));
+            const hit = all.some(f =>
+                String(f.die || 'd20').toLowerCase() === die &&
+                num(f.count) === count &&
+                num(f.modifier) === mod &&
+                norm(f.comment) === comment);
+            if (hit) {
+                const icon = btn.querySelector('i');
+                if (icon) {
+                    icon.classList.remove('bi-star');
+                    icon.classList.add('bi-star-fill');
+                }
+            }
+        });
+    }
+    fillFavoriteStars();
+</script>
+</body>
+</html>

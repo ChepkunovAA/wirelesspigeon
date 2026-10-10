@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.corpsman</groupId>
         <artifactId>corpsman-backend</artifactId>
-	<version>2.5.1</version>
+        <version>3.2.0</version>
     </parent>
 
     <artifactId>users</artifactId>

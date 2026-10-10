@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+    <changeSet id="v3.0-02" author="architect">
+        <createTable tableName="rpg_character_sheets">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="game_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="owner_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(200)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="avatar_path" type="VARCHAR(255)"/>
+            <column name="kventa" type="VARCHAR(1000000)"/>
+            <column name="is_npc" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="version" type="BIGINT" defaultValueNumeric="0"/>
+        </createTable>
+        <createIndex tableName="rpg_character_sheets" indexName="idx_rpg_sheets_game">
+            <column name="game_id"/>
+        </createIndex>
+        <createIndex tableName="rpg_character_sheets" indexName="idx_rpg_sheets_owner">
+            <column name="owner_id"/>
+        </createIndex>
+        <addForeignKeyConstraint baseTableName="rpg_character_sheets"
+                                 baseColumnNames="game_id"
+                                 referencedTableName="rpg_games"
+                                 referencedColumnNames="id"
+                                 constraintName="fk_rpg_sheets_game"
+                                 onDelete="CASCADE"/>
+        <addForeignKeyConstraint baseTableName="rpg_character_sheets"
+                                 baseColumnNames="owner_id"
+                                 referencedTableName="users"
+                                 referencedColumnNames="id"
+                                 constraintName="fk_rpg_sheets_owner"
+                                 onDelete="RESTRICT"/>
+
+        <createTable tableName="rpg_character_attributes">
+            <column name="id" type="BIGINT" autoIncrement="true">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="sheet_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="attr_key" type="VARCHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(200)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="attr_type" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="numeric_value" type="INTEGER"/>
+            <column name="text_value" type="VARCHAR(1000000)"/>
+            <column name="list_values" type="VARCHAR(1000000)"/>
+            <column name="flags" type="INTEGER" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="position" type="INTEGER" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="visibility" type="VARCHAR(20)" defaultValue="OPEN">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP"/>
+            <column name="version" type="BIGINT" defaultValueNumeric="0"/>
+        </createTable>
+        <addUniqueConstraint tableName="rpg_character_attributes"
+                             columnNames="sheet_id, attr_key"
+                             constraintName="uk_rpg_attr_sheet_key"/>
+        <addForeignKeyConstraint baseTableName="rpg_character_attributes"
+                                 baseColumnNames="sheet_id"
+                                 referencedTableName="rpg_character_sheets"
+                                 referencedColumnNames="id"
+                                 constraintName="fk_rpg_attr_sheet"
+                                 onDelete="CASCADE"/>
+    </changeSet>
+</databaseChangeLog>

@@ -173,14 +173,14 @@ class RatingServiceTest {
         when(ratingRepository.findByFilmIdAndUserId(1L, 7L)).thenReturn(Optional.empty());
         User proposer = new User();
         proposer.setId(5L);
-        proposer.setUsername("alice");
+        proposer.setUsername("auto_alice");
         when(userRepository.findByIdIn(List.of(5L))).thenReturn(List.of(proposer));
         when(filmMapper.toDto(film)).thenReturn(new FilmDto());
 
         Page<FilmDto> page = ratingService.getArchive(PageRequest.of(0, 20), null, null, 7L);
 
         assertThat(page.getContent()).singleElement().satisfies(dto ->
-                assertThat(dto.getProposerUsername()).isEqualTo("alice"));
+                assertThat(dto.getProposerUsername()).isEqualTo("auto_alice"));
         verify(userRepository).findByIdIn(List.of(5L));
     }
 
@@ -232,13 +232,13 @@ class RatingServiceTest {
         Film bobFilm = watchedFilm(2L);
         bobFilm.setUserId(6L);
         when(filmRepository.findAllByStatus(FilmStatus.WATCHED)).thenReturn(List.of(aliceFilm, bobFilm));
-        when(userRepository.findByIdIn(anySet())).thenReturn(List.of(user(5L, "alice"), user(6L, "bob")));
+        when(userRepository.findByIdIn(anySet())).thenReturn(List.of(user(5L, "auto_alice"), user(6L, "auto_bob")));
         when(ratingRepository.findAll()).thenReturn(List.of(
                 rating(1L, 1L, 2), rating(1L, 2L, 3), rating(2L, 1L, 1)));
 
         List<ProposerStatDto> top = ratingService.getTopProposers(10);
 
-        assertThat(top).extracting(ProposerStatDto::getUsername).containsExactly("alice", "bob");
+        assertThat(top).extracting(ProposerStatDto::getUsername).containsExactly("auto_alice", "auto_bob");
         assertThat(top.get(0).getAverageRating()).isEqualTo(8.33);
         assertThat(top.get(1).getAverageRating()).isEqualTo(3.33);
         assertThat(top).allSatisfy(dto -> assertThat(dto.getWatchedCount()).isEqualTo(1));
@@ -256,19 +256,19 @@ class RatingServiceTest {
         bobNightmare.setUserId(6L);
         bobNightmare.setCensorship(CensorshipRating.NIGHTMARE);
         when(filmRepository.findAllByStatus(FilmStatus.WATCHED)).thenReturn(List.of(aliceChaste, bobNightmare, aliceErotica));
-        when(userRepository.findByIdIn(anySet())).thenReturn(List.of(user(5L, "alice"), user(6L, "bob")));
+        when(userRepository.findByIdIn(anySet())).thenReturn(List.of(user(5L, "auto_alice"), user(6L, "auto_bob")));
         when(ratingRepository.findAll()).thenReturn(List.of());
 
         List<ProposerStatDto> top = ratingService.getTopCorruption(10);
 
-        assertThat(top).extracting(ProposerStatDto::getUsername).containsExactly("bob", "alice");
+        assertThat(top).extracting(ProposerStatDto::getUsername).containsExactly("auto_bob", "auto_alice");
         assertThat(top.get(0).getCorruption()).isEqualTo(4.0);
         assertThat(top.get(1).getCorruption()).isEqualTo(1.0);
     }
 
     @Test
     void getPublicProfileReturnsUserDataAndAggregates() {
-        User owner = user(5L, "alice");
+        User owner = user(5L, "auto_alice");
         when(userRepository.findById(5L)).thenReturn(Optional.of(owner));
         when(ratingRepository.averageRatingForUserFilms(5L)).thenReturn(2.0);
         when(ratingRepository.averageRatingByUserOnUserFilms(7L, 5L)).thenReturn(1.0);
@@ -282,7 +282,7 @@ class RatingServiceTest {
 
         PublicProfileDto profile = ratingService.getPublicProfile(5L, 7L);
 
-        assertThat(profile.getUsername()).isEqualTo("alice");
+        assertThat(profile.getUsername()).isEqualTo("auto_alice");
         assertThat(profile.getAverageRating()).isEqualTo(6.67);
         assertThat(profile.getCorruption()).isEqualTo(3.0);
         assertThat(profile.getAverageViewerToOwner()).isEqualTo(3.33);

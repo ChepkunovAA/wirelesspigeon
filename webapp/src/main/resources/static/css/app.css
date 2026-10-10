@@ -4,6 +4,16 @@
 :root {
     --app-bg: #f8f9fa;
     --app-surface: #ffffff;
+    /* Текст на карточках: основной и приглушённый (описания, статусы, подписи).
+       Задаются явно для каждой темы — иначе приглушённый текст сливается с фоном. */
+    --app-card-text: #212529;
+    --app-card-muted: #4a5058;
+    /* Фон строк списка игр по статусу. В светлой теме — светлые оттенки,
+       в тёмной — тёмные (у завершённых чёрный), иначе bootstrap-овские
+       table-*-классы в тёмной теме слишком яркие. */
+    --app-game-recruiting: #d1e7dd;
+    --app-game-active: #cff4fc;
+    --app-game-closed: #f8f9fa;
     --app-logo: url("../assets/logo.png");
     --app-mask-tile: url("../assets/mask-tile.png");
     --app-tile-opacity: .06;
@@ -11,7 +21,13 @@
 
 html[data-bs-theme="dark"] {
     --app-bg: #1e242c;
-    --app-surface: #2a313c;
+    --app-surface: #262d37;
+    --app-card-text: #e9edf2;
+    --app-card-muted: #c3ccd6;
+    --app-game-recruiting: #16341f;
+    --app-game-active: #14314a;
+    /* Завершённые игры — как карточки форума в тёмной теме */
+    --app-game-closed: #262d37;
     --app-post-op-bg: #232a34;
     --app-post-op-border: #33404f;
     --app-header-bg: #2a313c;
@@ -43,6 +59,41 @@ html[data-bs-theme="dark"] .logo-dark { display: inline-block; }
 html[data-bs-theme="dark"] .post-op {
     background-color: var(--app-post-op-bg);
     border-color: var(--app-post-op-border);
+}
+
+/* Карточка в тёмной теме — приглушённая поверхность, а не светлый блок */
+html[data-bs-theme="dark"] .card {
+    background-color: var(--app-surface);
+}
+
+/* Текст карточек и таблиц: основной и приглушённый. Bootstrap в тёмной теме
+   оставляет часть подписей (описания, статусы) слишком бледной, а в светлой
+   теме некоторые приглушённые оттенки сливаются с фоном карточки. */
+html[data-bs-theme] .card,
+html[data-bs-theme] .card-body,
+html[data-bs-theme] .card-header,
+html[data-bs-theme] .card-footer,
+html[data-bs-theme] .card-text,
+html[data-bs-theme] .list-group-item,
+html[data-bs-theme] .table,
+html[data-bs-theme] .table td,
+html[data-bs-theme] .table th {
+    color: var(--app-card-text);
+}
+
+html[data-bs-theme] .card .text-muted,
+html[data-bs-theme] .list-group-item .text-muted,
+html[data-bs-theme] .table .text-muted {
+    color: var(--app-card-muted) !important;
+}
+
+/* Описание элемента списка и шеврон карточки — цветами темы, не хардкодом */
+.list-item-description {
+    color: var(--app-card-muted, #495057);
+}
+
+.list-item-chevron::before {
+    color: var(--app-card-muted, #6c757d);
 }
 
 html[data-bs-theme="dark"] .card-header {
@@ -202,5 +253,179 @@ main {
 .module-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .08) !important;
+}
+
+/* ============ Список игр: фон строки по статусу ============ */
+/* Цвета заданы переменными темы (--app-game-*): в тёмной теме «набор игроков»
+   и «идёт игра» — тёмные зелёный и синий, «завершена» — чёрный.
+   Фон задаётся именно --bs-table-bg: Bootstrap красит фон ячеек таблицы этой
+   переменной, и обычный background-color строки ячейками закрашивается. */
+
+.game-row--recruiting {
+    --bs-table-bg: var(--app-game-recruiting);
+    --bs-table-color: var(--app-card-text);
+}
+
+.game-row--active {
+    --bs-table-bg: var(--app-game-active);
+    --bs-table-color: var(--app-card-text);
+}
+
+.game-row--closed {
+    --bs-table-bg: var(--app-game-closed);
+    --bs-table-color: var(--app-card-text);
+}
+
+.game-row--recruiting .text-muted,
+.game-row--active .text-muted,
+.game-row--closed .text-muted {
+    color: var(--app-card-muted) !important;
+}
+
+/* ============ Лист D&D: раздел «Инвентарь» (деньги и предметы) ============ */
+/* Разряды монет идут строками, обмен — между ними. */
+
+.money-line {
+    display: flex;
+    flex-direction: column;
+}
+
+.money-kind {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding-block: .1rem;
+}
+
+.money-name {
+    min-width: 6.5rem;
+}
+
+/* Кнопки ± одной ширины у всех разрядов — иначе числа в строках разъезжаются */
+.money-step {
+    width: 2.4rem;
+    flex: 0 0 2.4rem;
+}
+
+.money-step .btn {
+    width: 100%;
+    padding: 0 .35rem;
+    line-height: 1.15;
+}
+
+.money-value,
+.money-input {
+    min-width: 3.5rem;
+}
+
+.money-input {
+    max-width: 6rem;
+}
+
+/* Обмен между разрядами: отступом выровнен по колонке монет */
+.money-convert {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .1rem 0 .35rem .5rem;
+}
+
+/* ============ Лист персонажа (view) ============ */
+/* Не единая таблица с общим столбцом «Значение»: числовые параметры —
+   сеткой «название | модификатор | значение» с выровненными колонками,
+   текст и списки тянутся на всю оставшуюся ширину строки. */
+
+.rpg-attrs {
+    display: grid;
+    grid-template-columns: 13rem auto;
+    align-items: baseline;
+    column-gap: .9rem;
+    padding-block: .25rem;
+}
+
+/* Строка параметра: имя в левой колонке, значение — вплотную справа */
+.rpg-attrs > .rpg-name,
+.rpg-attrs > .rpg-value {
+    padding-left: 1rem;
+    padding-right: 1rem;
+    padding-block: .26rem;
+}
+
+.rpg-name {
+    font-size: .95rem;
+}
+
+.rpg-value {
+    font-size: .95rem;
+    text-align: right;
+}
+
+/* Значение, растянутое на обе колонки (когда имя дублирует заголовок раздела) */
+.rpg-value.wide {
+    grid-column: 1 / -1;
+    text-align: left;
+}
+
+/* Модификатор и значение — одной строкой: "10 (+1)", цифры ровной ширины */
+.rpg-value .rpg-text {
+    white-space: pre-wrap;
+    text-align: right;
+}
+
+.rpg-value .rpg-list ul {
+    margin: 0;
+    padding-left: 1.1rem;
+}
+
+/* Заголовок раздела — заметная лента на всю ширину (view и форма) */
+.rpg-section {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: baseline;
+    gap: .6rem;
+    margin-top: .55rem;
+    padding: .42rem 1rem;
+    background: rgba(var(--bs-primary-rgb), .07);
+    border-color: var(--bs-border-color-translucent);
+    border-style: solid;
+    border-width: 1px 0;
+    border-left: 3px solid var(--bs-primary);
+}
+
+.rpg-attrs > .rpg-section:first-child {
+    margin-top: .1rem;
+}
+
+.rpg-section::after {
+    content: "";
+    flex: 1;
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+    position: relative;
+    top: -.35em;
+}
+
+.rpg-section-title {
+    font-size: .82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--bs-body-color);
+}
+
+/* Подзаголовок (например, способность в блоке навыков) —
+   заметный, но приглушённее основного текста параметров */
+.rpg-subcaption {
+    grid-column: 1 / -1;
+    margin-top: .35rem;
+    padding: .1rem 1rem;
+    font-size: .82rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--bs-secondary-color);
+}
+
+.rpg-attrs > .rpg-subcaption + .rpg-subcaption {
+    margin-top: 0;
 }
 

@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.ModelAndView;
@@ -70,6 +71,21 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Обрабатывает неверный HTTP-метод (например, GET на POST-эндпоинт):
+     * это ошибка клиента, а не внутренняя ошибка сервера.
+     *
+     * @param ex      исключение метода
+     * @param request текущий запрос
+     * @return представление ошибки со статусом 405
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ModelAndView handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
+        log.warn("Метод {} не поддерживается для {}", request.getMethod(), request.getRequestURI());
+        ErrorDto error = new ErrorDto("METHOD_NOT_ALLOWED", "Метод не поддерживается", LocalDateTime.now());
+        return buildErrorView(error, HttpStatus.METHOD_NOT_ALLOWED);
+    }
+
+    /**
      * Обрабатывает непредвиденные исключения (внутренняя ошибка сервера).
      *
      * @param ex      непредвиденное исключение
@@ -83,9 +99,15 @@ public class GlobalExceptionHandler {
         return buildErrorView(error, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
+    /**
+     * Страница ошибки. Сообщение кладётся отдельной строкой {@code errorMessage}:
+     * атрибут {@code error} в других шаблонах приложения — обычный текст, и
+     * разбор {@code ${error.message}} на строке ронял саму страницу ошибки.
+     */
     private ModelAndView buildErrorView(ErrorDto error, HttpStatus status) {
         ModelAndView mav = new ModelAndView("error");
         mav.addObject("error", error);
+        mav.addObject("errorMessage", error.getMessage());
         mav.addObject("status", status.value());
         mav.setStatus(status);
         return mav;

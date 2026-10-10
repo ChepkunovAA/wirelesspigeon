@@ -372,7 +372,7 @@ class ForumServiceTest {
     void realAuthorVisibleOnlyForAdminOnAnonymousTopic() {
         ForumTopic topic = topic(1L, 10L, true, false);
         when(topicRepository.findById(1L)).thenReturn(Optional.of(topic));
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user(1L, "admin", UserRole.MASTER)));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user(1L, "auto_admin", UserRole.MASTER)));
         when(userRepository.findByIdIn(anyList())).thenReturn(List.of(user(10L, "luke", UserRole.RESIDENT)));
         when(postRepository.findByTopicIdOrderByCreatedAtAsc(1L)).thenReturn(List.of());
         when(banRepository.findByTopicIdOrderByCreatedAtDesc(1L)).thenReturn(List.of());
@@ -386,7 +386,7 @@ class ForumServiceTest {
     void realAuthorNotShownForNonAnonymousTopic() {
         ForumTopic topic = topic(1L, 10L, false, false);
         when(topicRepository.findById(1L)).thenReturn(Optional.of(topic));
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user(1L, "admin", UserRole.MASTER)));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user(1L, "auto_admin", UserRole.MASTER)));
         when(userRepository.findByIdIn(anyList())).thenReturn(List.of(user(10L, "luke", UserRole.RESIDENT)));
         when(postRepository.findByTopicIdOrderByCreatedAtAsc(1L)).thenReturn(List.of());
         when(banRepository.findByTopicIdOrderByCreatedAtDesc(1L)).thenReturn(List.of());
@@ -516,7 +516,7 @@ class ForumServiceTest {
         ForumTopic open = visibleTopic(1L, 10L, TopicVisibility.OPEN);
         ForumTopic guestTopic = visibleTopic(2L, 10L, TopicVisibility.GUEST);
         when(topicRepository.findAllByDeletedFalse()).thenReturn(List.of(open, guestTopic));
-        when(userRepository.findById(20L)).thenReturn(Optional.of(user(20L, "guest1", UserRole.GUEST)));
+        when(userRepository.findById(20L)).thenReturn(Optional.of(user(20L, "auto_guest1", UserRole.GUEST)));
         when(settingsService.getByUserId(20L)).thenReturn(settings(true, false));
         when(whitelistRepository.findByTopicIdIn(anyList())).thenReturn(List.of());
         when(userRepository.findByIdIn(anyList())).thenReturn(List.of(user(10L, "luke", UserRole.RESIDENT)));

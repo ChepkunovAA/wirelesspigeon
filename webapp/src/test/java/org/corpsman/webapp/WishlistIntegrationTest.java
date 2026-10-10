@@ -65,10 +65,10 @@ class WishlistIntegrationTest {
 
     @Test
     void ownerSeesGiftsInOwnList() throws Exception {
-        User alice = createUser("wish_alice_1");
+        User alice = createUser("auto_wish_alice_1");
         addGift(alice, "Книга", 2);
         addGift(alice, "Кофе", 0);
-        MockHttpSession session = login("wish_alice_1");
+        MockHttpSession session = login("auto_wish_alice_1");
 
         mockMvc.perform(get("/gifts").session(session))
                 .andExpect(status().isOk())
@@ -79,8 +79,8 @@ class WishlistIntegrationTest {
 
     @Test
     void addGiftRedirectsToOwnList() throws Exception {
-        createUser("wish_alice_2");
-        MockHttpSession session = login("wish_alice_2");
+        createUser("auto_wish_alice_2");
+        MockHttpSession session = login("auto_wish_alice_2");
 
         mockMvc.perform(post("/gifts/add").session(session).with(csrf())
                         .param("title", "Велосипед")
@@ -94,8 +94,8 @@ class WishlistIntegrationTest {
 
     @Test
     void addGiftRejectsTooShortTitle() throws Exception {
-        createUser("wish_alice_3");
-        MockHttpSession session = login("wish_alice_3");
+        createUser("auto_wish_alice_3");
+        MockHttpSession session = login("auto_wish_alice_3");
 
         mockMvc.perform(post("/gifts/add").session(session).with(csrf())
                         .param("title", "К")
@@ -108,8 +108,8 @@ class WishlistIntegrationTest {
 
     @Test
     void addGiftRejectsNegativeLimit() throws Exception {
-        createUser("wish_alice_4");
-        MockHttpSession session = login("wish_alice_4");
+        createUser("auto_wish_alice_4");
+        MockHttpSession session = login("auto_wish_alice_4");
 
         mockMvc.perform(post("/gifts/add").session(session).with(csrf())
                         .param("title", "Настольная игра")
@@ -120,11 +120,11 @@ class WishlistIntegrationTest {
 
     @Test
     void ownerDeletesGiftAndCascadesReservations() throws Exception {
-        User alice = createUser("wish_alice_5");
-        User bob = createUser("wish_bob_5");
+        User alice = createUser("auto_wish_alice_5");
+        User bob = createUser("auto_wish_bob_5");
         Gift gift = addGift(alice, "Пылесос", 2);
         reserve(gift, bob);
-        MockHttpSession session = login("wish_alice_5");
+        MockHttpSession session = login("auto_wish_alice_5");
 
         mockMvc.perform(post("/gifts/delete/" + gift.getId()).session(session).with(csrf()))
                 .andExpect(status().is3xxRedirection())
@@ -136,10 +136,10 @@ class WishlistIntegrationTest {
 
     @Test
     void nonOwnerCannotDeleteGift() throws Exception {
-        User alice = createUser("wish_alice_6");
-        User bob = createUser("wish_bob_6");
+        User alice = createUser("auto_wish_alice_6");
+        User bob = createUser("auto_wish_bob_6");
         Gift gift = addGift(alice, "Телефон", 1);
-        MockHttpSession session = login("wish_bob_6");
+        MockHttpSession session = login("auto_wish_bob_6");
 
         mockMvc.perform(post("/gifts/delete/" + gift.getId()).session(session).with(csrf()))
                 .andExpect(status().isForbidden());
@@ -149,11 +149,11 @@ class WishlistIntegrationTest {
 
     @Test
     void loweringLimitWithoutConfirmationShowsWarning() throws Exception {
-        User alice = createUser("wish_alice_7");
+        User alice = createUser("auto_wish_alice_7");
         Gift gift = addGift(alice, "Кресло", 3);
         gift.setReservedCount(3);
         giftRepository.save(gift);
-        MockHttpSession session = login("wish_alice_7");
+        MockHttpSession session = login("auto_wish_alice_7");
 
         mockMvc.perform(post("/gifts/edit/" + gift.getId()).session(session).with(csrf())
                         .param("title", "Кресло")
@@ -168,15 +168,15 @@ class WishlistIntegrationTest {
 
     @Test
     void loweringLimitWithConfirmationCancelsLatestReservations() throws Exception {
-        User alice = createUser("wish_alice_8");
-        User bob = createUser("wish_bob_8");
-        User carol = createUser("wish_carol_8");
+        User alice = createUser("auto_wish_alice_8");
+        User bob = createUser("auto_wish_bob_8");
+        User carol = createUser("auto_wish_carol_8");
         Gift gift = addGift(alice, "Гитара", 3);
         reserve(gift, bob);
         reserve(gift, carol);
         gift.setReservedCount(2);
         giftRepository.save(gift);
-        MockHttpSession session = login("wish_alice_8");
+        MockHttpSession session = login("auto_wish_alice_8");
 
         mockMvc.perform(post("/gifts/edit/" + gift.getId()).session(session).with(csrf())
                         .param("title", "Гитара")
@@ -194,10 +194,10 @@ class WishlistIntegrationTest {
 
     @Test
     void nonOwnerCannotEditGift() throws Exception {
-        User alice = createUser("wish_alice_9");
-        User bob = createUser("wish_bob_9");
+        User alice = createUser("auto_wish_alice_9");
+        User bob = createUser("auto_wish_bob_9");
         Gift gift = addGift(alice, "Лыжи", 1);
-        MockHttpSession session = login("wish_bob_9");
+        MockHttpSession session = login("auto_wish_bob_9");
 
         mockMvc.perform(post("/gifts/edit/" + gift.getId()).session(session).with(csrf())
                         .param("title", "Лыжи")
@@ -208,41 +208,41 @@ class WishlistIntegrationTest {
 
     @Test
     void usersPageShowsOwnersAndSearchWorks() throws Exception {
-        User alice = createUser("wish_alice_10");
-        User bob = createUser("wish_bob_10");
+        User alice = createUser("auto_wish_alice_10");
+        User bob = createUser("auto_wish_bob_10");
         addGift(alice, "Чайник", 1);
         addGift(bob, "Часы", 1);
-        MockHttpSession session = login("wish_bob_10");
+        MockHttpSession session = login("auto_wish_bob_10");
 
         mockMvc.perform(get("/gifts/users").session(session))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("wish_alice_10")))
+                .andExpect(content().string(containsString("auto_wish_alice_10")))
                 .andExpect(content().string(containsString("/gifts/user/" + bob.getId())));
 
         mockMvc.perform(get("/gifts/users").param("search", "alice").session(session))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("wish_alice_10")))
+                .andExpect(content().string(containsString("auto_wish_alice_10")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(containsString("/gifts/user/" + bob.getId()))));
     }
 
     @Test
     void usersWithoutGiftsDoNotAppear() throws Exception {
-        User alice = createUser("wish_alice_11");
-        User idle = createUser("wish_idle_11");
+        User alice = createUser("auto_wish_alice_11");
+        User idle = createUser("auto_wish_idle_11");
         addGift(alice, "Ковёр", 1);
-        MockHttpSession session = login("wish_alice_11");
+        MockHttpSession session = login("auto_wish_alice_11");
 
         mockMvc.perform(get("/gifts/users").session(session))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("wish_alice_11")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("wish_idle_11"))));
+                .andExpect(content().string(containsString("auto_wish_alice_11")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("auto_wish_idle_11"))));
     }
 
     @Test
     void viewingOwnUserRedirectsToOwnList() throws Exception {
-        User alice = createUser("wish_alice_12");
+        User alice = createUser("auto_wish_alice_12");
         addGift(alice, "Фонарь", 1);
-        MockHttpSession session = login("wish_alice_12");
+        MockHttpSession session = login("auto_wish_alice_12");
 
         mockMvc.perform(get("/gifts/user/" + alice.getId()).session(session))
                 .andExpect(status().is3xxRedirection())
@@ -251,23 +251,23 @@ class WishlistIntegrationTest {
 
     @Test
     void visitorSeesAnotherUsersGifts() throws Exception {
-        User alice = createUser("wish_alice_13");
-        User bob = createUser("wish_bob_13");
+        User alice = createUser("auto_wish_alice_13");
+        User bob = createUser("auto_wish_bob_13");
         addGift(alice, "Микрофон", 2);
-        MockHttpSession session = login("wish_bob_13");
+        MockHttpSession session = login("auto_wish_bob_13");
 
         mockMvc.perform(get("/gifts/user/" + alice.getId()).session(session))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Микрофон")))
-                .andExpect(content().string(containsString("wish_alice_13")));
+                .andExpect(content().string(containsString("auto_wish_alice_13")));
     }
 
     @Test
     void reserveGiftSucceeds() throws Exception {
-        User alice = createUser("wish_alice_14");
-        User bob = createUser("wish_bob_14");
+        User alice = createUser("auto_wish_alice_14");
+        User bob = createUser("auto_wish_bob_14");
         Gift gift = addGift(alice, "Ноутбук", 2);
-        MockHttpSession session = login("wish_bob_14");
+        MockHttpSession session = login("auto_wish_bob_14");
 
         mockMvc.perform(post("/gifts/reserve/" + gift.getId()).session(session).with(csrf()))
                 .andExpect(status().isOk())
@@ -281,9 +281,9 @@ class WishlistIntegrationTest {
 
     @Test
     void cannotReserveOwnGift() throws Exception {
-        User alice = createUser("wish_alice_15");
+        User alice = createUser("auto_wish_alice_15");
         Gift gift = addGift(alice, "Сумка", 1);
-        MockHttpSession session = login("wish_alice_15");
+        MockHttpSession session = login("auto_wish_alice_15");
 
         mockMvc.perform(post("/gifts/reserve/" + gift.getId()).session(session).with(csrf()))
                 .andExpect(status().isBadRequest())
@@ -292,11 +292,11 @@ class WishlistIntegrationTest {
 
     @Test
     void cannotReserveTwice() throws Exception {
-        User alice = createUser("wish_alice_16");
-        User bob = createUser("wish_bob_16");
+        User alice = createUser("auto_wish_alice_16");
+        User bob = createUser("auto_wish_bob_16");
         Gift gift = addGift(alice, "Фотоаппарат", 2);
         reserve(gift, bob);
-        MockHttpSession session = login("wish_bob_16");
+        MockHttpSession session = login("auto_wish_bob_16");
 
         mockMvc.perform(post("/gifts/reserve/" + gift.getId()).session(session).with(csrf()))
                 .andExpect(status().isBadRequest())
@@ -305,12 +305,12 @@ class WishlistIntegrationTest {
 
     @Test
     void cannotReserveWhenLimitReached() throws Exception {
-        User alice = createUser("wish_alice_17");
-        User bob = createUser("wish_bob_17");
-        User carol = createUser("wish_carol_17");
+        User alice = createUser("auto_wish_alice_17");
+        User bob = createUser("auto_wish_bob_17");
+        User carol = createUser("auto_wish_carol_17");
         Gift gift = addGift(alice, "Проектор", 1);
         reserve(gift, bob);
-        MockHttpSession session = login("wish_carol_17");
+        MockHttpSession session = login("auto_wish_carol_17");
 
         mockMvc.perform(post("/gifts/reserve/" + gift.getId()).session(session).with(csrf()))
                 .andExpect(status().isBadRequest())
@@ -319,11 +319,11 @@ class WishlistIntegrationTest {
 
     @Test
     void unreserveGiftSucceeds() throws Exception {
-        User alice = createUser("wish_alice_18");
-        User bob = createUser("wish_bob_18");
+        User alice = createUser("auto_wish_alice_18");
+        User bob = createUser("auto_wish_bob_18");
         Gift gift = addGift(alice, "Наушники", 3);
         reserve(gift, bob);
-        MockHttpSession session = login("wish_bob_18");
+        MockHttpSession session = login("auto_wish_bob_18");
 
         mockMvc.perform(post("/gifts/unreserve/" + gift.getId()).session(session).with(csrf()))
                 .andExpect(status().isOk())
@@ -337,10 +337,10 @@ class WishlistIntegrationTest {
 
     @Test
     void unreserveWithoutReservationFails() throws Exception {
-        User alice = createUser("wish_alice_19");
-        User bob = createUser("wish_bob_19");
+        User alice = createUser("auto_wish_alice_19");
+        User bob = createUser("auto_wish_bob_19");
         Gift gift = addGift(alice, "Клавиатура", 1);
-        MockHttpSession session = login("wish_bob_19");
+        MockHttpSession session = login("auto_wish_bob_19");
 
         mockMvc.perform(post("/gifts/unreserve/" + gift.getId()).session(session).with(csrf()))
                 .andExpect(status().isBadRequest())
@@ -349,11 +349,11 @@ class WishlistIntegrationTest {
 
     @Test
     void publicProfileShowsBriefWishlistWithReservationData() throws Exception {
-        User alice = createUser("wish_alice_20");
-        User bob = createUser("wish_bob_20");
+        User alice = createUser("auto_wish_alice_20");
+        User bob = createUser("auto_wish_bob_20");
         Gift gift = addGift(alice, "Электронная книга", 2);
         reserve(gift, bob);
-        MockHttpSession session = login("wish_bob_20");
+        MockHttpSession session = login("auto_wish_bob_20");
 
         mockMvc.perform(get("/profile/" + alice.getId()).session(session))
                 .andExpect(status().isOk())
@@ -365,24 +365,24 @@ class WishlistIntegrationTest {
 
     @Test
     void ownerDoesNotSeeReservationDetailsInOwnList() throws Exception {
-        User alice = createUser("wish_alice_21");
-        User bob = createUser("wish_bob_21");
+        User alice = createUser("auto_wish_alice_21");
+        User bob = createUser("auto_wish_bob_21");
         Gift gift = addGift(alice, "Кофеварка", 2);
         reserve(gift, bob);
-        MockHttpSession session = login("wish_alice_21");
+        MockHttpSession session = login("auto_wish_alice_21");
 
         mockMvc.perform(get("/gifts").session(session))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Кофеварка")))
-                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("wish_bob_21"))))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("auto_wish_bob_21"))))
                 .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Зарезервировали"))));
     }
 
     @Test
     void usersPageHasClickableUsernames() throws Exception {
-        User alice = createUser("wish_alice_22");
+        User alice = createUser("auto_wish_alice_22");
         addGift(alice, "Фонарик", 1);
-        MockHttpSession session = login("wish_alice_22");
+        MockHttpSession session = login("auto_wish_alice_22");
 
         mockMvc.perform(get("/gifts/users").session(session))
                 .andExpect(status().isOk())

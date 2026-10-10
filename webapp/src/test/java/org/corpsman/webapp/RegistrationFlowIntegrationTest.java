@@ -50,7 +50,7 @@ class RegistrationFlowIntegrationTest {
         MvcResult result = mockMvc.perform(post("/register")
                         .with(csrf())
                         .param("token", raw)
-                        .param("username", "alice")
+                        .param("username", "auto_alice")
                         .param("password", "password123"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/"))
@@ -72,7 +72,7 @@ class RegistrationFlowIntegrationTest {
 
         mockMvc.perform(get("/profile").session((org.springframework.mock.web.MockHttpSession) session))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("alice")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("auto_alice")));
     }
 
     @Test
@@ -86,7 +86,7 @@ class RegistrationFlowIntegrationTest {
         MvcResult result = mockMvc.perform(post("/register")
                         .with(csrf())
                         .param("token", "expired-raw")
-                        .param("username", "bob")
+                        .param("username", "auto_bob")
                         .param("password", "password123"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Токен истек")))
@@ -130,7 +130,7 @@ class RegistrationFlowIntegrationTest {
         MvcResult result = mockMvc.perform(post("/register")
                         .with(csrf())
                         .param("token", raw)
-                        .param("username", "logout_user")
+                        .param("username", "auto_logout_user")
                         .param("password", "password123"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/"))
@@ -148,7 +148,7 @@ class RegistrationFlowIntegrationTest {
         MvcResult result = mockMvc.perform(post("/register")
                         .with(csrf())
                         .param("token", raw)
-                        .param("username", "login_redirect_user")
+                        .param("username", "auto_login_redirect_user")
                         .param("password", "password123"))
                 .andExpect(status().is3xxRedirection())
                 .andReturn();

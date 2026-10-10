@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${sheet.name} + ' — Corpsman'">Лист персонажа</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link th:href="@{/css/app.css}" rel="stylesheet">
+    <style>
+        .list-item-card {
+            border: 1px solid var(--bs-border-color);
+            border-radius: 0.375rem;
+            margin-bottom: 0.5rem;
+            background: var(--app-surface, #fff);
+            overflow: hidden;
+        }
+        .list-item-header {
+            padding: 0.5rem 0.75rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            user-select: none;
+            background: var(--app-bg);
+            border-bottom: 1px solid var(--bs-border-color);
+        }
+        .list-item-header:hover {
+            background: var(--app-bg);
+            filter: brightness(0.97);
+        }
+        html[data-bs-theme="dark"] .list-item-header:hover {
+            filter: brightness(1.15);
+        }
+        .list-item-header.collapsed {
+            border-bottom: none;
+        }
+        .list-item-header.collapsed .list-item-chevron::before {
+            content: "\f282";
+        }
+        .list-item-chevron::before {
+            content: "\f286";
+            font-family: "bootstrap-icons";
+            font-size: 0.875rem;
+            color: var(--app-card-muted, #6c757d);
+        }
+        .list-item-title {
+            font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .list-item-description {
+            padding: 0.5rem 0.75rem;
+            color: var(--app-card-muted, #495057);
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+        .list-item-description:empty {
+            display: none;
+        }
+        .list-item-description.collapsed {
+            display: none;
+        }
+        .list-item-remove {
+            cursor: pointer;
+        }
+        .spell-slot-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.15rem;
+        }
+        .spell-slot-line {
+            display: flex;
+            align-items: baseline;
+            gap: 0.75rem;
+            padding: 0.15rem 0;
+        }
+        .spell-slot-level {
+            min-width: 4.5rem;
+            font-weight: 500;
+        }
+        .spell-slot-count {
+            white-space: nowrap;
+        }
+        .inventory-add-form {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+    </style>
+</head>
+<body class="bg-light">
+<nav th:replace="~{fragments/nav :: nav}"></nav>
+
+<main class="container pb-5" style="max-width: 860px;">
+    <div class="mb-3">
+        <a th:href="@{/rpg/games/{id}(id=${game.id})}" class="text-decoration-none small">
+            <i class="bi bi-arrow-left"></i> К игре «<span th:text="${game.title}">игра</span>»
+        </a>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+        <div class="d-flex align-items-center gap-3">
+            <div style="width: 64px; height: 64px; border-radius: 50%; overflow: hidden; background: var(--app-bg); border: 1px solid var(--app-border); flex-shrink: 0;">
+                <img th:if="${sheet.avatarPath != null}" th:src="@{'/uploads/' + ${sheet.avatarPath}}"
+                     class="img-fluid rounded-circle" style="width: 100%; height: 100%; object-fit: cover;" alt="Аватар">
+                <i th:unless="${sheet.avatarPath != null}" class="bi bi-person-circle d-block text-muted"
+                   style="font-size: 64px;"></i>
+            </div>
+            <div>
+                <h1 class="h4 mb-0">
+                    <span th:text="${sheet.name}">Имя</span>
+                    <span th:if="${sheet.npc}" class="badge text-bg-danger align-middle">NPC</span>
+                </h1>
+                <small class="text-muted">
+                    <i class="bi bi-person"></i>
+                    <a th:href="@{/profile/{id}(id=${sheet.ownerId})}" class="text-decoration-none"
+                       th:text="${sheet.ownerName}">игрок</a>
+                </small>
+            </div>
+        </div>
+        <div class="d-flex gap-2 flex-shrink-0">
+            <a th:if="${isOwner or isMaster}" th:href="@{/rpg/games/{gid}/characters/{sid}/edit(gid=${game.id}, sid=${sheet.id})}"
+               class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-pencil"></i> Редактировать
+            </a>
+        </div>
+    </div>
+
+    <div th:if="${sheet.kventa != null and !sheet.kventa.isBlank()}" class="card shadow-sm mb-4">
+        <div class="card-header"><i class="bi bi-journal-bookmark"></i> Квента</div>
+        <div class="card-body">
+            <p class="card-text mb-0" style="white-space: pre-wrap;" th:text="${sheet.kventa}">История</p>
+        </div>
+    </div>
+
+    <div th:if="${!#lists.isEmpty(sheet.attributes)}" class="card shadow-sm mb-4">
+        <div class="card-header">
+            <i class="bi bi-sliders"></i> Параметры
+            <span class="badge text-bg-secondary" th:text="${game.system.label()}">система</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="rpg-attrs">
+                <th:block th:each="a : ${sheet.attributes}">
+                    <!-- Ячейки заклинаний выводятся отдельным блоком ниже -->
+                    <th:block th:unless="${a.spellSlot or a.key == 'inventory'}">
+                        <div th:if="${a.groupHeader != null}" class="rpg-section">
+                            <span class="rpg-section-title" th:text="${a.groupHeader}">Раздел</span>
+                        </div>
+
+                        <div th:if="${a.subHeader != null}" class="rpg-subcaption"
+                             th:text="${a.subHeader}">подзаголовок</div>
+
+                        <div th:if="${a.type.name() == 'NUMERIC'}" class="rpg-name">
+                            <span th:text="${a.name}">Параметр</span>
+                        </div>
+                        <div th:if="${a.type.name() == 'NUMERIC'}" class="rpg-value"
+                             th:text="${a.numericValue != null ? (a.modifier != null ? a.numericValue + ' (' + (a.modifier >= 0 ? '+' + a.modifier : a.modifier) + ')' : a.numericValue) : (a.modifier != null ? (a.modifier >= 0 ? '+' + a.modifier : a.modifier) : '')}"></div>
+
+                        <!-- Текстовый параметр: пустое значение показывается прочерком -->
+                        <div th:if="${a.type.name() == 'TEXT' and (a.groupHeader == null or a.groupHeader != a.name) and (a.subHeader == null or a.subHeader != a.name)}"
+                             class="rpg-name">
+                            <span th:text="${a.name}">Параметр</span>
+                        </div>
+                        <div th:if="${a.type.name() == 'TEXT'}" class="rpg-value"
+                             th:text="${a.textValue != null and !a.textValue.isBlank() ? a.textValue : '—'}">—</div>
+
+                        <!-- Сложный список: карточки с заголовком и описанием (только чтение) -->
+                        <div th:if="${a.type.name() == 'LIST' and a.listKind.name() == 'COMPLEX' and a.key != 'spells'}"
+                             class="rpg-list">
+                            <div th:if="${#lists.isEmpty(a.listItems)}" class="text-muted small">
+                                Список пуст.
+                            </div>
+                            <th:block th:each="item, it : ${a.listItems}">
+                                <div class="list-item-card" th:id="'list-item-' + ${a.key} + '-' + ${it.index}">
+                                    <div class="list-item-header list-item-toggle"
+                                         th:attr="data-toggle-target='list-item-' + ${a.key} + '-' + ${it.index}">
+                                        <i class="bi list-item-chevron"></i>
+                                        <span class="list-item-title" th:text="${item.header}">Заголовок</span>
+                                    </div>
+                                    <div class="list-item-description"
+                                         th:id="'list-item-' + ${a.key} + '-' + ${it.index} + '-desc'"
+                                         th:text="${item.description}">описание</div>
+                                </div>
+                            </th:block>
+                        </div>
+
+                        <!-- Заклинания: группировка по уровням (только чтение) -->
+                        <div th:if="${a.key == 'spells' and a.listKind.name() == 'COMPLEX'}" class="rpg-list">
+                            <div th:if="${#lists.isEmpty(sheet.spellGroups)}" class="text-muted small">
+                                Список пуст.
+                            </div>
+                            <th:block th:each="group : ${sheet.spellGroups}">
+                                <div class="d-flex align-items-center gap-2 mt-2 mb-1">
+                                    <span class="badge text-bg-primary" th:text="${'Ур. ' + group.level}">Ур. 1</span>
+                                    <span class="text-muted small"
+                                          th:text="${#lists.size(group.items)} + ' шт.'">0 шт.</span>
+                                </div>
+                                <th:block th:each="item : ${group.items}">
+                                    <div class="list-item-card" th:id="'spell-' + ${item.index}">
+                                        <div class="list-item-header list-item-toggle"
+                                             th:attr="data-toggle-target='spell-' + ${item.index}">
+                                            <i class="bi list-item-chevron"></i>
+                                            <span class="list-item-title" th:text="${item.header}">Заклинание</span>
+                                        </div>
+                                        <div class="list-item-description"
+                                             th:id="'spell-' + ${item.index} + '-desc'"
+                                             th:text="${item.description}">описание</div>
+                                    </div>
+                                </th:block>
+                            </th:block>
+                        </div>
+                    </th:block>
+                </th:block>
+            </div>
+        </div>
+    </div>
+
+    <!-- Инвентарь: деньги и предметы в одном разделе, рядом блок «Ячейки».
+         Ручного ввода сумм здесь нет: сумма задаётся в форме листа. -->
+    <div th:if="${sheet.inventory != null or sheet.money != null}"
+         class="card shadow-sm mb-4" data-block="inventory">
+        <div class="card-header"><i class="bi bi-bag"></i> Инвентарь</div>
+        <div class="card-body">
+            <!-- Деньги: три вида монет, курс 1:10 -->
+            <div th:if="${sheet.money != null}" class="mb-3" data-block="money">
+                <h6 class="text-body-secondary">Деньги</h6>
+                <div class="money-line">
+                    <th:block th:each="kind : ${sheet.moneyKinds}">
+                        <div class="money-kind" th:attr="data-money-row=${kind.param}">
+                            <span class="money-name" th:text="${kind.label}">Золотые</span>
+                            <div th:if="${isOwner or isMaster}" class="money-step">
+                                <form method="post" data-money-change
+                                      th:action="@{/rpg/games/{gid}/characters/{sid}/money/change(gid=${game.id}, sid=${sheet.id})}">
+                                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                                    <input type="hidden" name="kind" th:value="${kind.param}"/>
+                                    <input type="hidden" name="delta" value="1"/>
+                                    <button type="submit" class="btn btn-outline-secondary btn-sm" title="Увеличить">
+                                        <i class="bi bi-caret-up-fill"></i>
+                                    </button>
+                                </form>
+                                <form method="post" data-money-change
+                                      th:action="@{/rpg/games/{gid}/characters/{sid}/money/change(gid=${game.id}, sid=${sheet.id})}">
+                                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                                    <input type="hidden" name="kind" th:value="${kind.param}"/>
+                                    <input type="hidden" name="delta" value="-1"/>
+                                    <button type="submit" class="btn btn-outline-secondary btn-sm" title="Уменьшить">
+                                        <i class="bi bi-caret-down-fill"></i>
+                                    </button>
+                                </form>
+                            </div>
+                            <strong class="money-value" th:attr="data-money-value=${kind.param}"
+                                    th:text="${kind.value}">0</strong>
+                            <span class="text-muted small" th:text="${kind.abbr}">зм</span>
+                        </div>
+                        <!-- Обмен с младшим разрядом: одна монета в десять, и наоборот.
+                             Стоит между строками с числом монет. -->
+                        <div class="money-convert" th:if="${kind.lower != null}"
+                             th:attr="data-money-convert-row=${kind.param}">
+                            <form th:if="${isOwner or isMaster}" method="post" data-money-convert-form
+                                  th:action="@{/rpg/games/{gid}/characters/{sid}/money/convert(gid=${game.id}, sid=${sheet.id})}">
+                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                                <input type="hidden" name="kind" th:value="${kind.param}"/>
+                                <input type="hidden" name="direction" value="up"/>
+                                <button type="submit" class="btn btn-outline-secondary btn-sm"
+                                        data-money-convert="up"
+                                        th:title="'Обменять 1 ' + ${kind.abbr} + ' на 10 ' + ${kind.lowerAbbr}"
+                                        th:text="'→ 10 ' + ${kind.lowerAbbr}">→ 10 см</button>
+                            </form>
+                            <form th:if="${isOwner or isMaster}" method="post" data-money-convert-form
+                                  th:action="@{/rpg/games/{gid}/characters/{sid}/money/convert(gid=${game.id}, sid=${sheet.id})}">
+                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                                <input type="hidden" name="kind" th:value="${kind.param}"/>
+                                <input type="hidden" name="direction" value="down"/>
+                                <button type="submit" class="btn btn-outline-secondary btn-sm"
+                                        data-money-convert="down"
+                                        th:title="'Обменять 10 ' + ${kind.lowerAbbr} + ' на 1 ' + ${kind.abbr}"
+                                        th:text="'← 1 ' + ${kind.abbr}">← 1 зм</button>
+                            </form>
+                        </div>
+                    </th:block>
+                </div>
+            </div>
+
+            <!-- Предметы инвентаря -->
+            <div th:if="${sheet.inventory != null}">
+                <h6 class="text-body-secondary">Предметы</h6>
+                <div th:if="${#lists.isEmpty(sheet.inventory.listItems)}" class="text-muted small">
+                    Список пуст.
+                </div>
+                <ul class="list-group list-group-flush" th:unless="${#lists.isEmpty(sheet.inventory.listItems)}">
+                    <li class="list-group-item d-flex align-items-center gap-2"
+                        th:each="item, it : ${sheet.inventory.listItems}">
+                        <i class="bi bi-dot"></i>
+                        <span class="flex-grow-1" th:text="${item.header}">предмет</span>
+                        <form th:if="${isOwner or isMaster}"
+                              th:action="@{/rpg/games/{gid}/characters/{sid}/inventory-remove(gid=${game.id}, sid=${sheet.id})}"
+                              method="post">
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                            <input type="hidden" name="itemIndex" th:value="${it.index}"/>
+                            <button type="submit" class="btn btn-sm btn-link p-0 text-danger"
+                                    title="Убрать из инвентаря">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </form>
+                    </li>
+                </ul>
+
+                <form th:if="${isOwner or isMaster}"
+                      th:action="@{/rpg/games/{gid}/characters/{sid}/inventory-add(gid=${game.id}, sid=${sheet.id})}"
+                      method="post" class="inventory-add-form mt-2">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                    <input type="text" name="itemHeader" class="form-control form-control-sm flex-grow-1"
+                           required maxlength="200" placeholder="Название предмета">
+                    <button type="submit" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-plus-lg"></i> Добавить
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+<!-- Ячейки заклинаний: один блок, текущее/максимальное в одну строку -->
+    <div th:if="${!#lists.isEmpty(sheet.spellSlots)}" class="card shadow-sm mb-4">
+        <div class="card-header d-flex align-items-center">
+            <span><i class="bi bi-lightning-charge"></i> Ячейки</span>
+            <form th:if="${isOwner or isMaster}" method="post" class="ms-auto"
+                  th:action="@{/rpg/games/{gid}/characters/{sid}/spell-slots-reset(gid=${game.id}, sid=${sheet.id})}">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+                <button type="submit" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-arrow-clockwise"></i> Сбросить
+                </button>
+            </form>
+        </div>
+        <div class="card-body">
+            <div class="spell-slot-list">
+                <div th:each="slot : ${sheet.spellSlots}" class="spell-slot-line">
+                    <span class="spell-slot-level" th:text="'Ур. ' + ${slot.level}">Ур. 1</span>
+                    <span class="spell-slot-count">
+                        <span th:text="${slot.current}">0</span>
+                        <span class="text-muted">/</span>
+                        <span class="fw-semibold" th:text="${slot.max}">0</span>
+                    </span>
+                    <i th:if="${slot.overLimit}" class="bi bi-exclamation-triangle-fill text-warning"
+                       title="Текущее число ячеек больше максимального"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div th:if="${#lists.isEmpty(sheet.attributes) and (isOwner or isMaster)}" class="alert alert-light border small">
+        Параметры появятся после того, как игрок заполнит и сохранит лист (или будет создан новый NPC).
+    </div>
+    <div th:if="${#lists.isEmpty(sheet.attributes) and !isOwner and !isMaster}" class="alert alert-light border small">
+        <th:block th:if="${!game.attributesVisible}">
+            Ведущий скрыл параметры — участникам видны только имя и квента.
+        </th:block>
+        <th:block th:if="${game.attributesVisible}">
+            Игрок ещё не заполнил параметры листа.
+        </th:block>
+    </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script th:inline="javascript">
+    // ===== Деньги: отправка без перезагрузки страницы =====
+    // Формы работают и без JS (обычная отправка), но с JS страница не
+    // перезагружается: значения разрядов обновляются на месте. Слушатель
+    // один и висит на самом блоке, поэтому перерисовка содержимого блока
+    // (ответом сервера) не отвязывает кнопки.
+    (function () {
+        var block = document.querySelector('[data-block="money"]');
+        if (!block) {
+            return;
+        }
+
+        function showHtml(html) {
+            document.open();
+            document.write(html);
+            document.close();
+        }
+
+        block.addEventListener('submit', function (event) {
+            var form = event.target;
+            if (!form.matches || !form.matches('form[data-money-change], form[data-money-convert-form]')) {
+                return;
+            }
+            event.preventDefault();
+            var button = form.querySelector('button[type="submit"]');
+            if (button) {
+                button.disabled = true;
+            }
+            // CSRF-токен берём из самой формы: подстановка выражения прямо в
+            // скрипт (формат Thymeleaf inline-JS) ломает разбор скрипта.
+            var tokenField = form.querySelector('input[name="_csrf"]');
+            if (!tokenField) {
+                window.location.reload();
+                return;
+            }
+            // Тело — ровно то, что отправила бы обычная отправка формы:
+            // собираем из самой формы, иначе легко потерять часть полей.
+            var body = new URLSearchParams(new FormData(form));
+            fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    // Без явного Content-Type браузер отправляет тело как
+                    // text/plain, и сервер не разбирает параметры запроса:
+                    // kind и delta не доходят, операция молча не выполняется.
+                    'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                    'X-CSRF-TOKEN': tokenField.value,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: body.toString()
+            }).then(function (response) {
+                // Сервер отвечает редиректом на лист: значения берём из страницы.
+                return response.text().then(function (html) {
+                    return {ok: response.ok, html: html};
+                });
+            }).then(function (result) {
+                if (!result.ok) {
+                    // Отказ в правах или некорректные данные: показываем ответ.
+                    showHtml(result.html);
+                    return;
+                }
+                var doc = new DOMParser().parseFromString(result.html, 'text/html');
+                var fresh = doc.querySelector('[data-block="money"]');
+                if (!fresh) {
+                    window.location.reload();
+                    return;
+                }
+                block.innerHTML = fresh.innerHTML;
+            }).catch(function () {
+                window.location.reload();
+            }).then(function () {
+                if (button) {
+                    button.disabled = false;
+                }
+            });
+        });
+    })();
+
+    function toggleListItem(cardId) {
+        const card = document.getElementById(cardId);
+        if (!card) return;
+        const header = card.querySelector('.list-item-header');
+        const desc = card.querySelector('.list-item-description');
+        if (header && desc) {
+            const isCollapsed = header.classList.toggle('collapsed');
+            desc.classList.toggle('collapsed', isCollapsed);
+        }
+    }
+
+    document.addEventListener('click', function (e) {
+        const toggle = e.target.closest('.list-item-toggle');
+        if (!toggle) return;
+        if (e.target.closest('form')) return;
+        const cardId = toggle.getAttribute('data-toggle-target');
+        if (cardId) toggleListItem(cardId);
+    });
+</script>
+</body>
+</html>

@@ -42,6 +42,27 @@ public class NotificationService {
     }
 
     /**
+     * Создаёт уведомление для каждого получателя. Пустой список получателей
+     * не создаёт ничего.
+     *
+     * @param userIds  кому
+     * @param type     тип события
+     * @param text     текст
+     * @param url      ссылка перехода
+     */
+    @Transactional
+    public void notify(List<Long> userIds, String type, String text, String url) {
+        if (userIds == null) {
+            return;
+        }
+        for (Long userId : userIds) {
+            if (userId != null) {
+                notify(userId, type, text, url);
+            }
+        }
+    }
+
+    /**
      * Уведомляет всех подписчиков треда, кроме автора действия.
      *
      * @param topicId тред

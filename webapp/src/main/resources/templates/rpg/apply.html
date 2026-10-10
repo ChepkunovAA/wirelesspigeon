@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${previewMode} ? 'Пробный персонаж — Corpsman' : (${npcMode} ? 'Новый NPC — Corpsman' : 'Лист персонажа — Corpsman')">Лист персонажа</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link th:href="@{/css/app.css}" rel="stylesheet">
+    <style>
+        .spin-num {
+            width: 48px;
+            text-align: center;
+            line-height: 1;
+            font-weight: 600;
+            border: 1px solid var(--app-border, #ced4da);
+            border-radius: .375rem;
+            padding: .25rem .3rem;
+            background: var(--app-bg, #fff);
+        }
+        .btn-spin {
+            line-height: 1;
+            padding: .1rem .35rem;
+        }
+        .derive-value {
+            font-size: 1.15rem;
+            font-weight: 600;
+            min-width: 44px;
+            text-align: center;
+            display: inline-block;
+        }
+        .prof-circle {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            border: 2px solid #adb5bd;
+            background: transparent;
+            transition: all .15s ease;
+            padding: 0;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .prof-circle:hover {
+            transform: scale(1.12);
+        }
+        .prof-circle[data-state="1"] {
+            border-color: #0d6efd;
+            background: #fff;
+        }
+        .prof-circle[data-state="1"]::after {
+            content: "";
+            display: block;
+            width: 8px;
+            height: 8px;
+            margin: 7px auto;
+            border-radius: 50%;
+            background: #0d6efd;
+        }
+        .prof-circle[data-state="2"] {
+            border-color: #0d6efd;
+            background: #0d6efd;
+        }
+        .list-card {
+            cursor: default;
+        }
+        .list-card .btn-remove {
+            cursor: pointer;
+        }
+        .spell-slot-level {
+            min-width: 3.5rem;
+            font-weight: 500;
+        }
+        .spell-slot-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.15rem;
+        }
+        .spell-slot-line {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.1rem 0;
+        }
+        .btn-slot-step, .btn-slot-max {
+            min-width: 1.9rem;
+        }
+        .slot-num {
+            min-width: 5.5rem;
+        }
+        .slot-arrows .btn {
+            padding: 0 .3rem;
+            line-height: 1;
+        }
+        .list-item-edit {
+            background: var(--app-bg, #fff);
+        }
+    </style>
+</head>
+<body class="bg-light">
+<nav th:replace="~{fragments/nav :: nav}"></nav>
+
+<main class="container pb-5" style="max-width: 860px;">
+    <div class="mb-3">
+        <a th:if="${previewMode}" th:href="@{/rpg/systems/{id}(id=${previewSystem.id})}"
+           class="text-decoration-none small">
+            <i class="bi bi-arrow-left"></i> К системе «<span th:text="${previewSystem.name}">система</span>»
+        </a>
+        <a th:unless="${previewMode}" th:href="@{/rpg/games/{id}(id=${game.id})}"
+           class="text-decoration-none small">
+            <i class="bi bi-arrow-left"></i> К игре «<span th:text="${game.title}">игра</span>»
+        </a>
+    </div>
+
+    <div th:if="${previewMode}" class="alert alert-info d-flex align-items-center gap-2">
+        <i class="bi bi-info-circle"></i>
+        <div>
+            <strong>Пробный лист.</strong> Предпросмотр создания персонажа по правилам
+            системы «<span th:text="${previewSystem.name}">система</span>».
+            Лист <strong>не сохраняется</strong>.
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header">
+            <i class="bi bi-person-badge"></i>
+            <th:block th:text="${previewMode} ? 'Пробный персонаж' : (${npcMode} ? 'Новый NPC' : (${editMode} ? 'Редактирование листа' : 'Лист персонажа и заявка'))">
+                Лист персонажа
+            </th:block>
+        </div>
+        <div class="card-body">
+            <form th:action="${previewMode} ? '' : (${npcMode} ? @{/rpg/games/{id}/npc(id=${game.id})} : (${editMode} ? @{/rpg/games/{gameId}/characters/{sheetId}/edit(gameId=${game.id}, sheetId=${sheetId})} : @{/rpg/games/{id}/apply(id=${game.id})}))"
+                  method="post" enctype="multipart/form-data" th:object="${sheetForm}"
+                  th:attr="onsubmit=${previewMode} ? 'return false' : null">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-8">
+                        <label class="form-label">Имя персонажа</label>
+                        <input type="text" class="form-control" th:field="*{name}" required maxlength="200"
+                               placeholder="Имя и титул...">
+                        <div class="invalid-feedback" th:if="${#fields.hasErrors('name')}"
+                             th:errors="*{name}">Ошибка</div>
+                    </div>
+                    <div class="col-md-4" th:unless="${previewMode}">
+                        <label class="form-label">Аватар персонажа</label>
+                        <input type="file" name="avatar" class="form-control form-control-sm"
+                               accept="image/*">
+                        <div class="form-text" th:if="${sheet.avatarPath != null}">Нынешний аватар сохранится, если файл не выбран.</div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Квента (история, описание)</label>
+                    <textarea class="form-control" th:field="*{kventa}" rows="5"
+                              placeholder="Жизненный путь, характер, цели..."></textarea>
+                </div>
+
+                <div class="card border-0 bg-transparent mb-3">
+                    <div class="card-body border rounded p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                            <h6 class="mb-0"><i class="bi bi-sliders"></i> Параметры
+                                <span class="badge text-bg-secondary" th:text="${game.system.label()}">система</span>
+                            </h6>
+                            <span class="badge text-bg-light border" th:if="${game.system.name() == 'DND'}">
+                                Бонус мастерства: <span data-pb>+2</span>
+                            </span>
+                        </div>
+
+                        <div th:if="${#lists.isEmpty(sheet.attributes)}" class="text-muted small">
+                            У этой системы нет параметров листа.
+                        </div>
+
+                        <th:block th:each="a, stat : ${sheet.attributes}">
+                            <!--/* Инвентарь, деньги и ячейки вынесены в отдельные разделы формы */-->
+                            <th:block th:unless="${a.spellSlot or a.key == 'inventory' or (a.key != null and a.key.startsWith('money:'))}">
+                            <th:block th:with="dup=${(a.groupHeader != null and a.groupHeader == a.name) or (a.subHeader != null and a.subHeader == a.name)}">
+                            <div th:if="${a.groupHeader != null}" class="rpg-section">
+                                <span class="rpg-section-title" th:text="${a.groupHeader}">группа</span>
+                            </div>
+                            <div th:if="${a.subHeader != null}" class="rpg-subcaption"
+                                 th:text="${a.subHeader}">подзаголовок</div>
+                            <div class="row g-2 align-items-center mb-2">
+                            <div th:if="${!dup}" class="col-md-4">
+                                <label class="form-label mb-0 fw-semibold small" th:text="${a.name}">Параметр</label>
+                            </div>
+                            <div class="col-md-8" th:class="${dup ? 'col-md-12' : 'col-md-8'}">
+                                <th:block th:switch="${a.type.name()}">
+                                    <th:block th:case="NUMERIC">
+                                        <th:block th:if="${a.flagMax > 0}">
+                                            <div class="d-inline-flex align-items-center gap-2 flex-wrap"
+                                                 th:attr="data-flag-for=${a.key}">
+                                                <button type="button" class="prof-circle"
+                                                        th:attr="data-flag-max=${a.flagMax},data-state=${a.flags}"
+                                                        title="Владение: пусто / обведён / закрашен"></button>
+                                                <span class="derive-value"
+                                                      th:attr="data-derived-of=${a.key}"
+                                                      th:text="${a.modifier >= 0 ? '+' + a.modifier : a.modifier}">+0</span>
+                                                <input type="hidden" th:field="*{attributes[__${stat.index}__].flags}"
+                                                       th:attr="data-flag-of=${a.key}"/>
+                                            </div>
+                                        </th:block>
+                                        <th:block th:if="${a.flagMax <= 0}">
+                                            <div class="d-inline-flex spin-group align-items-center gap-2 flex-wrap"
+                                                 data-validate-range
+                                                 th:attr="data-num-min=${a.minValue},data-num-max=${a.maxValue},data-num-of=${a.key}">
+                                                <span class="d-inline-flex flex-column">
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary btn-spin"
+                                                            th:attr="data-spin-step=${a.step != null ? a.step : 1}"
+                                                            th:title="'+' + (${a.step != null ? a.step : 1})">
+                                                        <i class="bi bi-caret-up-fill"></i>
+                                                    </button>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary btn-spin"
+                                                            th:attr="data-spin-step=${-(a.step != null ? a.step : 1)}"
+                                                            th:title="'-' + (${a.step != null ? a.step : 1})">
+                                                        <i class="bi bi-caret-down-fill"></i>
+                                                    </button>
+                                                </span>
+                                                <!-- Ручной ввод снят: значение меняют только стрелки -->
+                                                <span class="spin-num" th:attr="data-num-view=${a.key}"
+                                                      th:text="${a.numericValue}">10</span>
+                                                <input th:if="${!a.manualInputAllowed}" type="hidden" class="num-source"
+                                                       th:field="*{attributes[__${stat.index}__].numericValue}"
+                                                       th:attr="data-num-of=${a.key}"/>
+                                                <input th:if="${a.manualInputAllowed}" type="number" class="num-source form-control form-control-sm num-manual"
+                                                       th:field="*{attributes[__${stat.index}__].numericValue}"
+                                                       th:attr="data-num-of=${a.key},data-num-manual=true,min=${a.minValue},max=${a.maxValue}"
+                                                       th:step="${a.step != null ? a.step : 1}">
+                                                <span th:if="${a.modifier != null}" class="badge text-bg-primary"
+                                                      th:attr="data-mod-of=${a.key}"
+                                                      th:text="${a.modifier >= 0 ? '+' + a.modifier : a.modifier}">+0</span>
+                                                <span class="invalid-feedback d-none" data-validation-error></span>
+                                            </div>
+                                        </th:block>
+                                    </th:block>
+                                    <th:block th:case="TEXT">
+                                        <th:block th:if="${a.options != null and !#lists.isEmpty(a.options)}">
+                                            <div class="opt-picker mb-1" data-validate-options
+                                                 th:attr="data-other=${a.otherOptionLabel},data-allowed=${#strings.listJoin(a.options, '|')}">
+                                                <input type="hidden" th:field="*{attributes[__${stat.index}__].textValue}"
+                                                       data-opt-value/>
+                                                <select class="form-select form-select-sm" data-opt-select>
+                                                    <option value="">— выберите из списка —</option>
+                                                    <option th:each="o : ${a.options}" th:value="${o}" th:text="${o}"></option>
+                                                    <option th:if="${a.otherOptionLabel != null and !#strings.isEmpty(a.otherOptionLabel)}"
+                                                            value="__other__" th:text="${a.otherOptionLabel + '…'}"></option>
+                                                </select>
+                                                <input type="text" class="form-control form-control-sm mt-1"
+                                                       data-opt-manual placeholder="Введите своё значение"
+                                                       autocomplete="off" style="display: none;">
+                                                <div class="invalid-feedback d-none" data-validation-error></div>
+                                            </div>
+                                        </th:block>
+                                        <th:block th:if="${a.options == null or #lists.isEmpty(a.options)}">
+                                            <input type="text" class="form-control form-control-sm"
+                                                   th:field="*{attributes[__${stat.index}__].textValue}"
+                                                   placeholder="Значение">
+                                        </th:block>
+                                    </th:block>
+                                    <th:block th:case="LIST">
+                                        <!-- Простой список: карточки, поле ввода и кнопка «+» -->
+                                        <th:block th:if="${a.listKind.name() == 'SIMPLE'}">
+                                            <input type="hidden" th:field="*{attributes[__${stat.index}__].listKind}"/>
+                                            <div th:attr="data-simple-list=${a.key}">
+                                                <input type="hidden"
+                                                       th:field="*{attributes[__${stat.index}__].listText}"
+                                                       th:attr="data-simple-source=${a.key}"/>
+
+                                                <div class="d-flex flex-wrap gap-1 mb-2"
+                                                     th:attr="data-simple-cards=${a.key}"></div>
+
+                                                <div class="input-group input-group-sm" style="max-width: 420px;">
+                                                    <input type="text" class="form-control"
+                                                           th:attr="data-simple-input=${a.key}"
+                                                           maxlength="200">
+                                                    <button type="button" class="btn btn-outline-primary"
+                                                            th:attr="data-simple-add=${a.key}"
+                                                            title="Добавить">
+                                                        <i class="bi bi-plus-lg"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </th:block>
+
+                                        <!-- Сложный список: только кнопка «Добавить» и модальное окно -->
+                                        <th:block th:if="${a.listKind.name() == 'COMPLEX'}">
+                                            <input type="hidden" th:field="*{attributes[__${stat.index}__].listKind}"/>
+                                            <div th:attr="data-list-root=${a.key}">
+                                                <input type="hidden"
+                                                       th:field="*{attributes[__${stat.index}__].listJson}"
+                                                       th:attr="data-list-source=${a.key}"/>
+
+                                                <div class="d-flex flex-wrap gap-1 mb-2"
+                                                     th:attr="data-list-cards=${a.key}"></div>
+
+                                                <button type="button" class="btn btn-outline-primary btn-sm"
+                                                        data-bs-toggle="modal"
+                                                        th:attr="data-list-add=${a.key},data-bs-target='#list-add-modal-' + ${a.key}">
+                                                    <i class="bi bi-plus-lg"></i> Добавить
+                                                </button>
+                                            </div>
+                                        </th:block>
+                                    </th:block>
+                                </th:block>
+                            </div>
+                            <input type="hidden" th:field="*{attributes[__${stat.index}__].key}"/>
+                            <input type="hidden" th:field="*{attributes[__${stat.index}__].type}"/>
+                            </div>
+                            </th:block>
+                            </th:block>
+                        </th:block>
+                    </div>
+                </div>
+
+                <!-- Инвентарь: деньги и предметы в одном разделе формы, рядом блок «Ячейки».
+                     Инвентарь — простой список, деньги — разряды с полем,
+                     стрелками и обменом по курсу 1:10 (одно нажатие — один обмен). -->
+                <div th:if="${sheet.inventoryAttrIndex != null or !#lists.isEmpty(sheet.moneyEdits)}"
+                     class="card border-0 bg-transparent mb-3"
+                     data-block="inventory">
+                    <div class="card-body border rounded p-3">
+                        <h6 class="mb-3"><i class="bi bi-bag"></i> Инвентарь</h6>
+
+                        <div th:if="${!#lists.isEmpty(sheet.moneyEdits)}" class="mb-3" data-block="money">
+                            <h6 class="text-body-secondary">Деньги</h6>
+                            <th:block th:each="kind : ${sheet.moneyEdits}">
+                                <div class="money-kind-block">
+                                <div class="d-flex align-items-center gap-2 money-kind"
+                                     th:attr="data-money-row=${kind.key}">
+                                    <span class="money-name" th:text="${kind.label}">Золотые</span>
+                                    <span class="money-step d-inline-flex flex-column">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                th:attr="data-money-step=1" title="Увеличить">
+                                            <i class="bi bi-caret-up-fill"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                th:attr="data-money-step=-1" title="Уменьшить">
+                                            <i class="bi bi-caret-down-fill"></i>
+                                        </button>
+                                    </span>
+                                    <input type="number" class="form-control form-control-sm money-input"
+                                           th:min="${kind.min}" th:step="${kind.step}"
+                                           th:field="*{attributes[__${kind.attrIndex}__].numericValue}"
+                                           th:attr="data-money-input=${kind.key},data-money-min=${kind.min}">
+                                    <!--/* Блок вне общего списка параметров, поэтому ключ и тип
+                                             отдаём здесь: без них сервер не узнает, к какому
+                                             параметру значение */-->
+                                    <input type="hidden"
+                                           th:field="*{attributes[__${kind.attrIndex}__].key}"/>
+                                    <input type="hidden"
+                                           th:field="*{attributes[__${kind.attrIndex}__].type}"/>
+                                    <span class="text-muted small" th:text="${kind.abbr}">зм</span>
+                                </div>
+                                    <div class="invalid-feedback d-none" data-validation-error></div>
+                                </div>
+                                <!-- Обмен с младшим разрядом: стоит между строками с числом монет -->
+                                <div class="money-convert d-flex align-items-center gap-2"
+                                     th:if="${kind.lowerKey != null}"
+                                     th:attr="data-money-convert-row=${kind.key}">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                                            th:attr="data-money-convert=up,data-money-from=${kind.key},data-money-to=${kind.lowerKey}"
+                                            th:text="'→ 10 ' + ${kind.lowerAbbr}">→ 10 см</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                                            th:attr="data-money-convert=down,data-money-from=${kind.lowerKey},data-money-to=${kind.key}"
+                                            th:text="'← 1 ' + ${kind.abbr}">← 1 зм</button>
+                                </div>
+                            </th:block>
+                        </div>
+
+                        <div th:if="${sheet.inventoryAttrIndex != null}">
+                            <h6 class="text-body-secondary">Предметы</h6>
+                            <input type="hidden" th:with="inv=${sheet.inventoryAttrIndex}"
+                                   th:field="*{attributes[__${inv}__].key}"/>
+                            <input type="hidden" th:with="inv=${sheet.inventoryAttrIndex}"
+                                   th:field="*{attributes[__${inv}__].type}"/>
+                            <input type="hidden" th:with="inv=${sheet.inventoryAttrIndex}"
+                                   th:field="*{attributes[__${inv}__].listText}"
+                                   th:attr="data-simple-source=inventory"/>
+                            <input type="hidden" th:with="inv=${sheet.inventoryAttrIndex}"
+                                   th:field="*{attributes[__${inv}__].listKind}"/>
+                            <div th:with="inv=${sheet.inventoryAttrIndex}"
+                                 th:attr="data-simple-list=inventory">
+                                <div class="d-flex flex-wrap gap-1 mb-2"
+                                     th:attr="data-simple-cards=inventory"></div>
+                                <div class="input-group input-group-sm" style="max-width: 420px;">
+                                    <input type="text" class="form-control"
+                                           th:attr="data-simple-input=inventory"
+                                           maxlength="200" placeholder="Название предмета">
+                                    <button type="button" class="btn btn-outline-primary"
+                                            th:attr="data-simple-add=inventory"
+                                            title="Добавить">
+                                        <i class="bi bi-plus-lg"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+<!-- Ячейки заклинаний: один блок, все уровни 1–9, каждый на своей строке.
+                     Числа не вводятся вручную: только кнопки +/-; значения хранятся
+                     в скрытых полях. Текущее может превышать максимум — тогда строка
+                     помечается предупреждением. -->
+                <div th:if="${!#lists.isEmpty(sheet.spellSlotEdits)}" class="card border-0 bg-transparent mb-3"
+                     id="spell-slots-block">
+                    <div class="card-body border rounded p-3">
+                        <div class="d-flex align-items-center mb-3 flex-wrap gap-2">
+                            <h6 class="mb-0"><i class="bi bi-lightning-charge"></i> Ячейки</h6>
+                            <button type="button" class="btn btn-outline-secondary btn-sm ms-auto" id="spell-slots-restore">
+                                <i class="bi bi-arrow-clockwise"></i> Восстановить
+                            </button>
+                        </div>
+                        <div class="spell-slot-list">
+                            <div th:each="slot : ${sheet.spellSlotEdits}" class="spell-slot-line"
+                                 th:attr="data-slot-row=${slot.level}">
+                                <span class="spell-slot-level" th:text="'Ур. ' + ${slot.level}">Ур. 1</span>
+
+                                <span class="d-inline-flex align-items-center gap-2">
+                                    <!-- стрелки текущего значения -->
+                                    <span class="d-inline-flex flex-column slot-arrows">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-slot-step"
+                                                th:attr="data-slot-step=1,data-slot-level=${slot.level}"
+                                                title="Увеличить текущее">
+                                            <i class="bi bi-caret-up-fill"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-slot-step"
+                                                th:attr="data-slot-step=-1,data-slot-level=${slot.level}"
+                                                title="Уменьшить текущее">
+                                            <i class="bi bi-caret-down-fill"></i>
+                                        </button>
+                                    </span>
+
+                                    <span class="spin-num slot-num">
+                                        <span data-slot-current th:text="${slot.current}">0</span>
+                                        <span class="text-muted">/</span>
+                                        <span data-slot-max th:text="${slot.max}">0</span>
+                                    </span>
+
+                                    <!-- стрелки максимального значения -->
+                                    <span class="d-inline-flex flex-column slot-arrows">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-slot-max"
+                                                th:attr="data-max-step=1,data-slot-level=${slot.level}"
+                                                title="Увеличить максимум">
+                                            <i class="bi bi-caret-up-fill"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-slot-max"
+                                                th:attr="data-max-step=-1,data-slot-level=${slot.level}"
+                                                title="Уменьшить максимум">
+                                            <i class="bi bi-caret-down-fill"></i>
+                                        </button>
+                                    </span>
+
+                                    <button type="button" class="btn btn-sm btn-link p-0 text-warning d-none"
+                                            data-slot-warning title="Текущее число ячеек больше максимального">
+                                        <i class="bi bi-exclamation-triangle-fill"></i>
+                                    </button>
+                                </span>
+
+                                <input type="hidden" class="spell-slot-value"
+                                       th:field="*{attributes[__${slot.currentAttrIndex}__].numericValue}"
+                                       th:attr="data-role=current,data-level=${slot.level}">
+                                <input type="hidden" class="spell-slot-value"
+                                       th:field="*{attributes[__${slot.maxAttrIndex}__].numericValue}"
+                                       th:attr="data-role=max,data-level=${slot.level}">
+                                <!--/* Ячейки вынесены из общего списка параметров: ключ параметра
+                                         обязателен, иначе сервер не применит значение */-->
+                                <input type="hidden"
+                                       th:field="*{attributes[__${slot.currentAttrIndex}__].key}">
+                                <input type="hidden"
+                                       th:field="*{attributes[__${slot.maxAttrIndex}__].key}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end gap-2">
+                    <a th:unless="${previewMode}" th:href="@{/rpg/games/{id}(id=${game.id})}"
+                       class="btn btn-outline-secondary">Отмена</a>
+                    <button th:unless="${previewMode}" type="submit" class="btn btn-primary"
+                            id="sheet-submit" data-validation-submit>
+                        <i class="bi bi-check-lg"></i>
+                        <th:block th:text="${npcMode} ? 'Создать NPC' : (${editMode} ? 'Сохранить' : (${sheetId != null} ? 'Сохранить заявку' : 'Подать заявку'))">Отправить</th:block>
+                    </button>
+                </div>
+                <div class="form-text mt-2" th:if="${!previewMode and !npcMode and !editMode and sheetId != null}">
+                    Заявка уже была подана — изменения сохранятся в текущем листе.
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальные окна добавления элементов сложных списков.
+         Без <form>: подтверждение обрабатывает JS и пишет в listJson. -->
+    <th:block th:each="a : ${sheet.attributes}">
+        <div th:if="${a.type.name() == 'LIST' and a.listKind.name() == 'COMPLEX'}"
+             class="modal fade" th:id="'list-add-modal-' + ${a.key}" tabindex="-1"
+             aria-labelledby="'list-add-modal-label-' + ${a.key}">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h6 class="modal-title" th:id="'list-add-modal-label-' + ${a.key}"
+                            th:text="'Добавить в «' + ${a.name} + '»'">Добавить</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-2">
+                            <label class="form-label small">Заголовок</label>
+                            <input type="text" name="header" class="form-control form-control-sm"
+                                   maxlength="200" placeholder="Обязательно">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small">Описание</label>
+                            <textarea name="description" rows="2" maxlength="2000"
+                                      class="form-control form-control-sm"
+                                      placeholder="Необязательно"></textarea>
+                        </div>
+                        <div class="mb-2" th:if="${a.key == 'spells'}">
+                            <label class="form-label small">Уровень</label>
+                            <input type="number" name="level" min="1" max="9" value="1"
+                                   class="form-control form-control-sm" style="max-width: 7rem;">
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
+                            Отмена
+                        </button>
+                        <button type="button" class="btn btn-sm btn-primary list-modal-confirm"
+                                data-bs-dismiss="modal">
+                            <i class="bi bi-plus-lg"></i> Добавить
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </th:block>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script th:inline="javascript">
+    const RPG_SYSTEM = /*[[${game.system.name()}]]*/ 'DND';
+    const RPG_ATTRS = /*[[${sheet.attributes}]]*/ [];
+
+    (function () {
+        const byKey = {};
+        RPG_ATTRS.forEach(function (a) { byKey[a.key] = a; });
+
+        const isDnd = RPG_SYSTEM === 'DND';
+
+        function numSource(key) {
+            return document.querySelector('input[data-num-of="' + key + '"]');
+        }
+
+        function flagSource(key) {
+            return document.querySelector('input[data-flag-of="' + key + '"]');
+        }
+
+        function abilityKeyOf(attr) {
+            if (attr.key.indexOf('skill:') === 0) return attr.abilityKey;
+            if (attr.key.indexOf('save:') === 0) return attr.key.slice(5);
+            return null;
+        }
+
+        function abilityMod(score) {
+            return Math.floor((score - 10) / 2);
+        }
+
+        function profBonus(level) {
+            return 2 + Math.floor((Math.max(level, 1) - 1) / 4);
+        }
+
+        function sign(v) {
+            return v >= 0 ? '+' + v : String(v);
+        }
+
+        function numberValue(key) {
+            var el = numSource(key);
+            if (!el) return null;
+            var v = parseInt(el.value, 10);
+            return isNaN(v) ? null : v;
+        }
+
+        function flagValue(key) {
+            var el = flagSource(key);
+            return el ? parseInt(el.value, 10) || 0 : 0;
+        }
+
+        function recalc() {
+            if (typeof validateSheet === 'function') {
+                validateSheet();
+            }
+            var level = numberValue('level');
+            var prof = profBonus(level == null ? 1 : level);
+            document.querySelectorAll('[data-pb]').forEach(function (el) {
+                el.textContent = sign(prof);
+            });
+            RPG_ATTRS.forEach(function (attr) {
+                if (!attr.key || attr.key.indexOf('ability:') !== 0) return;
+                var nv = numberValue(attr.key);
+                if (nv == null) return;
+                var modEl = document.querySelector('[data-mod-of="' + attr.key + '"]');
+                if (modEl) modEl.textContent = sign(abilityMod(nv));
+            });
+            if (!isDnd) return;
+            RPG_ATTRS.forEach(function (attr) {
+                var isSkill = attr.key.indexOf('skill:') === 0;
+                var isSave = attr.key.indexOf('save:') === 0;
+                if (!isSkill && !isSave) return;
+                var ability = abilityKeyOf(attr);
+                var nv = numberValue('ability:' + ability);
+                var score = nv == null ? 10 : nv;
+                var base = abilityMod(score);
+                var flag = flagValue(attr.key);
+                var flagMax = attr.flagMax || 0;
+                if (flag > flagMax) flag = flagMax;
+                var total;
+                if (isSave) {
+                    var pb = flag >= 1 ? prof : 0;
+                    total = base + pb;
+                } else {
+                    var mult = flag === 2 ? prof * 2 : (flag === 1 ? prof : 0);
+                    total = base + mult;
+                }
+                var valEl = document.querySelector('[data-derived-of="' + attr.key + '"]');
+                if (valEl) valEl.textContent = sign(total);
+            });
+        }
+
+        function paintCircle(el) {
+            var state = parseInt(el.getAttribute('data-state'), 10) || 0;
+            el.setAttribute('data-state', String(state));
+        }
+
+        document.querySelectorAll('.prof-circle').forEach(function (el) {
+            paintCircle(el);
+            el.addEventListener('click', function () {
+                var key = el.closest('[data-flag-for]').getAttribute('data-flag-for');
+                if (!key) return;
+                var flagMax = parseInt(el.getAttribute('data-flag-max'), 10) || 0;
+                var cur = flagValue(key);
+                var next = (cur + 1) % (flagMax + 1);
+                var hidden = flagSource(key);
+                if (hidden) hidden.value = String(next);
+                el.setAttribute('data-state', String(next));
+                paintCircle(el);
+                recalc();
+            });
+        });
+
+        document.querySelectorAll('.btn-spin').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var row = btn.closest('.spin-group');
+                var hidden = row.querySelector('input.num-source');
+                var view = row.querySelector('[data-num-view]');
+                if (!hidden || !view) return;
+                var step = parseInt(btn.getAttribute('data-spin-step'), 10) || 0;
+                var cur = parseInt(hidden.value, 10);
+                if (isNaN(cur)) cur = 0;
+                var next = cur + step;
+                // Границы из ограничений кастомной системы. Шаг не подгоняется
+                // под границу: если значение вышло за диапазон, оно не меняется
+                // вовсе (нижняя граница 10, шаг 3, значение 11, шаг вниз — остаётся
+                // 11, а не 10). Уровень — исключение: он не может быть ниже 1.
+                var min = parseInt(row.getAttribute('data-num-min'), 10);
+                var max = parseInt(row.getAttribute('data-num-max'), 10);
+                if (hidden.getAttribute('data-num-of') === 'level') {
+                    next = Math.max(next, 1);
+                } else if ((!isNaN(min) && next < min) || (!isNaN(max) && next > max)) {
+                    return;
+                }
+                if (next === cur) {
+                    return;
+                }
+                hidden.value = String(next);
+                view.textContent = String(next);
+                recalc();
+            });
+        });
+
+        // ===== Проверка значений до сохранения =====
+        // Проверяем здесь, а не на сервере: при неверном числе сервер отвечал
+        // 400, и всё введённое в форму приходилось набирать заново.
+        function showFieldError(container, message) {
+            var box = container.querySelector('[data-validation-error]');
+            if (box) {
+                box.textContent = message || '';
+                box.classList.toggle('d-none', !message);
+            }
+            if (message) {
+                container.classList.add('is-invalid');
+            } else {
+                container.classList.remove('is-invalid');
+            }
+        }
+
+        function intOf(input) {
+            if (input.value === '' || input.value == null) {
+                return null;
+            }
+            var parsed = Number(input.value);
+            return isFinite(parsed) ? parsed : NaN;
+        }
+
+        // Числовой параметр: значение обязано быть числом в заданных границах.
+        function validateRange(group) {
+            var input = group.querySelector('input[data-num-of]');
+            if (!input) {
+                return true;
+            }
+            var value = intOf(input);
+            if (value === null) {
+                showFieldError(group, 'Укажите значение');
+                return false;
+            }
+            if (isNaN(value)) {
+                showFieldError(group, 'Значение должно быть числом');
+                return false;
+            }
+            var min = group.getAttribute('data-num-min');
+            var max = group.getAttribute('data-num-max');
+            if ((min !== null && min !== '' && value < Number(min))
+                    || (max !== null && max !== '' && value > Number(max))) {
+                var range = (min !== null && min !== '' ? min : '—') + '…'
+                        + (max !== null && max !== '' ? max : '—');
+                showFieldError(group, 'Допустимое значение: ' + range);
+                return false;
+            }
+            showFieldError(group, '');
+            return true;
+        }
+
+        // Текст с белым списком: значение обязано быть одним из вариантов.
+        function validateOptions(picker) {
+            var hidden = picker.querySelector('[data-opt-value]');
+            if (!hidden) {
+                return true;
+            }
+            var value = (hidden.value || '').trim();
+            if (!value) {
+                showFieldError(picker, 'Выберите значение из списка');
+                return false;
+            }
+            var allowed = (picker.getAttribute('data-allowed') || '').split('|');
+            var inList = allowed.indexOf(value) >= 0;
+            // «Другое» разрешено автором — значение вводится руками.
+            var manual = !picker.getAttribute('data-other');
+            if (!inList && !manual) {
+                showFieldError(picker, 'Выберите значение из списка');
+                return false;
+            }
+            showFieldError(picker, '');
+            return true;
+        }
+
+        function validateMoney(input) {
+            var block = input.closest('.money-kind-block') || input.parentNode;
+            var value = intOf(input);
+            if (value === null) {
+                showFieldError(block, '');
+                return true;
+            }
+            if (isNaN(value) || value < 0) {
+                showFieldError(block, 'Количество не может быть отрицательным');
+                return false;
+            }
+            showFieldError(block, '');
+            return true;
+        }
+
+        function validateSheet() {
+            var valid = true;
+            document.querySelectorAll('[data-validate-range]').forEach(function (group) {
+                if (!validateRange(group)) {
+                    valid = false;
+                }
+            });
+            document.querySelectorAll('[data-validate-options]').forEach(function (picker) {
+                if (!validateOptions(picker)) {
+                    valid = false;
+                }
+            });
+            document.querySelectorAll('input[data-money-input]').forEach(function (input) {
+                if (!validateMoney(input)) {
+                    valid = false;
+                }
+            });
+            var submit = document.querySelector('[data-validation-submit]');
+            if (submit) {
+                submit.disabled = !valid;
+            }
+            return valid;
+        }
+
+        // Проверка живёт при вводе, а не по кнопке: ошибочное значение
+        // запрещено сохранить сразу, а не после отправки формы.
+        document.addEventListener('input', validateSheet);
+        document.addEventListener('change', validateSheet);
+        var sheetForm = document.querySelector('form');
+        if (sheetForm) {
+            sheetForm.addEventListener('submit', function (event) {
+                if (!validateSheet()) {
+                    event.preventDefault();
+                }
+            });
+        }
+        validateSheet();
+
+        // ===== Выбор из списка: значение пишем в скрытое поле =====
+        // Пункт «Другое» открывает ручной ввод; без него выбора нет.
+        document.querySelectorAll('.opt-picker').forEach(function (picker) {
+            var select = picker.querySelector('[data-opt-select]');
+            var hidden = picker.querySelector('[data-opt-value]');
+            var manual = picker.querySelector('[data-opt-manual]');
+            if (!select || !hidden) return;
+            var other = picker.getAttribute('data-other') || '';
+            function sync() {
+                if (select.value === '__other__') {
+                    hidden.value = manual ? manual.value : '';
+                    if (manual) manual.style.display = '';
+                } else {
+                    hidden.value = select.value;
+                    if (manual) {
+                        manual.style.display = 'none';
+                        manual.value = '';
+                    }
+                }
+            }
+            // Сохранённое значение (или значение по умолчанию) показываем
+            // выбранным в списке: sync() ниже иначе затирал его пустым пунктом
+            // «выберите из списка» — значение по умолчанию терялось.
+            (function restoreCurrent() {
+                var current = hidden.value;
+                if (!current) {
+                    return;
+                }
+                var inList = Array.prototype.some.call(select.options, function (o) {
+                    return o.value === current;
+                });
+                if (inList) {
+                    select.value = current;
+                } else if (manual && other) {
+                    // Значение не из списка: показываем его в ручном вводе,
+                    // иначе игрок не увидит, что уже заполнено.
+                    select.value = '__other__';
+                    manual.value = current;
+                }
+            })();
+            select.addEventListener('change', sync);
+            if (manual) {
+                manual.addEventListener('input', function () {
+                    if (select.value === '__other__') hidden.value = manual.value;
+                });
+            }
+            sync();
+        });
+
+        // ===== Ячейки заклинаний: только кнопки, ручного ввода нет =====
+        // Текущее может превышать максимум — тогда в строке горит предупреждение.
+        function slotInputs(level) {
+            return {
+                current: document.querySelector('input.spell-slot-value[data-role="current"][data-level="' + level + '"]'),
+                max: document.querySelector('input.spell-slot-value[data-role="max"][data-level="' + level + '"]')
+            };
+        }
+
+        function slotValue(input) {
+            var v = parseInt(input.value, 10);
+            return isNaN(v) ? 0 : v;
+        }
+
+        function paintSlot(level) {
+            var pair = slotInputs(level);
+            if (!pair.current || !pair.max) return;
+            var current = slotValue(pair.current);
+            var max = slotValue(pair.max);
+            if (current < 0) {
+                current = 0;
+                pair.current.value = '0';
+            }
+            if (max < 0) {
+                max = 0;
+                pair.max.value = '0';
+            }
+            var row = document.querySelector('[data-slot-row="' + level + '"]');
+            if (!row) return;
+            var currentOut = row.querySelector('[data-slot-current]');
+            var maxOut = row.querySelector('[data-slot-max]');
+            var warning = row.querySelector('[data-slot-warning]');
+            if (currentOut) currentOut.textContent = String(current);
+            if (maxOut) maxOut.textContent = String(max);
+            if (warning) warning.classList.toggle('d-none', current <= max);
+        }
+
+        function stepSlot(level, step) {
+            var pair = slotInputs(level);
+            if (!pair.current) return;
+            var next = slotValue(pair.current) + step;
+            if (next < 0) next = 0;
+            pair.current.value = String(next);
+            paintSlot(level);
+        }
+
+        function stepSlotMax(level, step) {
+            var pair = slotInputs(level);
+            if (!pair.max) return;
+            var next = slotValue(pair.max) + step;
+            if (next < 0) next = 0;
+            pair.max.value = String(next);
+            paintSlot(level);
+        }
+
+        function restoreSpellSlots() {
+            document.querySelectorAll('input.spell-slot-value[data-role="max"]').forEach(function (maxInput) {
+                var level = maxInput.getAttribute('data-level');
+                var pair = slotInputs(level);
+                pair.current.value = pair.max.value;
+                paintSlot(level);
+            });
+        }
+
+        document.querySelectorAll('.btn-slot-step').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                stepSlot(btn.getAttribute('data-slot-level'),
+                    parseInt(btn.getAttribute('data-slot-step'), 10) || 0);
+            });
+        });
+
+        document.querySelectorAll('.btn-slot-max').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                stepSlotMax(btn.getAttribute('data-slot-level'),
+                    parseInt(btn.getAttribute('data-max-step'), 10) || 0);
+            });
+        });
+
+        var restoreBtn = document.getElementById('spell-slots-restore');
+        if (restoreBtn) {
+            restoreBtn.addEventListener('click', restoreSpellSlots);
+        }
+
+        document.querySelectorAll('[data-slot-row]').forEach(function (row) {
+            paintSlot(row.getAttribute('data-slot-row'));
+        });
+
+        // ===== Деньги: стрелки на единицу и обмен соседних разрядов по курсу 1:10 =====
+        var MONEY_RATE = 10;
+
+        function moneyInput(key) {
+            return document.querySelector('input[data-money-input="' + key + '"]');
+        }
+
+        function moneyValue(input) {
+            var v = parseInt(input.value, 10);
+            return isNaN(v) ? 0 : v;
+        }
+
+        function moneyMin(input) {
+            var min = parseInt(input.getAttribute('data-money-min'), 10);
+            return isNaN(min) ? 0 : min;
+        }
+
+        function stepMoney(input, step) {
+            var next = Math.max(moneyValue(input) + step, moneyMin(input));
+            input.value = String(next);
+        }
+
+        // Одно нажатие — один обмен: одна монета старшего разряда в десять младшего
+        // или десять младшего в одну старшего. Недостающие монеты остаются на месте.
+        function convertMoney(btn) {
+            var from = moneyInput(btn.getAttribute('data-money-from'));
+            var to = moneyInput(btn.getAttribute('data-money-to'));
+            if (!from || !to) return;
+            var up = btn.getAttribute('data-money-convert') === 'up';
+            var spent = up ? 1 : MONEY_RATE;
+            var gained = up ? MONEY_RATE : 1;
+            var available = moneyValue(from);
+            if (available < spent) return;
+            from.value = String(Math.max(available - spent, moneyMin(from)));
+            to.value = String(moneyValue(to) + gained);
+        }
+
+        document.querySelectorAll('input[data-money-input]').forEach(function (input) {
+            input.addEventListener('change', function () {
+                input.value = String(Math.max(moneyValue(input), moneyMin(input)));
+            });
+            var row = input.closest('[data-money-row]');
+            if (!row) return;
+            row.querySelectorAll('button[data-money-step]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    stepMoney(input, parseInt(btn.getAttribute('data-money-step'), 10) || 0);
+                });
+            });
+        });
+
+        document.querySelectorAll('button[data-money-convert]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                convertMoney(btn);
+            });
+        });
+
+        // ===== Простые списки: карточки + поле ввода + кнопка «+» =====
+        function simpleSource(key) {
+            return document.querySelector('input[data-simple-source="' + key + '"]');
+        }
+
+        function readSimpleItems(key) {
+            var source = simpleSource(key);
+            if (!source || !source.value) return [];
+            return source.value.split('\n')
+                .map(function (t) { return t.trim(); })
+                .filter(function (t) { return t.length > 0; });
+        }
+
+        function writeSimpleItems(key, items) {
+            var source = simpleSource(key);
+            if (source) source.value = items.join('\n');
+        }
+
+        function renderSimpleList(key) {
+            var cards = document.querySelector('[data-simple-cards="' + key + '"]');
+            if (!cards) return;
+            var items = readSimpleItems(key);
+            cards.innerHTML = '';
+            items.forEach(function (item, i) {
+                var card = document.createElement('div');
+                card.className = 'list-item-edit d-flex align-items-center gap-2 border rounded p-2 mb-1';
+                card.innerHTML = '<span class="flex-grow-1">' + escapeHtml(item) + '</span>' +
+                    '<button type="button" class="btn btn-sm btn-link p-0 text-danger" title="Удалить">' +
+                    '<i class="bi bi-x-lg"></i></button>';
+                card.querySelector('button').addEventListener('click', function () {
+                    var current = readSimpleItems(key);
+                    current.splice(i, 1);
+                    writeSimpleItems(key, current);
+                    renderSimpleList(key);
+                });
+                cards.appendChild(card);
+            });
+        }
+
+        document.querySelectorAll('[data-simple-list]').forEach(function (root) {
+            var key = root.getAttribute('data-simple-list');
+            var input = root.querySelector('input[data-simple-input="' + key + '"]');
+            var addBtn = root.querySelector('button[data-simple-add="' + key + '"]');
+            renderSimpleList(key);
+            if (!input || !addBtn) return;
+
+            function addItem() {
+                var value = input.value.trim();
+                if (!value) {
+                    input.focus();
+                    return;
+                }
+                var items = readSimpleItems(key);
+                items.push(value);
+                writeSimpleItems(key, items);
+                input.value = '';
+                renderSimpleList(key);
+                input.focus();
+            }
+
+            addBtn.addEventListener('click', addItem);
+            input.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addItem();
+                }
+            });
+        });
+
+        // ===== Списки: карточки + модальное окно добавления =====
+        function listSource(key) {
+            return document.querySelector('input[data-list-source="' + key + '"]');
+        }
+
+        function readItems(key) {
+            var source = listSource(key);
+            if (!source || !source.value) return [];
+            try {
+                var parsed = JSON.parse(source.value);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function writeItems(key, items) {
+            var source = listSource(key);
+            if (source) source.value = JSON.stringify(items);
+        }
+
+        function escapeHtml(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function renderList(key) {
+            var cards = document.querySelector('[data-list-cards="' + key + '"]');
+            if (!cards) return;
+            var items = readItems(key);
+            cards.innerHTML = '';
+            if (items.length === 0) {
+                var empty = document.createElement('div');
+                empty.className = 'text-muted small';
+                empty.textContent = 'Список пуст.';
+                cards.appendChild(empty);
+                return;
+            }
+            items.forEach(function (item, i) {
+                var level = item.level == null ? '' : item.level;
+                var badge = (key === 'spells' && level !== '')
+                    ? '<span class="badge text-bg-primary ms-2">Ур. ' + escapeHtml(level) + '</span>' : '';
+                var desc = item.description
+                    ? '<div class="small text-muted">' + escapeHtml(item.description) + '</div>' : '';
+                var card = document.createElement('div');
+                card.className = 'list-item-edit d-flex align-items-start gap-2 border rounded p-2 mb-1';
+                card.innerHTML =
+                    '<div class="flex-grow-1">' +
+                    '<div class="fw-semibold small">' + escapeHtml(item.header) + badge + '</div>' +
+                    desc +
+                    '</div>' +
+                    '<button type="button" class="btn btn-sm btn-link p-0 text-danger list-remove" title="Удалить">' +
+                    '<i class="bi bi-x-lg"></i></button>';
+                card.querySelector('.list-remove').addEventListener('click', function () {
+                    var current = readItems(key);
+                    current.splice(i, 1);
+                    writeItems(key, current);
+                    renderList(key);
+                });
+                cards.appendChild(card);
+            });
+        }
+
+        document.querySelectorAll('[data-list-root]').forEach(function (root) {
+            var key = root.getAttribute('data-list-root');
+            var isSpells = key === 'spells';
+            renderList(key);
+
+            var modal = document.getElementById('list-add-modal-' + key);
+            if (!modal) return;
+
+            var headerInput = modal.querySelector('input[name="header"]');
+            var descInput = modal.querySelector('textarea[name="description"]');
+            var levelInput = modal.querySelector('input[name="level"]');
+
+            function resetModal() {
+                headerInput.value = '';
+                descInput.value = '';
+                if (levelInput) levelInput.value = '1';
+            }
+
+            // Модалку открывает Bootstrap (data-bs-toggle), скрипт только
+            // очищает поля перед каждым показом.
+            modal.addEventListener('show.bs.modal', resetModal);
+
+            // Кнопка «Добавить» в модалке не отправляет форму: элемент
+            // добавляется в скрытое поле listJson и отображается карточкой.
+            var confirmBtn = modal.querySelector('.list-modal-confirm');
+            if (confirmBtn) {
+                confirmBtn.addEventListener('click', function () {
+                    var header = headerInput.value.trim();
+                    if (!header) {
+                        headerInput.focus();
+                        return;
+                    }
+                    var level = isSpells && levelInput
+                        ? Math.min(Math.max(parseInt(levelInput.value, 10) || 1, 1), 9) : null;
+                    var items = readItems(key);
+                    items.push({
+                        header: header,
+                        description: descInput.value.trim(),
+                        level: level
+                    });
+                    writeItems(key, items);
+                    renderList(key);
+                    resetModal();
+                });
+            }
+        });
+
+
+        recalc();
+    })();
+</script>
+</body>
+</html>

@@ -103,10 +103,10 @@ class WishlistServiceTest {
         reservation.setReservedAt(LocalDateTime.now());
         User user = new User();
         user.setId(2L);
-        user.setUsername("alice");
+        user.setUsername("auto_alice");
         UserDto userDto = new UserDto();
         userDto.setId(2L);
-        userDto.setUsername("alice");
+        userDto.setUsername("auto_alice");
         when(giftRepository.findByOwnerIdOrderByCreatedAtDesc(1L)).thenReturn(List.of(gift));
         when(reservationRepository.existsByGiftIdAndUserId(1L, 2L)).thenReturn(true);
         when(reservationRepository.findByGiftId(1L)).thenReturn(List.of(reservation));
@@ -120,7 +120,7 @@ class WishlistServiceTest {
         assertThat(dto.isOwner()).isFalse();
         assertThat(dto.isReservedByMe()).isTrue();
         assertThat(dto.isLimitReached()).isFalse();
-        assertThat(dto.getReservedByUsers()).extracting(UserDto::getUsername).containsExactly("alice");
+        assertThat(dto.getReservedByUsers()).extracting(UserDto::getUsername).containsExactly("auto_alice");
     }
 
     @Test
