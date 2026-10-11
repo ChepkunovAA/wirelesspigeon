@@ -3,7 +3,6 @@ package org.corpsman.forum.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.corpsman.auth.model.User;
-import org.corpsman.auth.model.UserRole;
 import org.corpsman.auth.repository.UserRepository;
 import org.corpsman.common.event.PostCreatedEvent;
 import org.corpsman.common.exception.BusinessException;
@@ -384,21 +383,23 @@ public class PostService {
 
     /**
      * Проверяет доступ пользователя к закрытому треду.
+     * Право писать есть у автора и у участников белого списка. Администратор
+     * без членства в списке не взаимодействует, но будучи в списке — взаимодействует
+     * наравне с остальными участниками.
      *
      * @param topic  тред
      * @param userId пользователь
-     * @return true, если автор, администратор или в белом списке
+     * @return true, если автор или участник белого списка
      */
     private boolean canInteractClosedStrict(ForumTopic topic, Long userId) {
         if (topic.getVisibility() != org.corpsman.forum.model.TopicVisibility.CLOSED) {
             return true;
         }
+        if (userId == null) {
+            return false;
+        }
         if (topic.getAuthorId() != null && topic.getAuthorId().equals(userId)) {
             return true;
-        }
-        User user = userRepository.findById(userId).orElse(null);
-        if (user != null && user.getRole() == UserRole.MASTER) {
-            return false;
         }
         return whitelistRepository.existsByTopicIdAndUserId(topic.getId(), userId);
     }

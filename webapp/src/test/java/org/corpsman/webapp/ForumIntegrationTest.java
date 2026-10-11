@@ -29,8 +29,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
@@ -93,6 +96,128 @@ class ForumIntegrationTest {
                 .andExpect(status().is3xxRedirection());
         mockMvc.perform(post("/forum/topic/1/comment"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void closedNonReadOnlyThreadAcceptsCommentFromWhitelistedNonOwner() throws Exception {
+        // Закрытый тред без read-only: писать может автор и участник белого списка.
+        createUser("auto_forum_closed_owner");
+        createUser("auto_forum_closed_guest");
+        MockHttpSession owner = login("auto_forum_closed_owner");
+
+        String location = mockMvc.perform(post("/forum/topic/create").session(owner).with(csrf())
+                        .param("title", "Закрытое обсуждение")
+                        .param("content", "Текст закрытого треда для проверки белого списка.")
+                        .param("visibility", "CLOSED")
+                        .param("readOnly", "false"))
+                .andExpect(status().is3xxRedirection())
+                .andReturn().getResponse().getRedirectedUrl();
+        Long topicId = topicIdFrom(location);
+
+        mockMvc.perform(post("/forum/topic/" + topicId + "/whitelist").session(owner).with(csrf())
+                        .param("whitelistItems", "auto_forum_closed_guest"))
+                .andExpect(status().is3xxRedirection());
+
+        MockHttpSession guest = login("auto_forum_closed_guest");
+        mockMvc.perform(post("/forum/topic/" + topicId + "/comment").session(guest).with(csrf())
+                        .param("content", "Комментарий из белого списка"))
+                .andExpect(status().is3xxRedirection());
+        assertThat(postRepository.findByTopicIdOrderByCreatedAtAsc(topicId))
+                .extracting(ForumPost::getContent)
+                .contains("Комментарий из белого списка");
+    }
+
+    @Test
+    void readOnlyThreadRejectsCommentEvenForWhitelistedNonOwner() throws Exception {
+        // read-only означает «писать может только автор»: белый список даёт
+        // видимость и право писать в закрытых тредах, но не снимает read-only.
+        createUser("auto_forum_ro_owner");
+        createUser("auto_forum_ro_guest");
+        MockHttpSession owner = login("auto_forum_ro_owner");
+
+        String location = mockMvc.perform(post("/forum/topic/create").session(owner).with(csrf())
+                        .param("title", "Закрытое обсуждение только для чтения")
+                        .param("content", "Тред, доступный только автору для записи.")
+                        .param("visibility", "CLOSED")
+                        .param("readOnly", "true"))
+                .andExpect(status().is3xxRedirection())
+                .andReturn().getResponse().getRedirectedUrl();
+        Long topicId = topicIdFrom(location);
+
+        mockMvc.perform(post("/forum/topic/" + topicId + "/whitelist").session(owner).with(csrf())
+                        .param("whitelistItems", "auto_forum_ro_guest"))
+                .andExpect(status().is3xxRedirection());
+
+        MockHttpSession guest = login("auto_forum_ro_guest");
+        mockMvc.perform(post("/forum/topic/" + topicId + "/comment").session(guest).with(csrf())
+                        .param("content", "Комментарий в read-only тред"))
+                .andExpect(status().isForbidden());
+
+        // автор в своём read-only треде писать может
+        mockMvc.perform(post("/forum/topic/" + topicId + "/comment").session(owner).with(csrf())
+                        .param("content", "Комментарий автора"))
+                .andExpect(status().is3xxRedirection());
+    }
+
+    @Test
+    void adminInClosedTopicWhitelistCanComment() throws Exception {
+        // Администратор, добавленный в белый список закрытого треда, писать может:
+        // проверка доступа не должна отсекать MASTER раньше проверки списка.
+        createUser("auto_forum_admin_topic_owner");
+        createUser("auto_forum_admin");
+        User admin = userRepository.findByUsername("auto_forum_admin").orElseThrow();
+        admin.setRole(UserRole.MASTER);
+        userRepository.save(admin);
+
+        MockHttpSession owner = login("auto_forum_admin_topic_owner");
+        String location = mockMvc.perform(post("/forum/topic/create").session(owner).with(csrf())
+                        .param("title", "Закрытый тред с админом в списке")
+                        .param("content", "Администратор состоит в белом списке.")
+                        .param("visibility", "CLOSED")
+                        .param("readOnly", "false")
+                        .param("whitelistItems", "auto_forum_admin"))
+                .andExpect(status().is3xxRedirection())
+                .andReturn().getResponse().getRedirectedUrl();
+        Long topicId = topicIdFrom(location);
+
+        MockHttpSession adminSession = login("auto_forum_admin");
+        mockMvc.perform(post("/forum/topic/" + topicId + "/comment").session(adminSession).with(csrf())
+                        .param("content", "Комментарий администратора из белого списка"))
+                .andExpect(status().is3xxRedirection());
+        assertThat(postRepository.findByTopicIdOrderByCreatedAtAsc(topicId))
+                .extracting(ForumPost::getContent)
+                .contains("Комментарий администратора из белого списка");
+    }
+
+    @Test
+    void adminNotInClosedTopicWhitelistCannotComment() throws Exception {
+        // Администратор без членства в белом списке закрытого треда не пишет.
+        createUser("auto_forum_admin_out_topic_owner");
+        createUser("auto_forum_admin_out");
+        User admin = userRepository.findByUsername("auto_forum_admin_out").orElseThrow();
+        admin.setRole(UserRole.MASTER);
+        userRepository.save(admin);
+
+        MockHttpSession owner = login("auto_forum_admin_out_topic_owner");
+        String location = mockMvc.perform(post("/forum/topic/create").session(owner).with(csrf())
+                        .param("title", "Закрытый тред без админа в списке")
+                        .param("content", "Администратор не состоит в белом списке.")
+                        .param("visibility", "CLOSED")
+                        .param("readOnly", "false"))
+                .andExpect(status().is3xxRedirection())
+                .andReturn().getResponse().getRedirectedUrl();
+        Long topicId = topicIdFrom(location);
+
+        MockHttpSession adminSession = login("auto_forum_admin_out");
+        mockMvc.perform(post("/forum/topic/" + topicId + "/comment").session(adminSession).with(csrf())
+                        .param("content", "Комментарий администратора не из списка"))
+                .andExpect(status().isForbidden());
+    }
+
+    private Long topicIdFrom(String redirectedUrl) {
+        Matcher m = Pattern.compile(".*/(\\d+).*").matcher(redirectedUrl);
+        assertTrue(m.matches(), "не удалось разобрать id треда из редиректа: " + redirectedUrl);
+        return Long.valueOf(m.group(1));
     }
 
     @Test

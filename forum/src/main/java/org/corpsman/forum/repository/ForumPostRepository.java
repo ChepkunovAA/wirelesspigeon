@@ -88,13 +88,17 @@ public interface ForumPostRepository extends JpaRepository<ForumPost, Long> {
 
     /**
      * Лучший пост по рейтингу (лайки минус дизлайки) среди указанных тредов.
+     * Для стартового поста (OP) рейтинг берётся у треда, для продолжения —
+     * у самого поста.
      *
      * @param topicIds  список доступных пользователю тредов
      * @param pageable первая страница (лимит 1)
      * @return список из одного поста
      */
     @Query("SELECT p FROM ForumPost p WHERE p.deleted = false AND (p.op = true OR p.continuation = true) "
-            + "AND p.topicId IN :topicIds ORDER BY (p.likes - p.dislikes) DESC, p.id DESC")
+            + "AND p.topicId IN :topicIds ORDER BY COALESCE(CASE WHEN p.op = true THEN "
+            + "(SELECT t.likes - t.dislikes FROM ForumTopic t WHERE t.id = p.topicId) END, "
+            + "p.likes - p.dislikes) DESC, p.id DESC")
     List<ForumPost> findBestByTopicIds(@Param("topicIds") List<Long> topicIds, Pageable pageable);
 
     @Query("SELECT p.id FROM ForumPost p WHERE p.authorId = :userId AND p.deleted = false")
