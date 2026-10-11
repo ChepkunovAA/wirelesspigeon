@@ -287,7 +287,7 @@ public class ForumService {
                 .map(ForumTopic::getAuthorId)
                 .filter(Objects::nonNull)
                 .toList());
-        Map<Long, String> latestPreviews = loadLatestPostPreviews(page.getContent());
+        Map<Long, ForumPost> latestPosts = loadLatestPosts(page.getContent());
         Map<Long, long[]> likesDislikes = loadLikesDislikesByTopics(page.getContent());
         boolean isAdmin = userId != null && isAdmin(userId);
 
@@ -303,7 +303,7 @@ public class ForumService {
         }
         List<TopicSummaryDto> dtos = page.getContent().stream()
                 .map(topic -> {
-                    TopicSummaryDto dto = toSummaryDto(topic, counts, usernames, latestPreviews, likesDislikes,
+                    TopicSummaryDto dto = toSummaryDto(topic, counts, usernames, latestPosts, likesDislikes,
                             userId, isAdmin);
                     dto.setCanInteract(interactMap.getOrDefault(topic.getId(), true));
                     return dto;
@@ -333,7 +333,7 @@ public class ForumService {
                 .map(ForumTopic::getAuthorId)
                 .filter(Objects::nonNull)
                 .toList());
-        Map<Long, String> latestPreviews = loadLatestPostPreviews(topics);
+        Map<Long, ForumPost> latestPosts = loadLatestPosts(topics);
 
         List<ForumTopic> sorted = topics.stream()
                 .sorted(bySortKey(sort, counts, likesDislikes))
@@ -347,7 +347,7 @@ public class ForumService {
         java.util.Map<Long, Boolean> interactMap = interactMap(userId, topics);
         List<TopicSummaryDto> dtos = slice.stream()
                 .map(topic -> {
-                    TopicSummaryDto dto = toSummaryDto(topic, counts, usernames, latestPreviews, likesDislikes, userId, isAdmin);
+                    TopicSummaryDto dto = toSummaryDto(topic, counts, usernames, latestPosts, likesDislikes, userId, isAdmin);
                     dto.setCanInteract(interactMap.getOrDefault(topic.getId(), true));
                     return dto;
                 })
@@ -399,18 +399,30 @@ private java.util.Comparator<ForumTopic> bySortKey(String sort, Map<Long, Long> 
     }
 
     /**
-     * Загружает превью последнего поста для каждого треда.
+     * Загружает последний пост (стартовый или продолжение) для каждого треда.
      *
      * @param topics треды текущей страницы
-     * @return map topicId -> превью последнего поста
+     * @return map topicId -> последний пост
      */
-    private Map<Long, String> loadLatestPostPreviews(List<ForumTopic> topics) {
+    private Map<Long, ForumPost> loadLatestPosts(List<ForumTopic> topics) {
         if (topics.isEmpty()) {
             return Map.of();
         }
         List<Long> ids = topics.stream().map(ForumTopic::getId).toList();
         return postRepository.findLatestPostEachByTopicIds(ids).stream()
-                .collect(Collectors.toMap(ForumPost::getTopicId, p -> preview(p.getContent())));
+                .collect(Collectors.toMap(ForumPost::getTopicId, p -> p, (a, b) -> a));
+    }
+
+/**
+     * Время последнего поста треда с откатом на активность треда.
+     *
+     * @param topic        тред
+     * @param latestPosts  загруженные последние посты
+     * @return время последнего поста либо время активности треда
+     */
+    private LocalDateTime lastPostAtOrActivity(ForumTopic topic, Map<Long, ForumPost> latestPosts) {
+        ForumPost last = latestPosts.get(topic.getId());
+        return last != null ? last.getCreatedAt() : topic.getLastActivityAt();
     }
 
     /**
@@ -878,7 +890,7 @@ private java.util.Comparator<ForumTopic> bySortKey(String sort, Map<Long, Long> 
     }
 
     private TopicSummaryDto toSummaryDto(ForumTopic topic, Map<Long, Long> counts,
-                                         Map<Long, String> usernames, Map<Long, String> latestPreviews,
+                                         Map<Long, String> usernames, Map<Long, ForumPost> latestPosts,
                                          Map<Long, long[]> likesDislikes,
                                          Long userId, boolean isAdmin) {
         TopicSummaryDto dto = new TopicSummaryDto();
@@ -888,9 +900,11 @@ private java.util.Comparator<ForumTopic> bySortKey(String sort, Map<Long, Long> 
         dto.setAuthorName(topic.isAnonymous() ? ANONYMOUS : usernames.getOrDefault(topic.getAuthorId(), ANONYMOUS));
         dto.setAnonymous(topic.isAnonymous());
         // Вместо стартового поста на карточке показываем последний пост треда
-        dto.setFirstPostPreview(latestPreviews.getOrDefault(topic.getId(), preview(topic.getContent())));
+        ForumPost latest = latestPosts.get(topic.getId());
+        dto.setFirstPostPreview(latest != null ? preview(latest.getContent()) : preview(topic.getContent()));
         dto.setCreatedAt(topic.getCreatedAt());
         dto.setLastActivityAt(topic.getLastActivityAt());
+        dto.setLastPostAt(lastPostAtOrActivity(topic, latestPosts));
         dto.setPostsCount(counts.getOrDefault(topic.getId(), 0L));
         // Суммарный рейтинг треда: лайки OP (на треде) + лайки всех продолжений
         long[] aggregated = likesDislikes.getOrDefault(topic.getId(), new long[]{0L, 0L});
@@ -1343,6 +1357,9 @@ private ForumPostDto buildFirstPostDto(ForumTopic topic, Map<Long, String> usern
         continuation.setAnonymous(topic.isAnonymous());
         continuation.setContinuation(true);
         ForumPost savedContinuation = postRepository.save(continuation);
+
+        topic.setLastActivityAt(LocalDateTime.now());
+        topicRepository.save(topic);
 
         ForumPost previousRoot = existingRoots.stream()
                 .filter(ForumPost::isContinuation)

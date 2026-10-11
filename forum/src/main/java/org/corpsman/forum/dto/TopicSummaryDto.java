@@ -21,6 +21,8 @@ public class TopicSummaryDto {
     private String firstPostPreview;
     private LocalDateTime createdAt;
     private LocalDateTime lastActivityAt;
+    /** Время последнего поста (стартового или продолжения), а не треда. */
+    private LocalDateTime lastPostAt;
     private long postsCount;
     private int likes;
     private int dislikes;
